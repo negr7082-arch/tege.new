@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tege Messenger</string>
+    <string name="title_activity_main">Tege</string>
+    <string name="package_name">org.tege.messenger</string>
+</resources>

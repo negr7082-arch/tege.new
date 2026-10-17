@@ -1,0 +1,8 @@
+{
+  "name": "TEGE Messenger",
+  "description": "TEGE Messenger for Android — fast, lightweight messaging app with multi-accounts, channels, group chats, and real-time chat.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

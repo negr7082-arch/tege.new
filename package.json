@@ -1,0 +1,37 @@
+{
+  "name": "tege",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "tsc && vite build",
+    "lint": "tsc --noEmit",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "build:web": "vite build",
+    "cap:sync": "cap sync android",
+    "server": "node server/index.mjs",
+    "start": "npm run build:web && node server/index.mjs",
+    "test:server": "node server/test.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/android": "^6.2.0",
+    "peerjs": "^1.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/jszip": "^3.4.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "@capacitor/cli": "^6.2.0"
+  }
+}

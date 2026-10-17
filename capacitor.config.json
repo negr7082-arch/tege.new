@@ -1,0 +1,13 @@
+{
+  "appId": "org.tege.messenger",
+  "appName": "Tege Messenger",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

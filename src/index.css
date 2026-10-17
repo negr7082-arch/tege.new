@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+/* Dynamic text size scaling */
+html[data-text-size="small"] {
+  --app-font-scale: 0.9;
+  --msg-font-size: 13px;
+}
+html[data-text-size="medium"] {
+  --app-font-scale: 1;
+  --msg-font-size: 14.5px;
+}
+html[data-text-size="large"] {
+  --app-font-scale: 1.12;
+  --msg-font-size: 16.5px;
+}
+html[data-text-size="xlarge"] {
+  --app-font-scale: 1.25;
+  --msg-font-size: 18.5px;
+}
+
+.tege-msg-text {
+  font-size: var(--msg-font-size, 14.5px) !important;
+}
+
+/* Wallpaper styles */
+.wallpaper-pattern {
+  background-color: #efeae2;
+  background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.dark .wallpaper-pattern {
+  background-color: #09090b;
+  background-image: radial-gradient(#27272a 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.wallpaper-dark {
+  background-color: #0b0f19;
+  background-image: radial-gradient(#1e293b 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.dark .wallpaper-dark {
+  background-color: #030712;
+  background-image: radial-gradient(#1f2937 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.wallpaper-emerald {
+  background-color: #0d2818;
+  background-image: radial-gradient(#165b33 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.wallpaper-sunset {
+  background: linear-gradient(135deg, #fce7f3 0%, #ffe4e6 50%, #fef3c7 100%);
+}
+.dark .wallpaper-sunset {
+  background: linear-gradient(135deg, #4c0519 0%, #2e1065 50%, #172554 100%);
+}
+
+.wallpaper-ocean {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #e0e7ff 100%);
+}
+.dark .wallpaper-ocean {
+  background: linear-gradient(135deg, #082f49 0%, #0c4a6e 50%, #1e1b4b 100%);
+}
+
+.wallpaper-minimal {
+  background-color: #f8fafc;
+}
+.dark .wallpaper-minimal {
+  background-color: #09090b;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
+}

@@ -1,0 +1,9 @@
+{
+  "name": "tege-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Tege Messenger backend: accounts, directory, message routing (zero dependencies)",
+  "scripts": { "start": "node index.mjs", "test": "node test.mjs" },
+  "engines": { "node": ">=20" }
+}
