@@ -442,13 +442,13 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       className={`flex flex-col h-full relative overflow-hidden transition-colors ${currentWallpaperClass}`}
     >
       {/* Telegram Authentic Chat Top Bar */}
-      <header className="h-16 px-2 sm:px-4 flex items-center justify-between border-b border-gray-200/80 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md sticky top-0 z-40 shrink-0 select-none shadow-xs">
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 mr-2">
+      <header className="h-16 px-2 pt-1 flex items-center justify-between gap-2 sticky top-0 z-40 shrink-0 select-none">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Prominent Back Button (Large 44x44px touch target) */}
           <button
             type="button"
             onClick={onBack}
-            className="min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-full text-sky-500 hover:text-sky-600 dark:text-sky-400 bg-sky-50/80 dark:bg-zinc-800 hover:bg-sky-100 dark:hover:bg-zinc-700 active:bg-sky-200 dark:active:bg-zinc-600 active:scale-90 transition shrink-0 cursor-pointer touch-manipulation shadow-xs"
+            className="min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full text-gray-800 dark:text-white bg-white/90 dark:bg-zinc-900/90 active:scale-90 transition shrink-0 cursor-pointer touch-manipulation shadow-md shadow-black/10"
             aria-label="Назад к чатам"
             title="Назад к списку чатов"
           >
@@ -458,7 +458,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           {/* Chat Avatar + Title & Subtitle (Clickable to open info) */}
           <div
             onClick={isSavedMessages ? undefined : () => setShowInfoModal(true)}
-            className={`flex items-center gap-2.5 min-w-0 flex-1 py-1 ${isSavedMessages ? '' : 'cursor-pointer hover:opacity-85 active:opacity-75 transition'}`}
+            className={`flex items-center gap-2.5 min-w-0 flex-1 h-12 pl-1 pr-4 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-md shadow-black/10 ${isSavedMessages ? '' : 'cursor-pointer active:opacity-75 transition'}`}
           >
             {isSavedMessages ? (
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-sky-400 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -476,7 +476,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h2 className="text-[15px] sm:text-base font-bold text-gray-900 dark:text-zinc-50 truncate leading-snug">
+                <h2 className="text-[16px] font-medium text-gray-900 dark:text-white truncate leading-snug">
                   {isSavedMessages ? (language === 'ru' ? 'Избранное' : 'Saved Messages') : chat.streak?.status === 'active' ? `${chat.name} 🔥 ${chat.streak.streakCount}` : chat.name}
                 </h2>
                 {chat.isMuted && <VolumeX className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
@@ -489,7 +489,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         </div>
 
         {/* Clean right side actions */}
-        <div className="flex items-center gap-0.5 text-gray-600 dark:text-zinc-300 shrink-0">
+        <div className="flex items-center gap-0.5 h-12 px-1 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-md shadow-black/10 text-gray-700 dark:text-white shrink-0">
           {chat.type === 'direct' && !isSavedMessages && (
             <>
               <button

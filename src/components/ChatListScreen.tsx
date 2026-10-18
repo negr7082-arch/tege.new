@@ -18,7 +18,8 @@ import {
   MessageSquare,
   Clock,
   Sparkles,
-  Pencil
+  Pencil,
+  Settings
 } from 'lucide-react';
 import { TelegramAvatar } from './TelegramAvatar';
 
@@ -537,7 +538,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
           </div>
         ) : (
           /* REGULAR CHAT LIST */
-          <div className="divide-y divide-gray-100 dark:divide-zinc-800/60">
+          <div className="pb-28">
             {/* PINNED "ИЗБРАННОЕ" (SAVED MESSAGES) ROW AT TOP */}
             <div
               onClick={() => {
@@ -547,15 +548,15 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
                   onOpenSavedMessages();
                 }
               }}
-              className="flex items-center px-4 py-3 cursor-pointer select-none bg-sky-50/40 dark:bg-sky-950/20 hover:bg-sky-50/80 dark:hover:bg-sky-950/40 active:bg-sky-100/60 transition-colors border-b border-sky-100/60 dark:border-zinc-800/80"
+              className="flex items-center px-3 py-2.5 cursor-pointer select-none active:bg-gray-100 dark:active:bg-zinc-800 transition-colors"
             >
-              <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-sky-500 to-sky-400 text-white flex items-center justify-center shrink-0 shadow-sm ring-2 ring-sky-300/40">
+              <div className="w-15 h-15 rounded-full bg-gradient-to-b from-sky-400 to-sky-600 text-white flex items-center justify-center shrink-0">
                 <Bookmark className="w-6 h-6 fill-white text-white" />
               </div>
 
-              <div className="ml-3 flex-1 min-w-0">
+              <div className="ml-3.5 flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-[15px] text-gray-900 dark:text-zinc-100">
+                  <span className="font-medium text-[17px] text-gray-900 dark:text-white">
                     {t.savedMessages}
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -567,7 +568,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">
+                  <p className="text-[15px] text-gray-500 dark:text-zinc-400 truncate">
                     {savedMessagesChat?.lastMessage || t.savedMessagesSub}
                   </p>
                 </div>
@@ -606,16 +607,36 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       </div>
 
       {/* Telegram Floating Action Button (FAB) for New Chat / Message */}
-      <div className="absolute bottom-6 right-6 z-20">
+      <div className="absolute bottom-24 right-5 z-20">
         <button
           onClick={onOpenCreateChat}
-          className="w-14 h-14 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white rounded-full flex items-center justify-center shadow-lg shadow-sky-500/35 transition-all duration-200"
+          className="w-15 h-15 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white rounded-full flex items-center justify-center shadow-lg shadow-black/30 transition-all duration-200"
           aria-label={t.newChat}
           title={t.newChat}
         >
           <Pencil className="w-6 h-6" />
         </button>
       </div>
+
+      {/* Telegram floating bottom navigation */}
+      <nav className="absolute bottom-3 inset-x-3 z-20 h-16 rounded-[32px] bg-white/95 dark:bg-zinc-800/95 shadow-lg shadow-black/25 flex items-center justify-around px-2 select-none">
+        <button type="button" className="flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-3xl bg-sky-500/15 text-sky-500">
+          <MessageCircle className="w-6 h-6" />
+          <span className="text-[12px] font-medium">{language === 'ru' ? 'Чаты' : 'Chats'}</span>
+        </button>
+        <button type="button" onClick={onOpenCreateChat} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
+          <Users className="w-6 h-6" />
+          <span className="text-[12px] font-medium">{language === 'ru' ? 'Контакты' : 'Contacts'}</span>
+        </button>
+        <button type="button" onClick={onOpenSettings} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
+          <Settings className="w-6 h-6" />
+          <span className="text-[12px] font-medium">{language === 'ru' ? 'Настройки' : 'Settings'}</span>
+        </button>
+        <button type="button" onClick={onOpenProfile} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
+          <TelegramAvatar src={currentUser?.avatarUri} name={currentUser?.name} id={currentUser?.id} size="xs" className="w-6 h-6 text-[11px]" />
+          <span className="text-[12px] font-medium">{language === 'ru' ? 'Профиль' : 'Profile'}</span>
+        </button>
+      </nav>
     </div>
   );
 };

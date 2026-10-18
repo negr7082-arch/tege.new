@@ -211,8 +211,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const bubbleBgClass = isChannel
     ? 'bg-white dark:bg-[#182533] text-gray-900 dark:text-[#E4ECF2] border border-gray-200/80 dark:border-zinc-800/80 shadow-xs'
     : isMine
-    ? 'bg-[#EFFEDD] dark:bg-[#2B5278] text-gray-950 dark:text-white border border-[#DCF7C5] dark:border-[#33618D] shadow-xs'
-    : 'bg-white dark:bg-[#182533] text-gray-900 dark:text-[#E4ECF2] border border-gray-200/80 dark:border-zinc-800/80 shadow-xs';
+    ? 'bg-[#EFFEDD] dark:bg-[#2B5278] text-gray-950 dark:text-white shadow-sm shadow-black/5'
+    : 'bg-white dark:bg-[#182533] text-gray-900 dark:text-[#E4ECF2] shadow-sm shadow-black/5';
 
   return (
     <div
@@ -221,7 +221,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       } my-1 px-1 sm:px-2 select-none`}
     >
       <div
-        className={`max-w-[88%] sm:max-w-[76%] rounded-2xl px-3.5 py-2 transition-all relative ${bubbleBgClass} ${
+        className={`max-w-[85%] sm:max-w-[76%] rounded-[18px] px-3 py-1.5 transition-all relative ${bubbleBgClass} ${
           isMine && !isChannel ? 'rounded-br-xs' : 'rounded-bl-xs'
         }`}
       >

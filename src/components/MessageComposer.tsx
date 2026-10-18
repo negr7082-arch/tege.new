@@ -482,7 +482,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
     Boolean(selectedFile);
 
   return (
-    <div className="bg-white dark:bg-[#17212b] border-t border-gray-200 dark:border-zinc-800 p-2 sm:p-2.5 transition-colors relative select-none">
+    <div className="px-2 py-2 transition-colors relative select-none">
       {/* Slow mode or restriction alert notice */}
       {restrictionNotice && (
         <div className="absolute -top-10 left-3 right-3 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-lg flex items-center justify-between animate-in slide-in-from-bottom-2 z-40">
@@ -684,7 +684,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
         /* STANDARD TELEGRAM INPUT BAR */
         <div className="flex items-end gap-2">
           {/* Rounded Input Capsule containing Emoji + Textarea + Paperclip */}
-          <div className="flex-1 bg-white dark:bg-[#242f3d] rounded-[24px] border border-gray-200 dark:border-zinc-700/60 flex items-end px-1.5 py-1 shadow-xs transition-all focus-within:ring-2 focus-within:ring-sky-500/40">
+          <div className="flex-1 bg-white dark:bg-zinc-900 rounded-[26px] flex items-end px-1.5 py-1 shadow-md shadow-black/10 transition-all">
             {/* Emoji button on the left inside the capsule */}
             <button
               type="button"

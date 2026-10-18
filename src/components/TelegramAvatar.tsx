@@ -42,7 +42,7 @@ interface TelegramAvatarProps {
   src?: string | null;
   name?: string | null;
   id?: number | string | null;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'chat' | 'xl' | '2xl';
   isOnline?: boolean;
   showOnlineDot?: boolean;
   className?: string;
@@ -54,6 +54,7 @@ const sizeClasses = {
   sm: 'w-9 h-9 text-sm',
   md: 'w-11 h-11 text-base',
   lg: 'w-14 h-14 text-xl',
+  chat: 'w-15 h-15 text-2xl',
   xl: 'w-20 h-20 text-2xl',
   '2xl': 'w-24 h-24 text-4xl'
 };
@@ -63,6 +64,7 @@ const dotSizeClasses = {
   sm: 'w-2.5 h-2.5 bottom-0 right-0 border-2',
   md: 'w-3 h-3 bottom-0 right-0 border-2',
   lg: 'w-3.5 h-3.5 bottom-0.5 right-0.5 border-2',
+  chat: 'w-4 h-4 bottom-0 right-0 border-2',
   xl: 'w-4 h-4 bottom-1 right-1 border-2',
   '2xl': 'w-5 h-5 bottom-1 right-1 border-2'
 };
@@ -95,7 +97,7 @@ export const TelegramAvatar: React.FC<TelegramAvatarProps> = ({
         />
       ) : (
         <div
-          className={`${sizeClass} rounded-full bg-gradient-to-br ${color.gradient} text-white font-bold flex items-center justify-center shadow-xs uppercase tracking-tight`}
+          className={`${sizeClass} rounded-full bg-gradient-to-b ${color.gradient} text-white font-medium flex items-center justify-center shadow-xs uppercase tracking-tight`}
         >
           <span>{letter}</span>
         </div>

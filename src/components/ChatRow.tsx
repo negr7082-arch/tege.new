@@ -19,15 +19,15 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
   return (
     <div
       onClick={onClick}
-      className={`group flex items-center px-4 py-3 cursor-pointer select-none transition-colors relative ${
+      className={`group flex items-center px-3 py-2.5 cursor-pointer select-none transition-colors relative ${
         isActive
-          ? 'bg-sky-50 dark:bg-sky-950/40 border-l-4 border-sky-500'
-          : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60 active:bg-gray-100 dark:active:bg-zinc-800'
+          ? 'bg-sky-50 dark:bg-zinc-800'
+          : 'active:bg-gray-100 dark:active:bg-zinc-800'
       }`}
     >
       {/* Telegram Avatar or Saved Messages Bookmark avatar */}
       {isSavedMessages ? (
-        <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-sky-500 to-sky-400 text-white flex items-center justify-center shrink-0 shadow-sm ring-2 ring-sky-300/30">
+        <div className="w-15 h-15 rounded-full bg-gradient-to-b from-sky-400 to-sky-600 text-white flex items-center justify-center shrink-0">
           <Bookmark className="w-6 h-6 fill-white text-white" />
         </div>
       ) : (
@@ -35,15 +35,15 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
           src={chat.avatarUri}
           name={chat.name}
           id={chat.userId || chat.id}
-          size="lg"
+          size="chat"
           isOnline={isOnline}
           showOnlineDot={chat.type === 'direct'}
         />
       )}
 
       {/* Content */}
-      <div className="ml-3 flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
+      <div className="ml-3.5 flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-0.5">
           <div className="flex items-center gap-1.5 min-w-0">
             {chat.type === 'channel' && (
               <Radio className="w-3.5 h-3.5 text-sky-500 shrink-0" />
@@ -51,7 +51,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
             {chat.type === 'group' && (
               <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
             )}
-            <span className="font-semibold text-[15px] text-gray-900 dark:text-zinc-100 truncate">
+            <span className="font-medium text-[17px] text-gray-900 dark:text-white truncate">
               {chat.name}
             </span>
             {chat.username && (
@@ -70,19 +70,19 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
               </span>
             )}
           </div>
-          <span className="text-xs text-gray-400 dark:text-zinc-500 shrink-0 ml-2">
+          <span className="text-[13px] text-gray-400 dark:text-zinc-400 shrink-0 ml-2">
             {chat.time}
           </span>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-gray-500 dark:text-zinc-400 truncate flex-1">
+          <p className="text-[15px] text-gray-500 dark:text-zinc-400 truncate flex-1">
             {chat.lastMessage || <span className="italic text-gray-400 dark:text-zinc-500">Нет сообщений</span>}
           </p>
 
           <div className="flex items-center gap-1.5 shrink-0">
             {chat.unread > 0 && (
-              <span className="shrink-0 min-w-5 h-5 px-1.5 flex items-center justify-center bg-sky-500 text-white text-[11px] font-bold rounded-full shadow-xs">
+              <span className="shrink-0 min-w-6 h-6 px-1.5 flex items-center justify-center bg-sky-500 text-white text-[13px] font-medium rounded-full">
                 {chat.unread}
               </span>
             )}

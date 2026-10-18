@@ -37,7 +37,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
     : [];
 
   return (
-    <header className="h-14 sm:h-16 px-3 sm:px-4 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-[#17212b]/95 backdrop-blur-md sticky top-0 z-30 shrink-0 select-none transition-colors">
+    <header className="h-16 px-3 sm:px-4 flex items-center justify-between bg-white dark:bg-zinc-900 sticky top-0 z-30 shrink-0 select-none transition-colors">
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         {onBack ? (
           <button
@@ -65,7 +65,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
           onClick={onTitleClick}
           className={`min-w-0 flex flex-col justify-center ${onTitleClick ? 'cursor-pointer hover:opacity-85 transition' : ''}`}
         >
-          <h1 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-zinc-50 truncate tracking-tight">
+          <h1 className="text-[22px] font-bold text-gray-900 dark:text-white truncate">
             {title}
           </h1>
           {subtitle && (

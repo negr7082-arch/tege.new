@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Telegram-style palette: navy dark theme + Telegram blue accent */
+@theme {
+  --color-zinc-50: #f3f5f7;
+  --color-zinc-100: #e6ebf0;
+  --color-zinc-200: #cdd6df;
+  --color-zinc-300: #aebccb;
+  --color-zinc-400: #8596a8;
+  --color-zinc-500: #6d7f93;
+  --color-zinc-600: #3b4c63;
+  --color-zinc-700: #2e3d52;
+  --color-zinc-800: #243142;
+  --color-zinc-900: #1b2633;
+  --color-zinc-950: #0e1621;
+  --color-sky-400: #6ab3f3;
+  --color-sky-500: #3390ec;
+  --color-sky-600: #2b7bd0;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
@@ -44,14 +62,14 @@ html[data-text-size="xlarge"] {
 
 /* Wallpaper styles */
 .wallpaper-pattern {
-  background-color: #efeae2;
-  background-image: radial-gradient(#d1d5db 1px, transparent 1px);
-  background-size: 18px 18px;
+  background-color: #c9d9b8;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180' fill='none' stroke='%23000000' stroke-opacity='.08' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='28' cy='30' r='11'/%3E%3Cpath d='M28 19v-6M17 30h-6M28 41v6M39 30h6'/%3E%3Cpath d='M100 24l5 10 11 1-8 8 2 11-10-5-10 5 2-11-8-8 11-1z'/%3E%3Cpath d='M150 40c0-9 14-9 14 0 0 8-14 16-14 16s-14-8-14-16c0-9 14-9 14 0z'/%3E%3Crect x='18' y='88' width='30' height='22' rx='4'/%3E%3Cpath d='M18 92l15 11 15-11'/%3E%3Cpath d='M90 96q12-18 24 0t24 0'/%3E%3Ccircle cx='160' cy='104' r='9'/%3E%3Cpath d='M30 150c8-14 20-14 28 0z'/%3E%3Cpath d='M96 140l16 16M112 140l-16 16'/%3E%3Cpath d='M140 150h22v14h-22z'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
 }
 .dark .wallpaper-pattern {
-  background-color: #09090b;
-  background-image: radial-gradient(#27272a 1px, transparent 1px);
-  background-size: 18px 18px;
+  background-color: #0e1621;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180' fill='none' stroke='%23ffffff' stroke-opacity='.07' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='28' cy='30' r='11'/%3E%3Cpath d='M28 19v-6M17 30h-6M28 41v6M39 30h6'/%3E%3Cpath d='M100 24l5 10 11 1-8 8 2 11-10-5-10 5 2-11-8-8 11-1z'/%3E%3Cpath d='M150 40c0-9 14-9 14 0 0 8-14 16-14 16s-14-8-14-16c0-9 14-9 14 0z'/%3E%3Crect x='18' y='88' width='30' height='22' rx='4'/%3E%3Cpath d='M18 92l15 11 15-11'/%3E%3Cpath d='M90 96q12-18 24 0t24 0'/%3E%3Ccircle cx='160' cy='104' r='9'/%3E%3Cpath d='M30 150c8-14 20-14 28 0z'/%3E%3Cpath d='M96 140l16 16M112 140l-16 16'/%3E%3Cpath d='M140 150h22v14h-22z'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
 }
 
 .wallpaper-dark {
