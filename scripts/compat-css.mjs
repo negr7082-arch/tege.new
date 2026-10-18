@@ -70,6 +70,20 @@ function convertOklch(css) {
   });
 }
 
+// Chrome < 104: no individual translate/scale/rotate properties -> use transform.
+// Chrome < 111: no "in oklab" interpolation in gradients (whole gradient dropped).
+// Chrome < 108: no dvh units.
+function legacyFixes(css) {
+  // scale percentages -> numbers (scale(1.05) works everywhere, scale(105%) does not)
+  css = css.replace(/(--tw-scale-[xyz])\s*:\s*(-?[\d.]+)%/g, (_, n, v) => `${n}:${+(parseFloat(v) / 100).toFixed(4)}`);
+  const T = 'transform:translate(var(--tw-translate-x,0),var(--tw-translate-y,0)) scale(var(--tw-scale-x,1),var(--tw-scale-y,1))';
+  css = css.replace(/(?<![-\w])translate:\s*var\(--tw-translate-x\)\s+var\(--tw-translate-y\)/g, T);
+  css = css.replace(/(?<![-\w])scale:\s*var\(--tw-scale-x\)\s+var\(--tw-scale-y\)/g, T);
+  css = css.replace(/(--tw-gradient-position\s*:[^;}]*?)\s+in\s+[\w-]+(?:\s+(?:shorter|longer|increasing|decreasing)\s+hue)?/g, '$1');
+  css = css.replace(/(height|min-height|max-height)\s*:\s*(100)dvh/g, '$1:$2vh');
+  return css;
+}
+
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]
@@ -78,7 +92,7 @@ function walk(dir) {
 
 for (const f of walk(dist).filter((f) => f.endsWith('.css'))) {
   const before = fs.readFileSync(f, 'utf8');
-  const after = convertOklch(unwrapLayers(before));
+  const after = legacyFixes(convertOklch(unwrapLayers(before)));
   fs.writeFileSync(f, after);
   console.log(`compat-css: ${f} ${before.length} -> ${after.length} bytes, @layer left: ${(after.match(/@layer/g) || []).length}, oklch left: ${(after.match(/oklch\(/g) || []).length}`);
 }
