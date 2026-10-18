@@ -39,12 +39,25 @@ try {
 let pool = null;
 if (process.env.DATABASE_URL) {
   const { default: pg } = await import('pg');
-  const url = process.env.DATABASE_URL;
+  // Accept the string even if it has Neon's channel_binding parameter (node-postgres can't use it).
+  const url = process.env.DATABASE_URL.trim().replace(/([?&])channel_binding=[^&]*&?/, '$1').replace(/[?&]$/, '');
   const local = /@(localhost|127\.0\.0\.1)/.test(url);
-  pool = new pg.Pool({ connectionString: url, max: 3, ssl: local ? false : { rejectUnauthorized: false } });
-  await pool.query('create table if not exists kv (k text primary key, v text not null)');
-  const r = await pool.query("select v from kv where k = 'db'");
-  if (r.rows[0]) Object.assign(db, JSON.parse(r.rows[0].v));
+  console.log('Connecting to PostgreSQL...');
+  pool = new pg.Pool({
+    connectionString: url,
+    max: 3,
+    connectionTimeoutMillis: 15000,
+    ssl: local ? false : { rejectUnauthorized: false }
+  });
+  pool.on('error', (e) => console.error('pg pool error:', e.message));
+  try {
+    await pool.query('create table if not exists kv (k text primary key, v text not null)');
+    const r = await pool.query("select v from kv where k = 'db'");
+    if (r.rows[0]) Object.assign(db, JSON.parse(r.rows[0].v));
+  } catch (e) {
+    console.error('FATAL: cannot use PostgreSQL (check DATABASE_URL):', e.message);
+    process.exit(1);
+  }
   console.log('Storage: PostgreSQL (users: ' + Object.keys(db.users).length + ')');
 } else {
   console.log('Storage: file ' + DB_FILE + ' (set DATABASE_URL to keep data on Render)');
