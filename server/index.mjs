@@ -34,7 +34,24 @@ try {
   /* first run */
 }
 
+// Persistent storage: if DATABASE_URL (Postgres, e.g. Neon/Supabase) is set, the whole db object is
+// kept in one table row, so accounts survive redeploys on hosts with an ephemeral disk (Render free).
+let pool = null;
+if (process.env.DATABASE_URL) {
+  const { default: pg } = await import('pg');
+  const url = process.env.DATABASE_URL;
+  const local = /@(localhost|127\.0\.0\.1)/.test(url);
+  pool = new pg.Pool({ connectionString: url, max: 3, ssl: local ? false : { rejectUnauthorized: false } });
+  await pool.query('create table if not exists kv (k text primary key, v text not null)');
+  const r = await pool.query("select v from kv where k = 'db'");
+  if (r.rows[0]) Object.assign(db, JSON.parse(r.rows[0].v));
+  console.log('Storage: PostgreSQL (users: ' + Object.keys(db.users).length + ')');
+} else {
+  console.log('Storage: file ' + DB_FILE + ' (set DATABASE_URL to keep data on Render)');
+}
+
 let saveTimer = null;
+let writing = Promise.resolve();
 function save() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
@@ -43,12 +60,22 @@ function save() {
   }, 300);
 }
 function flush() {
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db));
-  fs.renameSync(tmp, DB_FILE);
+  const data = JSON.stringify(db);
+  if (!pool) {
+    const tmp = DB_FILE + '.tmp';
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, DB_FILE);
+    return Promise.resolve();
+  }
+  writing = writing
+    .then(() => pool.query(
+      "insert into kv (k, v) values ('db', $1) on conflict (k) do update set v = excluded.v", [data]))
+    .catch((e) => console.error('db save failed:', e.message));
+  return writing;
 }
-process.on('SIGINT', () => { flush(); process.exit(0); });
-process.on('SIGTERM', () => { flush(); process.exit(0); });
+const shutdown = () => { flush().then(() => process.exit(0)); };
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // ───────────────────────── helpers ─────────────────────────
 const online = new Map(); // userId -> Set<Conn>

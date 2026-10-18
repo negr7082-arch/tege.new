@@ -31,6 +31,8 @@ jobs:
 
       - name: Build web app
         run: npx vite build
+        env:
+          VITE_SERVER_URL: https://tege-new.onrender.com
 
       - name: Generate Android project (Capacitor)
         run: |
