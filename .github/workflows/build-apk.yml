@@ -32,6 +32,10 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Type check (does not block the build)
+        run: npx tsc --noEmit
+        continue-on-error: true
+
       - name: Build web app
         run: npx vite build && node scripts/compat-css.mjs dist
         env:
