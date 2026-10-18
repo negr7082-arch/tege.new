@@ -448,7 +448,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full text-gray-800 dark:text-white bg-white/90 dark:bg-zinc-900/90 active:scale-90 transition shrink-0 cursor-pointer touch-manipulation shadow-md shadow-black/10"
+            className="min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full text-gray-800 dark:text-white bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl active:scale-90 transition shrink-0 cursor-pointer touch-manipulation shadow-md shadow-black/10"
             aria-label="Назад к чатам"
             title="Назад к списку чатов"
           >
@@ -458,7 +458,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           {/* Chat Avatar + Title & Subtitle (Clickable to open info) */}
           <div
             onClick={isSavedMessages ? undefined : () => setShowInfoModal(true)}
-            className={`flex items-center gap-2.5 min-w-0 flex-1 h-12 pl-1 pr-4 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-md shadow-black/10 ${isSavedMessages ? '' : 'cursor-pointer active:opacity-75 transition'}`}
+            className={`flex items-center gap-2.5 min-w-0 flex-1 h-12 pl-1 pr-4 rounded-full bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl shadow-md shadow-black/10 ${isSavedMessages ? '' : 'cursor-pointer active:opacity-75 transition'}`}
           >
             {isSavedMessages ? (
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-sky-400 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -489,7 +489,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         </div>
 
         {/* Clean right side actions */}
-        <div className="flex items-center gap-0.5 h-12 px-1 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-md shadow-black/10 text-gray-700 dark:text-white shrink-0">
+        <div className="flex items-center gap-0.5 h-12 px-1 rounded-full bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl shadow-md shadow-black/10 text-gray-700 dark:text-white shrink-0">
           {chat.type === 'direct' && !isSavedMessages && (
             <>
               <button

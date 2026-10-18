@@ -684,7 +684,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
         /* STANDARD TELEGRAM INPUT BAR */
         <div className="flex items-end gap-2">
           {/* Rounded Input Capsule containing Emoji + Textarea + Paperclip */}
-          <div className="flex-1 bg-white dark:bg-zinc-900 rounded-[26px] flex items-end px-1.5 py-1 shadow-md shadow-black/10 transition-all">
+          <div className="flex-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-[26px] flex items-end px-1.5 py-1 shadow-md shadow-black/10 transition-all">
             {/* Emoji button on the left inside the capsule */}
             <button
               type="button"

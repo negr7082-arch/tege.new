@@ -163,7 +163,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       />
 
       {/* TELEGRAM UNIFIED SEARCH BAR (No confusing ID / ЮЗ toggles!) */}
-      <div className="px-4 py-2 border-b border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-colors">
+      <div className="px-4 pb-2 bg-white dark:bg-zinc-900 transition-colors">
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 absolute left-3.5 pointer-events-none" />
           <input
@@ -172,7 +172,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
             onFocus={() => setIsSearchFocused(true)}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={language === 'ru' ? 'Поиск' : 'Search'}
-            className="w-full pl-9 pr-9 py-2 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-full placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40 border border-transparent transition"
+            className="w-full pl-9 pr-9 py-2 bg-gray-100 dark:bg-zinc-800 text-[15px] text-gray-900 dark:text-zinc-100 rounded-full placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40 border border-transparent transition"
           />
           {searchQuery && (
             <button
@@ -619,7 +619,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       </div>
 
       {/* Telegram floating bottom navigation */}
-      <nav className="absolute bottom-3 inset-x-3 z-20 h-16 rounded-[32px] bg-white/95 dark:bg-zinc-800/95 shadow-lg shadow-black/25 flex items-center justify-around px-2 select-none">
+      <nav className="absolute bottom-3 inset-x-3 z-20 h-16 rounded-[32px] bg-white/75 dark:bg-zinc-800/75 backdrop-blur-xl border border-white/30 dark:border-white/5 shadow-lg shadow-black/25 flex items-center justify-around px-2 select-none">
         <button type="button" className="flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-3xl bg-sky-500/15 text-sky-500">
           <MessageCircle className="w-6 h-6" />
           <span className="text-[12px] font-medium">{language === 'ru' ? 'Чаты' : 'Chats'}</span>
