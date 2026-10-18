@@ -746,10 +746,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               type="button"
               onClick={handleSend}
               disabled={cooldownRemaining > 0 && !isAdmin}
-              className={`w-12 h-12 rounded-full font-bold flex items-center justify-center transition active:scale-90 shrink-0 shadow-lg cursor-pointer ${
+              className={`w-14 h-14 rounded-full font-bold flex items-center justify-center transition active:scale-90 shrink-0 shadow-lg cursor-pointer ${
                 cooldownRemaining > 0 && !isAdmin
                   ? 'bg-amber-500 text-white text-xs'
-                  : 'bg-[#2AABEE] hover:bg-[#229ED9] text-white shadow-sky-500/30'
+                  : 'bg-[#3390ec] text-white shadow-black/20'
               }`}
               title={
                 cooldownRemaining > 0 && !isAdmin
@@ -776,7 +776,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
                     setShowVideoNoteModal(true);
                   }
                 }}
-                className="w-12 h-12 rounded-full bg-[#2AABEE] hover:bg-[#229ED9] active:scale-90 text-white flex items-center justify-center shadow-lg shadow-sky-500/30 transition shrink-0 cursor-pointer"
+                className="w-14 h-14 rounded-full bg-[#3390ec] active:scale-90 text-white flex items-center justify-center shadow-lg shadow-black/20 transition shrink-0 cursor-pointer"
                 title={mediaRecordMode === 'voice' ? "Записать голосовое сообщение" : "Записать кружочек (Видеосообщение)"}
               >
                 {mediaRecordMode === 'voice' ? (

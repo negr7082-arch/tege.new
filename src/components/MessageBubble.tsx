@@ -211,8 +211,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const bubbleBgClass = isChannel
     ? 'bg-white dark:bg-[#182533] text-gray-900 dark:text-[#E4ECF2] border border-gray-200/80 dark:border-zinc-800/80 shadow-xs'
     : isMine
-    ? 'bg-[#EFFEDD] dark:bg-[#2B5278] text-gray-950 dark:text-white shadow-sm shadow-black/5'
-    : 'bg-white dark:bg-[#182533] text-gray-900 dark:text-[#E4ECF2] shadow-sm shadow-black/5';
+    ? 'bg-[#EFFEDD] dark:bg-[#3b9bf0] text-gray-950 dark:text-white shadow-sm shadow-black/5'
+    : 'bg-white dark:bg-[#243142] text-gray-900 dark:text-[#E4ECF2] shadow-sm shadow-black/5';
 
   return (
     <div

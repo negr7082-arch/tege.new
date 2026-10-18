@@ -82,7 +82,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
 
           <div className="flex items-center gap-1.5 shrink-0">
             {chat.unread > 0 && (
-              <span className="shrink-0 min-w-6 h-6 px-1.5 flex items-center justify-center bg-sky-500 text-white text-[13px] font-medium rounded-full">
+              <span className="shrink-0 min-w-6 h-6 px-1.5 flex items-center justify-center bg-sky-400 text-white text-[13px] font-medium rounded-full">
                 {chat.unread}
               </span>
             )}
