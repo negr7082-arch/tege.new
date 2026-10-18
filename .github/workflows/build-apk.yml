@@ -33,7 +33,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build web app
-        run: npx vite build
+        run: npx vite build && node scripts/compat-css.mjs dist
         env:
           VITE_SERVER_URL: https://tege-new.onrender.com
 

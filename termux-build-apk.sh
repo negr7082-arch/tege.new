@@ -12,7 +12,7 @@ if [ -z "$ANDROID_HOME" ] && [ -z "$ANDROID_SDK_ROOT" ]; then
 fi
 
 npm install --no-audit --no-fund
-npx vite build
+npx vite build && node scripts/compat-css.mjs dist
 
 [ -d android ] || npx cap add android
 M=android/app/src/main/AndroidManifest.xml
