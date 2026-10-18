@@ -115,6 +115,11 @@ class RealtimeNetworkService {
     return r.ok ? { ok: true, user: { ...r.user, password: data.password } } : { ok: false, error: r.error };
   }
 
+  public async checkUsername(username: string): Promise<{ available: boolean; reason?: string; error?: string }> {
+    const r = await this.api('/api/username', { username });
+    return r.ok ? { available: Boolean(r.available), reason: r.reason } : { available: false, error: r.error };
+  }
+
   public async login(email: string, password: string): Promise<AuthResult> {
     const r = await this.api('/api/login', { email, password });
     return r.ok ? { ok: true, user: { ...r.user, password } } : { ok: false, error: r.error };

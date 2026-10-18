@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { PushState, getPushState, enablePush, disablePush } from '../services/pushService';
 import { AppSettings, WallpaperId, TextSize, Language, BlockedUser, UserAccount } from '../types';
 import { TegeTopBar } from './TegeTopBar';
 import { getT } from '../translations';
@@ -71,6 +72,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenProfile,
   onOpenChangePassword
 }) => {
+  const [pushState, setPushState] = useState<PushState>('off');
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    getPushState().then(setPushState).catch(() => {});
+  }, []);
+  const togglePush = async () => {
+    const token = currentUser?.token;
+    if (!token || pushBusy) return;
+    setPushBusy(true);
+    const next = pushState === 'on' ? await disablePush(token) : await enablePush(token);
+    setPushState(next);
+    setPushBusy(false);
+  };
+
   const [activeSection, setActiveSection] = useState<SettingsSection>('main');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showBlacklistModal, setShowBlacklistModal] = useState(false);
@@ -823,6 +838,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+            <div className="p-3.5 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">
+                  {settings.language === 'ru' ? 'Push-уведомления на телефон' : 'Phone push notifications'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {pushState === 'unsupported'
+                    ? settings.language === 'ru'
+                      ? 'Не поддерживается здесь. Установите сайт на главный экран Chrome и откройте его оттуда.'
+                      : 'Not supported here. Install the site to your home screen in Chrome and open it from there.'
+                    : pushState === 'denied'
+                      ? settings.language === 'ru'
+                        ? 'Заблокированы в настройках браузера для этого сайта'
+                        : 'Blocked in the browser settings for this site'
+                      : pushState === 'on'
+                        ? settings.language === 'ru'
+                          ? 'Включены: сообщения придут, даже если приложение закрыто'
+                          : 'On: messages arrive even when the app is closed'
+                        : settings.language === 'ru'
+                          ? 'Нажмите, чтобы получать сообщения, когда приложение закрыто'
+                          : 'Tap to get messages when the app is closed'}
+                </p>
+              </div>
+              <button
+                onClick={togglePush}
+                disabled={pushBusy || pushState === 'unsupported' || pushState === 'denied'}
+                className={`w-11 h-6 shrink-0 flex items-center rounded-full p-1 transition-colors disabled:opacity-50 ${
+                  pushState === 'on' ? 'bg-sky-500 justify-end' : 'bg-gray-300 dark:bg-zinc-700 justify-start'
+                }`}
+              >
+                <div className="w-4 h-4 rounded-full bg-white shadow-xs" />
+              </button>
+            </div>
+
             <div className="p-3.5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">

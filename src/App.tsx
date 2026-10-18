@@ -35,6 +35,7 @@ import { StoryViewerModal } from './components/StoryViewerModal';
 import { TelegramDrawer } from './components/TelegramDrawer';
 import { AddAccountModal } from './components/AddAccountModal';
 import { getT } from './translations';
+import { refreshPush } from './services/pushService';
 import { Smartphone, Search } from 'lucide-react';
 
 const STORAGE_CHATS_KEY = 'tege_chats_pure_v3';
@@ -44,6 +45,50 @@ const STORAGE_MULTI_ACCOUNTS_KEY = 'tege_multi_accounts_list_v2';
 const STORAGE_SETTINGS_KEY = 'tege_settings_v3';
 const STORAGE_CHANNELS_KEY = 'tege_channels_v3';
 const STORAGE_STORIES_KEY = 'tege_stories_v3';
+
+// Local chat data is keyed by account id. Ids from the old browser-only era (1122101, ...) collide with ids
+// issued by the server, so a NEW account could show someone else's old chats. We remember which e-mail owns
+// the local data of every id and wipe it when a different e-mail takes that id over.
+function purgeLocalDataForId(id: number) {
+  try {
+    const drop: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (
+        k === `tege_user_chats_${id}` ||
+        k === `tege_user_channels_${id}` ||
+        k === `tege_user_stories_${id}` ||
+        k === `tege_outbox_${id}` ||
+        k.startsWith(`tege_streak_${id}_`)
+      ) drop.push(k);
+    }
+    drop.forEach((k) => localStorage.removeItem(k));
+  } catch {}
+}
+
+function claimLocalDataFor(acc: { id: number; email: string }) {
+  try {
+    const email = String(acc.email || '').toLowerCase();
+    if (!email) return;
+    const owner = localStorage.getItem(`tege_owner_${acc.id}`);
+    let foreign = false;
+    if (owner) {
+      foreign = owner !== email;
+    } else {
+      const reg = JSON.parse(localStorage.getItem(STORAGE_REGISTERED_KEY) || '[]');
+      foreign = Array.isArray(reg) && reg.some((a: any) => a && a.id === acc.id && String(a.email).toLowerCase() !== email);
+    }
+    if (foreign) purgeLocalDataForId(acc.id);
+    localStorage.setItem(`tege_owner_${acc.id}`, email);
+  } catch {}
+}
+
+// Runs once at load, before the saved session is read, so an already logged-in account gets fixed too.
+try {
+  const savedSession = localStorage.getItem(STORAGE_ACCOUNT_KEY);
+  if (savedSession) claimLocalDataFor(JSON.parse(savedSession));
+} catch {}
 const MAX_ACCOUNTS = 5;
 
 const defaultSettings: AppSettings = {
@@ -286,6 +331,11 @@ export const App: React.FC = () => {
       console.warn('Failed to persist user chats:', e);
     }
   }, [chats, account?.id]);
+
+  // Keep phone push attached to whichever account is active on this device
+  useEffect(() => {
+    if (account?.token) refreshPush(account.token).catch(() => {});
+  }, [account?.token]);
 
   // Persist account & synchronize multi-account presence (active account online, secondary accounts offline)
   useEffect(() => {
@@ -531,6 +581,7 @@ export const App: React.FC = () => {
 
   // Auth: Login / Register handler
   const handleLogin = (userAccount: UserAccount) => {
+    claimLocalDataFor(userAccount);
     setAccount(userAccount);
     setAccounts((prev) => {
       const filtered = prev.filter((a) => a.id !== userAccount.id);
@@ -596,6 +647,7 @@ export const App: React.FC = () => {
     if (accounts.length >= MAX_ACCOUNTS) {
       return;
     }
+    claimLocalDataFor(newAccount);
 
     // Save current active account data & mark it offline
     if (account && loadedAccountIdRef.current === account.id) {

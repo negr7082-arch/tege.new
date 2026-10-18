@@ -43,6 +43,10 @@ try {
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
+  assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
+  assert.equal((await post('/api/username', { username: '@free_name' })).available, true);
+  assert.equal((await post('/api/username', { username: 'a' })).reason, 'invalid');
+  assert.equal((await post('/api/register', { email: 'd@x.io', password: 'password1', name: 'x', username: '@a b' })).error, 'bad_username');
   assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'nope' })).error, 'bad_credentials');
   const a2 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
   assert.equal(a2.id, a.id);

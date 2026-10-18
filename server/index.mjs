@@ -26,7 +26,9 @@ const db = {
   groups: {}, // id -> Chat (without messages)
   members: {}, // chatId -> [userId]
   blocks: {}, // userId -> BlockedUser[]
-  inbox: {} // userId -> payload[]
+  inbox: {}, // userId -> payload[]
+  pushSubs: {}, // userId -> PushSubscription[]
+  vapid: null // {publicKey, privateKey}
 };
 try {
   Object.assign(db, JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
@@ -89,6 +91,52 @@ function flush() {
 const shutdown = () => { flush().then(() => process.exit(0)); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+// ───────────────────────── Web Push (phone notifications when the app is closed) ─────────────────────────
+let webpush = null;
+try {
+  webpush = (await import('web-push')).default;
+  if (!db.vapid) { db.vapid = webpush.generateVAPIDKeys(); save(); }
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'https://tege-new.onrender.com', db.vapid.publicKey, db.vapid.privateKey);
+  console.log('Push notifications: enabled');
+} catch (e) {
+  webpush = null;
+  console.log('Push notifications: disabled (' + (e && e.message) + ')');
+}
+
+function pushText(m = {}) {
+  if (m.text) return String(m.text).slice(0, 140);
+  if (m.isVoice || m.audioUri) return '🎤 Голосовое сообщение';
+  if (m.videoNoteUri) return '⭕ Видеосообщение';
+  if (m.videoUri) return '🎬 Видео';
+  if (m.attachmentUri) return '📷 Фото';
+  if (m.fileUri) return '📎 Файл';
+  return 'Новое сообщение';
+}
+async function sendPush(userId, p) {
+  const subs = db.pushSubs[userId];
+  if (!webpush || !subs || !subs.length) return;
+  const isDirect = p.chatType === 'direct';
+  const fromName = (p.fromUser && p.fromUser.name) || 'Tege';
+  const text = pushText(p.message);
+  const body = JSON.stringify({
+    title: isDirect ? fromName : p.channelOrGroupName || 'Tege',
+    body: p.chatType === 'group' ? fromName + ': ' + text : text,
+    tag: 'chat-' + p.chatType + '-' + p.chatId,
+    chatId: p.chatId,
+    chatType: p.chatType
+  });
+  for (const sub of [...subs]) {
+    try {
+      await webpush.sendNotification(sub, body, { TTL: 86400, urgency: 'high' });
+    } catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) {
+        db.pushSubs[userId] = (db.pushSubs[userId] || []).filter((x) => x.endpoint !== sub.endpoint);
+        save();
+      }
+    }
+  }
+}
 
 // ───────────────────────── helpers ─────────────────────────
 const online = new Map(); // userId -> Set<Conn>
@@ -160,6 +208,8 @@ function enqueue(userId, payload) {
   if (box.length > INBOX_LIMIT) box.splice(0, box.length - INBOX_LIMIT);
   save();
   sendToUser(userId, { type: 'message', payload: item });
+  // Also push to the phone; the service worker hides it if the app is currently on screen.
+  sendPush(userId, item).catch(() => {});
 }
 function stripMessages(chat) {
   const { messages, ...rest } = chat || {};
@@ -174,6 +224,21 @@ function rateLimited(ip) {
   list.push(now);
   attempts.set(ip, list);
   return list.length > 30;
+}
+
+// Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
+function clientIp(req) {
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xff || req.socket.remoteAddress || '';
+}
+const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
+const checks = new Map(); // ip -> [timestamps]
+function checkLimited(ip) {
+  const now = Date.now();
+  const list = (checks.get(ip) || []).filter((t) => now - t < 60_000);
+  list.push(now);
+  checks.set(ip, list);
+  return list.length > 120;
 }
 
 function readJson(req, limit = 1_000_000) {
@@ -232,9 +297,51 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
     if (req.method !== 'POST') return fail(405, 'method');
 
-    const ip = req.socket.remoteAddress || '';
+    const ip = clientIp(req);
+
+    // Live "is this @username free?" check while typing (own, more generous limiter).
+    if (url.pathname === '/api/username') {
+      if (checkLimited(ip)) return fail(429, 'too_many_requests');
+      const b = await readJson(req, 2000);
+      const uname = normUsername(b.username);
+      if (!USERNAME_RE.test(uname)) return reply(200, { ok: true, available: false, reason: 'invalid' });
+      const owner = findByUsername(uname);
+      return reply(200, { ok: true, available: !owner, reason: owner ? 'taken' : undefined });
+    }
+
     if (rateLimited(ip)) return fail(429, 'too_many_requests');
     const body = await readJson(req);
+
+    if (url.pathname === '/api/push-key') {
+      return reply(200, { ok: Boolean(webpush && db.vapid), key: db.vapid ? db.vapid.publicKey : null });
+    }
+
+    if (url.pathname === '/api/push-subscribe') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const sub = body.subscription;
+      if (!sub || typeof sub.endpoint !== 'string' || !/^https:\/\//.test(sub.endpoint) ||
+          !sub.keys || typeof sub.keys.p256dh !== 'string' || typeof sub.keys.auth !== 'string') {
+        return fail(400, 'bad_subscription');
+      }
+      // one device endpoint belongs to the account that is active on it right now
+      for (const id of Object.keys(db.pushSubs)) {
+        db.pushSubs[id] = db.pushSubs[id].filter((x) => x.endpoint !== sub.endpoint);
+      }
+      const list = (db.pushSubs[user.id] ||= []);
+      list.push({ endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } });
+      if (list.length > 5) list.splice(0, list.length - 5);
+      save();
+      return reply(200, { ok: true });
+    }
+
+    if (url.pathname === '/api/push-unsubscribe') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      db.pushSubs[user.id] = (db.pushSubs[user.id] || []).filter((x) => x.endpoint !== body.endpoint);
+      save();
+      return reply(200, { ok: true });
+    }
 
     if (url.pathname === '/api/register') {
       const email = String(body.email || '').trim().toLowerCase();
@@ -244,6 +351,7 @@ const server = http.createServer(async (req, res) => {
       if (password.length < 7) return fail(400, 'short_password');
       if (!name) return fail(400, 'no_name');
       if (findByEmail(email)) return fail(409, 'email_taken');
+      if (body.username && !USERNAME_RE.test(normUsername(body.username))) return fail(400, 'bad_username');
       const username = normUsername(body.username) || '@' + email.split('@')[0];
       if (findByUsername(username)) return fail(409, 'username_taken');
 

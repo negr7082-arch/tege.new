@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UserAccount, Language } from '../types';
 import { getT } from '../translations';
 import { realtimeNetwork } from '../services/realtimeNetwork';
@@ -45,6 +45,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const t = getT(language);
 
   const [busy, setBusy] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'free' | 'taken' | 'invalid'>('idle');
+
+  // Live @username availability check (debounced) while registering.
+  useEffect(() => {
+    if (!isRegister) return;
+    const raw = username.trim().replace(/^@/, '');
+    if (!raw) { setUsernameStatus('idle'); return; }
+    if (!/^[A-Za-z0-9_]{3,32}$/.test(raw)) { setUsernameStatus('invalid'); return; }
+    setUsernameStatus('checking');
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const r = await realtimeNetwork.checkUsername('@' + raw);
+      if (cancelled) return;
+      if (r.error) setUsernameStatus('idle');
+      else setUsernameStatus(r.available ? 'free' : r.reason === 'invalid' ? 'invalid' : 'taken');
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [username, isRegister]);
 
   const serverError = (code?: string): string => {
     const ru = language === 'ru';
@@ -55,6 +73,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         return ru ? 'Этот email уже зарегистрирован — войдите.' : 'This email is already registered — please log in.';
       case 'username_taken':
         return ru ? 'Этот @username уже занят.' : 'This @username is already taken.';
+      case 'bad_username':
+        return ru ? '@username: 3–32 символа, латиница, цифры и _' : '@username: 3–32 chars, letters, digits and _';
       case 'bad_credentials':
         return ru ? 'Неверный email или пароль!' : 'Incorrect email or password!';
       case 'too_many_requests':
@@ -108,6 +128,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             ? 'Пожалуйста, введите ваше имя!'
             : 'Please enter your name!'
         );
+        return;
+      }
+
+      if (!username.trim()) {
+        setError(language === 'ru' ? 'Придумайте @username!' : 'Please choose a @username!');
+        return;
+      }
+      if (usernameStatus === 'taken') {
+        setError(language === 'ru' ? '@username занят! Выберите другой.' : '@username is taken! Choose another.');
+        return;
+      }
+      if (usernameStatus === 'invalid') {
+        setError(serverError('bad_username'));
         return;
       }
 
@@ -245,21 +278,42 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* Username */}
               <div>
                 <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
-                  {language === 'ru' ? 'Юзернейм @username (поиск по юзу)' : 'Choose @username'}
+                  {language === 'ru' ? 'Юзернейм @username (поиск по юзу)' : 'Choose @username'} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <AtSign className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
                   <input
                     type="text"
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="@chat_razraba"
-                    className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition font-mono"
+                    className={`w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 border transition font-mono ${usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-rose-500 focus:ring-rose-500' : 'border-transparent focus:ring-sky-500'}`}
                   />
                 </div>
-                <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
-                  {language === 'ru' ? 'Люди смогут найти вас в поиске по этому нику' : 'People can find you by this username'}
-                </p>
+                {usernameStatus === 'taken' ? (
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1 px-1">
+                    {language === 'ru' ? '@' + username.trim().replace(/^@/, '') + ' занят!' : '@' + username.trim().replace(/^@/, '') + ' is taken!'}
+                  </p>
+                ) : usernameStatus === 'invalid' ? (
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1 px-1">
+                    {language === 'ru' ? '3–32 символа: латиница, цифры и _' : '3–32 chars: letters, digits and _'}
+                  </p>
+                ) : usernameStatus === 'free' ? (
+                  <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 px-1">
+                    {language === 'ru' ? 'Свободно ✓' : 'Available ✓'}
+                  </p>
+                ) : usernameStatus === 'checking' ? (
+                  <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
+                    {language === 'ru' ? 'Проверяем…' : 'Checking…'}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
+                    {language === 'ru' ? 'Люди смогут найти вас в поиске по этому нику' : 'People can find you by this username'}
+                  </p>
+                )}
               </div>
             </>
           )}
