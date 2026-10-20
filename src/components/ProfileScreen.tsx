@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { UserProfile, Language, Channel, Story } from '../types';
-import { TegeTopBar } from './TegeTopBar';
 import { getT } from '../translations';
 import { TelegramAvatar } from './TelegramAvatar';
 import {
   Camera,
+  ArrowLeft,
+  Pencil,
   Check,
   AtSign,
   Info,
@@ -132,10 +133,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-zinc-950 overflow-y-auto select-none">
-      <TegeTopBar
-        title={t.profile}
-        onBack={onBack}
-      />
+      <div className="h-16 px-3 flex items-center shrink-0">
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-10 h-10 flex items-center justify-center rounded-full text-gray-800 dark:text-white active:bg-black/10 dark:active:bg-white/10 transition"
+          aria-label="Back"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+      </div>
 
       {/* Hidden file input for channel photo updates */}
       <input
@@ -148,7 +155,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       <div className="max-w-lg mx-auto w-full p-4 pb-28 space-y-4">
         {/* Header card with Avatar & ID & Stories ring */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-xs border border-gray-100 dark:border-zinc-800 flex flex-col items-center text-center">
+        <div className="flex flex-col items-center text-center">
           <div className="relative mb-3 group">
             {/* If user has active stories, show gradient stories ring */}
             <div
@@ -170,7 +177,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <img
                     src={profile.avatarUri}
                     alt={profile.name}
-                    className="w-24 h-24 rounded-full object-cover shadow-md border-2 border-white dark:border-zinc-900"
+                    className="w-30 h-30 rounded-full object-cover"
                   />
                   <button
                     onClick={(e) => {
@@ -188,8 +195,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   src={null}
                   name={profile.name}
                   id={profile.id}
-                  size="2xl"
-                  className="shadow-md border-2 border-white dark:border-zinc-900"
+                  size="3xl"
+                  className=""
                 />
               )}
             </div>
@@ -289,7 +296,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
           ) : (
             <div className="w-full">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-zinc-100">
+              <h2 className="text-[26px] font-semibold text-gray-900 dark:text-white">
                 {profile.name}
               </h2>
               <button
@@ -298,61 +305,51 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   const newStatus = profile.isOnline === false ? true : false;
                   onUpdateProfile({ isOnline: newStatus });
                 }}
-                className="mx-auto mt-1 px-3 py-1 rounded-full bg-gray-100 dark:bg-zinc-800/80 hover:bg-gray-200 dark:hover:bg-zinc-700 transition flex items-center justify-center gap-1.5 cursor-pointer text-xs"
+                className="mx-auto mt-0.5 flex items-center justify-center gap-1.5 cursor-pointer text-[16px]"
                 title={language === 'ru' ? 'Нажмите, чтобы переключить сетевой статус' : 'Click to toggle online status'}
               >
                 <span
                   className={`w-2 h-2 rounded-full inline-block ${
-                    profile.isOnline !== false ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'
+                    'hidden'
                   }`}
                 />
                 <span
-                  className={`font-semibold ${
-                    profile.isOnline !== false ? 'text-emerald-500' : 'text-gray-400 dark:text-zinc-400'
-                  }`}
+                  className={`font-normal text-gray-400 dark:text-zinc-400`}
                 >
                   {profile.isOnline !== false ? (language === 'ru' ? 'в сети' : 'online') : (language === 'ru' ? 'не в сети (невидимка)' : 'offline (ghost mode)')}
                 </span>
               </button>
-              <p className="text-sm text-sky-500 dark:text-sky-400 font-medium mt-1">
+              <p className="text-[16px] text-sky-500 dark:text-sky-400 mt-1">
                 {profile.username}
               </p>
-              <p className="text-xs text-gray-500 dark:text-zinc-400 mt-2 italic px-4">
+              <p className="text-[15px] text-gray-500 dark:text-zinc-400 mt-2 px-4">
                 "{profile.bio}"
               </p>
 
-              {/* Quick Action Buttons */}
-              <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-                {/* Add Story Button directly in profile */}
-                <button
-                  onClick={onOpenCreateStory}
-                  className="px-4 py-1.5 bg-gradient-to-r from-pink-500 to-sky-500 hover:from-pink-600 hover:to-sky-600 text-white text-xs font-semibold rounded-full shadow-sm transition flex items-center gap-1.5 active:scale-95"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t.addStory}</span>
-                </button>
-
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-zinc-200 text-xs font-semibold rounded-full transition"
-                >
-                  {t.editProfile}
-                </button>
-
-                <button
-                  onClick={onOpenSettings}
-                  className="px-4 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900 text-sky-600 dark:text-sky-300 text-xs font-semibold rounded-full transition flex items-center gap-1"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>{t.settings}</span>
-                </button>
+              {/* Quick action tiles (Telegram 12.4 style) */}
+              <div className="grid grid-cols-3 gap-2 mt-6 w-full">
+                {[
+                  { icon: Camera, label: language === 'ru' ? 'Выбрать фото' : 'Set photo', onClick: () => fileInputRef.current?.click() },
+                  { icon: Pencil, label: language === 'ru' ? 'Изменить' : 'Edit', onClick: () => setIsEditing(true) },
+                  { icon: Settings, label: t.settings, onClick: onOpenSettings }
+                ].map((tile) => (
+                  <button
+                    key={tile.label}
+                    type="button"
+                    onClick={tile.onClick}
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-[20px] bg-white dark:bg-zinc-800 text-gray-800 dark:text-white text-[14px] font-medium active:scale-95 transition"
+                  >
+                    <tile.icon className="w-6 h-6" />
+                    <span className="truncate max-w-full px-1">{tile.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
         </div>
 
         {/* Telegram Stories in Profile section */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-3">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-pink-500" />
@@ -443,7 +440,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* User's Created Channels Section (requested by user) */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-3">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
               <Radio className="w-3.5 h-3.5 text-sky-500" />
@@ -589,7 +586,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* Account Details */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-4">
           <h3 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider px-2">
             {t.accountDetails}
           </h3>
@@ -644,7 +641,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* Security / Password section */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-2">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-2">
           <h3 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider px-2">
             {t.security}
           </h3>
@@ -669,7 +666,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* Clear All Chats & Logout */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-2">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-2">
           {showClearConfirm ? (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900/60">
               <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2">

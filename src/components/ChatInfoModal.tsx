@@ -435,8 +435,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const mediaVideos = chat.messages.filter((m) => m.videoUri || m.videoNoteUri);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in select-none">
-      <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-3xl max-w-md w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-gray-100 dark:bg-zinc-950 animate-in fade-in select-none">
+      <div className="bg-gray-100 dark:bg-zinc-950 max-w-xl w-full relative overflow-hidden flex flex-col h-full">
         {/* Hidden file input for avatar upload */}
         <input
           type="file"
@@ -447,19 +447,17 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
         />
 
         {/* TOP BAR */}
-        <div className="px-4 py-3 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900 z-10">
+        <div className="h-16 px-3 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-800 z-10">
           <div className="flex items-center gap-2">
-            {isEditing ? (
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="p-1.5 -ml-1 text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => (isEditing ? setIsEditing(false) : onClose())}
+              className="w-10 h-10 flex items-center justify-center text-gray-800 dark:text-white rounded-full active:bg-black/10 dark:active:bg-white/10 transition"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
 
-            <h3 className="text-base font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
+            <h3 className="text-[20px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
               {chat.type === 'channel' ? (
                 <Radio className="w-5 h-5 text-indigo-500" />
               ) : chat.type === 'group' ? (
@@ -528,7 +526,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             /* ===================== EDIT / SETTINGS SCREEN ===================== */
             <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
               {/* Photo Upload Row */}
-              <div className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
+              <div className="flex items-center gap-4 p-3 bg-white dark:bg-zinc-900 rounded-[22px]">
                 <div
                   className="relative group cursor-pointer shrink-0"
                   onClick={() => fileInputRef.current?.click()}
@@ -686,7 +684,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
 
               {/* Channel specific: Sign messages toggle */}
               {chat.type === 'channel' && (
-                <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+                <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-gray-900 dark:text-zinc-100">
                       {t.signMessages}
@@ -783,7 +781,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             /* ===================== VIEW MODE (TELEGRAM TABS) ===================== */
             <div>
               {/* Profile Card Header */}
-              <div className="p-6 flex flex-col items-center text-center bg-gray-50/50 dark:bg-zinc-900/40 border-b border-gray-100 dark:border-zinc-800">
+              <div className="px-4 pt-4 pb-4 flex flex-col items-center text-center">
                 <div className="relative mb-3 group">
                   <div
                     onClick={() => {
@@ -802,17 +800,17 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                       src={chat.avatarUri}
                       name={chat.name}
                       id={chat.userId || chat.id}
-                      size="2xl"
-                      className="border-2 border-white dark:border-zinc-900 shadow-md"
+                      size="3xl"
+                      className=""
                     />
                   </div>
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2 justify-center">
+                <h2 className="text-[26px] font-semibold text-gray-900 dark:text-white flex items-center gap-2 justify-center">
                   <span>{chat.name}</span>
                 </h2>
 
-                <div className="text-xs text-gray-400 dark:text-zinc-400 mt-0.5 font-medium flex items-center justify-center gap-1.5">
+                <div className="text-[16px] text-gray-400 dark:text-zinc-400 mt-0.5 flex items-center justify-center gap-1.5">
                   {chat.type === 'channel' ? (
                     <span>{chat.subscribersCount || 1} {t.subscribers}</span>
                   ) : chat.type === 'group' ? (
@@ -833,50 +831,46 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 </div>
 
                 {/* Circular Action Buttons Row */}
-                <div className="flex items-center justify-center gap-4 mt-5">
+                <div className="grid grid-flow-col auto-cols-fr gap-2 mt-6 w-full">
                   {/* Mute button */}
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center justify-center gap-1 py-3 rounded-[20px] bg-white dark:bg-zinc-800">
                     <button
                       type="button"
                       onClick={handleToggleMute}
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center transition shadow-xs active:scale-95 ${
-                        chat.isMuted
-                          ? 'bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-zinc-400'
-                          : 'bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300'
-                      }`}
+                      className="w-8 h-8 flex items-center justify-center text-gray-800 dark:text-white active:scale-95 transition"
                     >
                       {chat.isMuted ? <BellOff className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
                     </button>
-                    <span className="text-[10px] font-medium text-gray-500 dark:text-zinc-400">
+                    <span className="text-[13px] font-medium text-gray-800 dark:text-white">
                       {chat.isMuted ? (language === 'ru' ? 'Вкл. звук' : 'Unmute') : (language === 'ru' ? 'Без звука' : 'Mute')}
                     </span>
                   </div>
 
                   {/* Share button */}
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center justify-center gap-1 py-3 rounded-[20px] bg-white dark:bg-zinc-800">
                     <button
                       type="button"
                       onClick={handleCopyLink}
-                      className="w-11 h-11 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 flex items-center justify-center transition shadow-xs active:scale-95"
+                      className="w-8 h-8 flex items-center justify-center text-gray-800 dark:text-white active:scale-95 transition"
                     >
                       {copiedLink ? <Check className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
                     </button>
-                    <span className="text-[10px] font-medium text-gray-500 dark:text-zinc-400">
+                    <span className="text-[13px] font-medium text-gray-800 dark:text-white">
                       {copiedLink ? (language === 'ru' ? 'Скопировано!' : 'Copied!') : (language === 'ru' ? 'Ссылка' : 'Share')}
                     </span>
                   </div>
 
                   {/* Edit / Settings button */}
                   {isAdmin && chat.type !== 'direct' && (
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center justify-center gap-1 py-3 rounded-[20px] bg-white dark:bg-zinc-800">
                       <button
                         type="button"
                         onClick={() => setIsEditing(true)}
-                        className="w-11 h-11 rounded-2xl bg-sky-500 text-white flex items-center justify-center transition shadow-md shadow-sky-500/25 active:scale-95"
+                        className="w-8 h-8 flex items-center justify-center text-gray-800 dark:text-white active:scale-95 transition"
                       >
                         <Edit3 className="w-5 h-5" />
                       </button>
-                      <span className="text-[10px] font-medium text-gray-500 dark:text-zinc-400">
+                      <span className="text-[13px] font-medium text-gray-800 dark:text-white">
                         {language === 'ru' ? 'Настройки' : 'Settings'}
                       </span>
                     </div>
@@ -884,7 +878,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 </div>
 
                 {/* Telegram Full Navigation Tabs */}
-                <div className="flex items-center gap-1 mt-6 p-1 bg-gray-200/60 dark:bg-zinc-800/80 rounded-xl text-xs w-full overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-1 mt-6 p-1 bg-gray-200/60 dark:bg-zinc-900 rounded-2xl text-[14px] w-full overflow-x-auto no-scrollbar">
                   <button
                     onClick={() => setActiveTab('info')}
                     className={`px-3 py-1.5 rounded-lg font-medium transition shrink-0 ${
@@ -968,7 +962,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 {activeTab === 'info' && (
                   <>
                     {/* Description card */}
-                    <div className="p-3.5 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
+                    <div className="p-3.5 bg-white dark:bg-zinc-900 rounded-[22px]">
                       <span className="text-[11px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider block mb-1">
                         {language === 'ru' ? 'Описание' : 'Description'}
                       </span>
@@ -978,7 +972,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     </div>
 
                     {/* Link & 5-Month Expiration card */}
-                    <div className="p-3.5 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
+                    <div className="p-3.5 bg-white dark:bg-zinc-900 rounded-[22px]">
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider text-[11px]">
                           {chat.isPrivate ? 'Пригласительная ссылка' : 'Публичная ссылка'}
@@ -1062,7 +1056,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     {/* Direct user profile details */}
                     {chat.type === 'direct' && (
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
+                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px]">
                           <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider block mb-0.5">
                             ID
                           </span>
@@ -1071,7 +1065,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                           </p>
                         </div>
 
-                        <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] flex items-center justify-between">
                           <div>
                             <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider block mb-0.5">
                               Статус
@@ -1306,7 +1300,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                       {chat.admins?.map((admin) => (
                         <div
                           key={admin.id}
-                          className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 flex items-center justify-between text-xs"
+                          className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] flex items-center justify-between text-xs"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <TelegramAvatar
@@ -1602,7 +1596,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     {botConfig.isEnabled ? (
                       <div className="space-y-3">
                         {/* 18+ filter */}
-                        <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] flex items-center justify-between">
                           <div className="pr-2">
                             <p className="text-xs font-bold text-gray-900 dark:text-zinc-100">
                               🔞 {t.delete18Plus}
@@ -1624,7 +1618,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                         </div>
 
                         {/* Slow Mode / Cooldown 5 minutes */}
-                        <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 space-y-2">
+                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] space-y-2">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-bold text-gray-900 dark:text-zinc-100">
                               ⏳ {t.slowMode}
@@ -1668,7 +1662,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                         </div>
 
                         {/* Anti-spam */}
-                        <div className="p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-[22px] flex items-center justify-between">
                           <div className="pr-2">
                             <p className="text-xs font-bold text-gray-900 dark:text-zinc-100">
                               🛡️ {t.antiSpam}

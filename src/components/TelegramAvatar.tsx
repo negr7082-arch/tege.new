@@ -42,7 +42,7 @@ interface TelegramAvatarProps {
   src?: string | null;
   name?: string | null;
   id?: number | string | null;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'chat' | 'xl' | '2xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'chat' | 'xl' | '2xl' | '3xl';
   isOnline?: boolean;
   showOnlineDot?: boolean;
   className?: string;
@@ -56,7 +56,8 @@ const sizeClasses = {
   lg: 'w-14 h-14 text-xl',
   chat: 'w-15 h-15 text-2xl',
   xl: 'w-20 h-20 text-2xl',
-  '2xl': 'w-24 h-24 text-4xl'
+  '2xl': 'w-24 h-24 text-4xl',
+  '3xl': 'w-30 h-30 text-6xl'
 };
 
 const dotSizeClasses = {
@@ -66,7 +67,8 @@ const dotSizeClasses = {
   lg: 'w-3.5 h-3.5 bottom-0.5 right-0.5 border-2',
   chat: 'w-4 h-4 bottom-0 right-0 border-2',
   xl: 'w-4 h-4 bottom-1 right-1 border-2',
-  '2xl': 'w-5 h-5 bottom-1 right-1 border-2'
+  '2xl': 'w-5 h-5 bottom-1 right-1 border-2',
+  '3xl': 'w-6 h-6 bottom-2 right-2 border-2'
 };
 
 export const TelegramAvatar: React.FC<TelegramAvatarProps> = ({
