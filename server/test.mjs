@@ -58,8 +58,8 @@ try {
   assert.equal((await post('/api/sessions/revoke', { token: a.token, sessionToken: a2.token })).ok, true);
   assert.equal((await post('/api/sessions', { token: a2.token })).error, 'bad_token');
   const a3 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
-  assert.equal((await post('/api/sessions/revoke-others', { token: a3.token })).ok, true);
-  assert.equal((await post('/api/sessions', { token: a.token })).error, 'bad_token');
+  assert.equal((await post('/api/sessions/revoke-others', { token: a.token })).ok, true);
+  assert.equal((await post('/api/sessions', { token: a3.token })).error, 'bad_token');
   console.log('✓ register / login / active session revoke');
 
   // bad token
