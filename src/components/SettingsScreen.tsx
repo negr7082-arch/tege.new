@@ -546,7 +546,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 >
                   {settings.language === 'ru' ? 'Выйти со всех других устройств' : 'Sign out all other devices'}
                 </button>
-              </div>div>
+              </div>
             </div>
           </div>
 
