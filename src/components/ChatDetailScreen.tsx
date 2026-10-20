@@ -665,7 +665,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           {!isSavedMessages && (
             <button
               type="button"
-              onClick={() => setShowOptionsMenu((prev) => !prev)
+              onClick={() => setShowOptionsMenu((prev) => !prev)}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 active:scale-95 transition"
               title="Ещё"
             >
