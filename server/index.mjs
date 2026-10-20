@@ -383,7 +383,7 @@ const server = http.createServer(async (req, res) => {
       if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
-        twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000 });
+        twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
         return reply(200, { ok: true, requiresTwoFactor: true, challenge });
       }
       const token = crypto.randomBytes(32).toString('hex');
@@ -405,7 +405,11 @@ const server = http.createServer(async (req, res) => {
       const attempt = hashPassword(String(body.cloudPassword || ''), user.cloudPasswordSalt).hash;
       const a = Buffer.from(attempt, 'hex');
       const b = Buffer.from(user.cloudPasswordHash, 'hex');
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return fail(401, 'bad_cloud_password');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        pending.attempts = (pending.attempts || 0) + 1;
+        if (pending.attempts >= 5) twoFactorChallenges.delete(challenge);
+        return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
+      }
       twoFactorChallenges.delete(challenge);
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
