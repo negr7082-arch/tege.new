@@ -50,7 +50,17 @@ try {
   assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'nope' })).error, 'bad_credentials');
   const a2 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
   assert.equal(a2.id, a.id);
-  console.log('✓ register / login');
+  const sessionsA = await post('/api/sessions', { token: a.token });
+  assert.equal(sessionsA.ok, true);
+  assert.equal(sessionsA.sessions.length, 2);
+  assert.equal(sessionsA.sessions.filter((s) => s.current).length, 1);
+  assert.ok(sessionsA.sessions.every((s) => s.device));
+  assert.equal((await post('/api/sessions/revoke', { token: a.token, sessionToken: a2.token })).ok, true);
+  assert.equal((await post('/api/sessions', { token: a2.token })).error, 'bad_token');
+  const a3 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
+  assert.equal((await post('/api/sessions/revoke-others', { token: a3.token })).ok, true);
+  assert.equal((await post('/api/sessions', { token: a.token })).error, 'bad_token');
+  console.log('✓ register / login / active session revoke');
 
   // bad token
   const bad = new Client('deadbeef'); await bad.closed; console.log('✓ bad token rejected');
