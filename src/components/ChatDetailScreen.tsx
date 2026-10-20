@@ -362,6 +362,16 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   };
 
   // Handle Reply to message
+  const handleDeleteMessage = (messageId: number) => {
+    const updatedMessages = chat.messages.filter((m) => m.id !== messageId);
+    if (onUpdateChat) {
+      onUpdateChat(chat.id, {
+        messages: updatedMessages,
+        ...(chat.pinnedMessageId === messageId ? { pinnedMessageId: undefined } : {})
+      });
+    }
+  };
+
   const handleReplyMessage = (message: Message) => {
     setReplyToMessage({
       id: message.id,
@@ -774,6 +784,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
               onOpenComments={(msg) => setActiveCommentsPost(msg)}
               onPinMessage={handlePinMessage}
               onReplyMessage={handleReplyMessage}
+              onDeleteMessage={handleDeleteMessage}
             />
           </div>
         ))}

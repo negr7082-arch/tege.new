@@ -14,7 +14,9 @@ import {
   MapPin,
   BarChart2,
   CheckCircle2,
-  Circle
+  Circle,
+  Copy,
+  Trash2
 } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -26,6 +28,7 @@ interface MessageBubbleProps {
   onOpenComments?: (message: Message) => void;
   onPinMessage?: (messageId: number) => void;
   onReplyMessage?: (message: Message) => void;
+  onDeleteMessage?: (messageId: number) => void;
 }
 
 const COMMON_REACTIONS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '⚡'];
@@ -43,7 +46,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onVotePoll,
   onOpenComments,
   onPinMessage,
-  onReplyMessage
+  onReplyMessage,
+  onDeleteMessage
 }) => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -54,6 +58,51 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Telegram-style long-press context menu + swipe-left-to-reply (touch devices)
+  const [showMenu, setShowMenu] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPressTimer = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  };
+  const buzz = () => {
+    try { navigator.vibrate?.(15); } catch { /* ignore */ }
+  };
+  const handleBubbleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    clearPressTimer();
+    pressTimerRef.current = setTimeout(() => {
+      setShowMenu(true);
+      setDragX(0);
+      buzz();
+    }, 450);
+  };
+  const handleBubbleTouchMove = (e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    if (!start || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - start.x;
+    const dy = e.touches[0].clientY - start.y;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearPressTimer();
+    if (onReplyMessage && dx < -10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      setDragX(Math.max(dx, -70));
+    }
+  };
+  const handleBubbleTouchEnd = () => {
+    clearPressTimer();
+    if (dragX <= -55 && onReplyMessage) {
+      onReplyMessage(message);
+      buzz();
+    }
+    setDragX(0);
+    touchStartRef.current = null;
+  };
 
   const isChannel = chatType === 'channel';
   const isGroup = chatType === 'group';
@@ -216,12 +265,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
+      onTouchStart={handleBubbleTouchStart}
+      onTouchMove={handleBubbleTouchMove}
+      onTouchEnd={handleBubbleTouchEnd}
+      onTouchCancel={handleBubbleTouchEnd}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setShowMenu(true);
+      }}
       className={`group relative flex w-full ${
         isChannel ? 'justify-start' : isMine ? 'justify-end' : 'justify-start'
       } my-1 px-1 sm:px-2 select-none`}
     >
+      {/* swipe-to-reply hint */}
+      {dragX < -20 && (
+        <div
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 dark:bg-white/20 text-white flex items-center justify-center"
+          style={{ opacity: Math.min(1, Math.abs(dragX) / 55) }}
+        >
+          <CornerUpLeft className="w-4 h-4" />
+        </div>
+      )}
       <div
-        className={`max-w-[85%] sm:max-w-[76%] rounded-[18px] px-3 py-1.5 transition-all relative ${bubbleBgClass} ${
+        style={{ transform: dragX ? `translateX(${dragX}px)` : undefined }}
+        className={`max-w-[85%] sm:max-w-[76%] rounded-[18px] px-3 py-1.5 relative ${bubbleBgClass} ${
           isMine && !isChannel ? 'rounded-br-xs' : 'rounded-bl-xs'
         }`}
       >
@@ -564,6 +631,89 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {emoji}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Long-press context menu (Telegram style) */}
+      {showMenu && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setShowMenu(false)}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="w-[270px] flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+            {onReact && (
+              <div className="bg-white/95 dark:bg-zinc-800/95 rounded-full shadow-xl px-2 py-1.5 flex items-center justify-between">
+                {COMMON_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      onReact(message.id, emoji);
+                      setShowMenu(false);
+                    }}
+                    className="text-xl p-1 active:scale-125 transition"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="bg-white/95 dark:bg-zinc-800/95 rounded-[18px] shadow-xl overflow-hidden text-[16px] text-gray-900 dark:text-white">
+              {onReplyMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReplyMessage(message);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left"
+                >
+                  <CornerUpLeft className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
+                  <span>Ответить</span>
+                </button>
+              )}
+              {message.text && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    try { navigator.clipboard?.writeText(message.text); } catch { /* ignore */ }
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left"
+                >
+                  <Copy className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
+                  <span>Копировать текст</span>
+                </button>
+              )}
+              {onPinMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPinMessage(message.id);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left"
+                >
+                  <Pin className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
+                  <span>{message.isPinned ? 'Открепить' : 'Закрепить'}</span>
+                </button>
+              )}
+              {onDeleteMessage && isMine && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteMessage(message.id);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left text-rose-500"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>Удалить</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
