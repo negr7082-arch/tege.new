@@ -128,6 +128,13 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
   // Keep online/last-seen text in sync with live presence updates.
   const [, setDirectoryVersion] = useState(0);
+  const [presenceClock, setPresenceClock] = useState(() => Date.now());
+
+  // Refresh relative last-seen labels without requiring a new network event.
+  useEffect(() => {
+    const timer = window.setInterval(() => setPresenceClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => realtimeNetwork.subscribeToDirectory(() => {
     setDirectoryVersion((version) => version + 1);
   }), []);
@@ -480,20 +487,42 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         const lastSeenAt = chat.userId ? realtimeNetwork.getUser(chat.userId)?.lastSeenAt : undefined;
         if (!lastSeenAt) return language === 'ru' ? 'не в сети' : 'offline';
         const date = new Date(lastSeenAt);
-        const now = new Date();
-        const sameDay = date.toDateString() === now.toDateString();
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
+        if (Number.isNaN(date.getTime())) return language === 'ru' ? 'не в сети' : 'offline';
+
+        // Date/Intl use the viewer's local timezone. The server timestamp stays absolute,
+        // so users in different timezones see the same moment converted to their own clock.
+        const minutesAgo = Math.max(0, Math.floor((presenceClock - date.getTime()) / 60_000));
+        const time = new Intl.DateTimeFormat(language === 'ru' ? 'ru-RU' : 'en-GB', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+        const sameDay = date.toDateString() === new Date(presenceClock).toDateString();
+        const yesterday = new Date(presenceClock);
+        yesterday.setDate(yesterday.getDate() - 1);
         const isYesterday = date.toDateString() === yesterday.toDateString();
-        const time = new Intl.DateTimeFormat(language === 'ru' ? 'ru-RU' : 'en-GB', { hour: '2-digit', minute: '2-digit' }).format(date);
+
         if (language === 'ru') {
-          if (sameDay) return 'был(а) в сети сегодня в ' + time;
-          if (isYesterday) return 'был(а) в сети вчера в ' + time;
-          return 'был(а) в сети ' + new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date) + ' в ' + time;
+          let relative: string;
+          if (minutesAgo < 1) relative = 'только что';
+          else if (minutesAgo < 60) relative = `${minutesAgo} ${minutesAgo === 1 ? 'минуту' : minutesAgo < 5 ? 'минуты' : 'минут'} назад`;
+          else if (minutesAgo < 1440) {
+            const hours = Math.floor(minutesAgo / 60);
+            relative = `${hours} ${hours === 1 ? 'час' : hours < 5 ? 'часа' : 'часов'} назад`;
+          } else if (sameDay) relative = 'сегодня';
+          else if (isYesterday) relative = 'вчера';
+          else relative = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date);
+          if (minutesAgo < 1440 && sameDay) return `был(а) в сети ${relative} · сегодня в ${time}`;
+          if (isYesterday) return `был(а) в сети вчера в ${time}`;
+          if (sameDay) return `был(а) в сети сегодня в ${time}`;
+          return `был(а) в сети ${new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date)} в ${time}`;
         }
-        if (sameDay) return 'last seen today at ' + time;
-        if (isYesterday) return 'last seen yesterday at ' + time;
-        return 'last seen ' + new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date) + ' at ' + time;
+
+        if (minutesAgo < 1) return `last seen just now · ${time}`;
+        if (minutesAgo < 60) return `last seen ${minutesAgo} min ago · ${time}`;
+        if (minutesAgo < 1440) return `last seen ${Math.floor(minutesAgo / 60)} hr ago · ${time}`;
+        if (sameDay) return `last seen today at ${time}`;
+        if (isYesterday) return `last seen yesterday at ${time}`;
+        return `last seen ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date)} at ${time}`;
       })();
 
   const subtitleDetails = isSavedMessages
