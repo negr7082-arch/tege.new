@@ -114,7 +114,7 @@ class RealtimeNetworkService {
     phone?: string;
     bio?: string;
   }): Promise<AuthResult> {
-    const r = await this.api('/api/register', data);
+    const r = await this.api('/api/register', { ...data, device: this.getDeviceLabel() });
     return r.ok ? { ok: true, user: { ...r.user, password: data.password } } : { ok: false, error: r.error };
   }
 
@@ -124,13 +124,36 @@ class RealtimeNetworkService {
   }
 
   public async login(email: string, password: string): Promise<AuthResult> {
-    const r = await this.api('/api/login', { email, password });
+    const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel() });
     return r.ok ? { ok: true, user: { ...r.user, password } } : { ok: false, error: r.error };
   }
 
   public async changePassword(token: string, newPassword: string): Promise<boolean> {
     const r = await this.api('/api/password', { token, newPassword });
     return Boolean(r.ok);
+  }
+
+  public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
+    const r = await this.api('/api/sessions', { token });
+    return { ok: Boolean(r.ok), sessions: Array.isArray(r.sessions) ? r.sessions : [] };
+  }
+
+  public async revokeSession(token: string, sessionToken: string): Promise<boolean> {
+    const r = await this.api('/api/sessions/revoke', { token, sessionToken });
+    return Boolean(r.ok);
+  }
+
+  public async revokeOtherSessions(token: string): Promise<boolean> {
+    const r = await this.api('/api/sessions/revoke-others', { token });
+    return Boolean(r.ok);
+  }
+
+  private getDeviceLabel(): string {
+    if (typeof navigator === 'undefined') return 'Tege browser';
+    const ua = navigator.userAgent || '';
+    const platform = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Macintosh|Mac OS/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Web';
+    const browser = /Edg\//i.test(ua) ? 'Edge' : /Firefox\//i.test(ua) ? 'Firefox' : /Chrome\//i.test(ua) ? 'Chrome' : /Safari\//i.test(ua) ? 'Safari' : 'Browser';
+    return `${platform} · ${browser}`;
   }
 
   // ================= CONNECTION =================
