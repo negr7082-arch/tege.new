@@ -22,6 +22,7 @@ const db = {
   nextUserId: FIRST_USER_ID,
   users: {}, // id -> {id,email,salt,hash,name,username,bio,avatarUri,phone,country,registrationDate}
   tokens: {}, // token -> userId
+  sessions: {}, // token -> { userId, createdAt, device }
   channels: {}, // id -> Channel
   groups: {}, // id -> Chat (without messages)
   members: {}, // chatId -> [userId]
@@ -141,6 +142,7 @@ async function sendPush(userId, p) {
 
 // ───────────────────────── helpers ─────────────────────────
 const online = new Map(); // userId -> Set<Conn>
+const sessionConnections = new Map(); // token -> Set<Conn>
 const activeVideo = new Map(); // chatId -> info
 
 const publicUser = (u) => ({
@@ -369,6 +371,7 @@ const server = http.createServer(async (req, res) => {
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = id;
+      db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
       broadcast({ type: 'user_upsert', user: publicUser(user) });
       return reply(200, { ok: true, user: selfUser(user, token) });
@@ -379,8 +382,49 @@ const server = http.createServer(async (req, res) => {
       if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
+      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
       return reply(200, { ok: true, user: selfUser(user, token) });
+    }
+
+    if (url.pathname === '/api/sessions') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const sessions = Object.entries(db.tokens).filter(([, uid]) => uid === user.id).map(([token]) => {
+        const meta = db.sessions[token] || { userId: user.id, createdAt: 0, device: 'Existing session' };
+        return { id: token.slice(0, 12), token, device: meta.device || 'Web browser', createdAt: meta.createdAt || 0, current: token === body.token };
+      }).sort((a, b) => b.createdAt - a.createdAt);
+      return reply(200, { ok: true, sessions });
+    }
+
+    if (url.pathname === '/api/sessions/revoke') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const targetToken = String(body.sessionToken || '');
+      if (!targetToken || db.tokens[targetToken] !== user.id) return fail(404, 'session_not_found');
+      if (targetToken === body.token && !body.allowCurrent) return fail(400, 'cannot_revoke_current');
+      delete db.tokens[targetToken];
+      delete db.sessions[targetToken];
+      const sockets = sessionConnections.get(targetToken);
+      if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+      sessionConnections.delete(targetToken);
+      save();
+      return reply(200, { ok: true });
+    }
+
+    if (url.pathname === '/api/sessions/revoke-others') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      for (const [token, uid] of Object.entries(db.tokens)) {
+        if (uid !== user.id || token === body.token) continue;
+        delete db.tokens[token];
+        delete db.sessions[token];
+        const sockets = sessionConnections.get(token);
+        if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+        sessionConnections.delete(token);
+      }
+      save();
+      return reply(200, { ok: true });
     }
 
     if (url.pathname === '/api/password') {
@@ -390,7 +434,7 @@ const server = http.createServer(async (req, res) => {
       if (pw.length < 7) return fail(400, 'short_password');
       Object.assign(user, hashPassword(pw));
       // sign out all other sessions of this user
-      for (const [t, id] of Object.entries(db.tokens)) if (id === user.id && t !== body.token) delete db.tokens[t];
+      for (const [t, id] of Object.entries(db.tokens)) if (id === user.id && t !== body.token) { delete db.tokens[t]; delete db.sessions[t]; const sockets = sessionConnections.get(t); if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} } sessionConnections.delete(t); }
       save();
       return reply(200, { ok: true });
     }
@@ -467,6 +511,10 @@ attachWebSocket(server, (conn, url) => {
     return;
   }
 
+  const sessionToken = url.searchParams.get('token');
+  const sessionSet = sessionConnections.get(sessionToken) || new Set();
+  sessionSet.add(conn);
+  sessionConnections.set(sessionToken, sessionSet);
   let set = online.get(user.id);
   const wasOffline = !set;
   if (!set) online.set(user.id, (set = new Set()));
@@ -494,6 +542,8 @@ attachWebSocket(server, (conn, url) => {
 
   conn.onclose = () => {
     clearInterval(heartbeat);
+    const tokenSockets = sessionConnections.get(sessionToken);
+    if (tokenSockets) { tokenSockets.delete(conn); if (!tokenSockets.size) sessionConnections.delete(sessionToken); }
     set.delete(conn);
     if (set.size === 0) {
       online.delete(user.id);
