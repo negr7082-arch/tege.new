@@ -170,7 +170,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-100 dark:bg-zinc-950 p-4 select-none relative overflow-y-auto">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#e7ebf0] dark:bg-[#0e1621] p-4 select-none relative overflow-y-auto">
       {/* Top right quick controls: Language & Theme */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         {onLanguageChange && (
@@ -195,10 +195,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         )}
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative my-6">
+      <div className="bg-white dark:bg-[#17212b] border border-gray-200/70 dark:border-white/5 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-xl shadow-slate-900/10 dark:shadow-black/30 relative my-6">
         {/* App Logo & Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-600 to-sky-400 text-white flex items-center justify-center font-bold text-3xl shadow-xl shadow-sky-500/30 mb-3 transform hover:scale-105 transition">
+          <div className="w-16 h-16 rounded-full bg-[#3390ec] text-white flex items-center justify-center font-bold text-3xl shadow-xl shadow-sky-500/30 mb-3 transform hover:scale-105 transition">
             T
           </div>
 
@@ -209,8 +209,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1 max-w-xs leading-relaxed">
             {isRegister
               ? language === 'ru'
-                ? 'Главный экран регистрации: заполните данные, чтобы создать аккаунт и перейти к чатам'
-                : 'Registration screen: fill in your details to create an account and access your chats'
+                ? 'Создайте аккаунт Tege — общайтесь с друзьями и находите новые чаты'
+                : 'Create your Tege account to chat with friends and discover conversations'
               : language === 'ru'
                 ? 'Вход по почте и паролю в Tege Messenger'
                 : 'Login with email and password into Tege Messenger'}
@@ -247,7 +247,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="example@mail.com"
-                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[#f1f3f5] dark:bg-[#0e1621] text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
               />
             </div>
             <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
@@ -278,7 +278,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* Username */}
               <div>
                 <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
-                  {language === 'ru' ? 'Юзернейм @username (поиск по юзу)' : 'Choose @username'} <span className="text-rose-500">*</span>
+                  {language === 'ru' ? 'Имя пользователя' : 'Choose @username'} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <AtSign className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
@@ -370,9 +370,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-3.5 disabled:opacity-60 bg-sky-500 hover:bg-sky-600 active:scale-98 text-white font-bold rounded-2xl shadow-lg shadow-sky-500/30 transition flex items-center justify-center gap-2 text-sm"
+              className="w-full py-3.5 disabled:opacity-60 bg-sky-500 hover:bg-sky-600 active:scale-98 text-white font-bold rounded-xl shadow-sm shadow-sky-500/20 transition flex items-center justify-center gap-2 text-sm"
             >
-              <span>{isRegister ? (language === 'ru' ? 'Зарегистрироваться и войти в чаты' : 'Register & Enter Chats') : t.loginBtn}</span>
+              <span>{isRegister ? (language === 'ru' ? 'Создать аккаунт' : 'Create account') : t.loginBtn}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
