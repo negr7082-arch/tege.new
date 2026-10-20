@@ -470,7 +470,25 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     ? (language === 'ru' ? 'заблокирован' : 'blocked')
     : isDirectOnline
     ? (language === 'ru' ? 'в сети' : 'online')
-    : (language === 'ru' ? 'не в сети' : 'offline');
+    : (() => {
+        const lastSeenAt = chat.userId ? realtimeNetwork.getUser(chat.userId)?.lastSeenAt : undefined;
+        if (!lastSeenAt) return language === 'ru' ? 'не в сети' : 'offline';
+        const date = new Date(lastSeenAt);
+        const now = new Date();
+        const sameDay = date.toDateString() === now.toDateString();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = date.toDateString() === yesterday.toDateString();
+        const time = new Intl.DateTimeFormat(language === 'ru' ? 'ru-RU' : 'en-GB', { hour: '2-digit', minute: '2-digit' }).format(date);
+        if (language === 'ru') {
+          if (sameDay) return 'был(а) в сети сегодня в ' + time;
+          if (isYesterday) return 'был(а) в сети вчера в ' + time;
+          return 'был(а) в сети ' + new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date) + ' в ' + time;
+        }
+        if (sameDay) return 'last seen today at ' + time;
+        if (isYesterday) return 'last seen yesterday at ' + time;
+        return 'last seen ' + new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date) + ' at ' + time;
+      })();
 
   const subtitleDetails = isSavedMessages
     ? (language === 'ru' ? 'личные заметки и файлы' : 'personal notes & cloud storage')
