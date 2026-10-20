@@ -414,6 +414,12 @@ const server = http.createServer(async (req, res) => {
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
+    if (url.pathname === '/api/cloud-password/status') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      return reply(200, { ok: true, enabled: Boolean(user.cloudPasswordHash && user.cloudPasswordSalt) });
+    }
+
     if (url.pathname === '/api/cloud-password/set') {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
