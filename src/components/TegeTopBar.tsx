@@ -37,13 +37,13 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
     : [];
 
   return (
-    <header className="h-16 px-3 sm:px-4 flex items-center justify-between bg-white dark:bg-zinc-900 sticky top-0 z-30 shrink-0 select-none transition-colors">
+    <header className="h-[58px] px-2.5 sm:px-4 flex items-center justify-between bg-white dark:bg-[#17212b] border-b border-slate-200/70 dark:border-white/5 sticky top-0 z-30 shrink-0 select-none transition-colors">
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         {onBack ? (
           <button
             type="button"
             onClick={onBack}
-            className="w-10 h-10 flex items-center justify-center rounded-full text-sky-500 hover:text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-zinc-800 active:scale-90 transition shrink-0 cursor-pointer touch-manipulation"
+            className="w-10 h-10 flex items-center justify-center rounded-full text-[#3390ec] hover:text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-zinc-800 active:scale-90 transition shrink-0 cursor-pointer touch-manipulation"
             aria-label="Назад"
             title="Назад"
           >
@@ -55,7 +55,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
           onClick={onTitleClick}
           className={`min-w-0 flex flex-col justify-center ${onTitleClick ? 'cursor-pointer hover:opacity-85 transition' : ''}`}
         >
-          <h1 className="text-[22px] font-bold text-gray-900 dark:text-white truncate">
+          <h1 className="text-[20px] font-semibold text-gray-900 dark:text-white truncate tracking-[-0.02em]">
             {title}
           </h1>
           {subtitle && (
