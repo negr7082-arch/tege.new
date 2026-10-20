@@ -942,6 +942,22 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             />
           </div>
         ))}
+        {messageSearchQuery.trim() && !chat.messages.some((message) => {
+          const query = messageSearchQuery.trim().toLocaleLowerCase();
+          return [message.text, message.senderName, message.fileName, message.forwardedFrom].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query));
+        }) && (
+          <div className="mx-auto my-8 max-w-xs text-center" role="status">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-zinc-800">
+              <Search className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-zinc-200">
+              {language === 'ru' ? 'Ничего не найдено' : 'No messages found'}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">
+              {language === 'ru' ? 'Попробуйте изменить поисковый запрос.' : 'Try changing your search query.'}
+            </p>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
