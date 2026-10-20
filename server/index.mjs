@@ -143,6 +143,7 @@ async function sendPush(userId, p) {
 // ───────────────────────── helpers ─────────────────────────
 const online = new Map(); // userId -> Set<Conn>
 const sessionConnections = new Map(); // token -> Set<Conn>
+const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
 const publicUser = (u) => ({
@@ -380,11 +381,67 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/login') {
       const user = findByEmail(body.email);
       if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      if (user.cloudPasswordHash && user.cloudPasswordSalt) {
+        const challenge = crypto.randomBytes(32).toString('hex');
+        twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000 });
+        return reply(200, { ok: true, requiresTwoFactor: true, challenge });
+      }
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
       return reply(200, { ok: true, user: selfUser(user, token) });
+    }
+
+    if (url.pathname === '/api/login/cloud-password') {
+      const challenge = String(body.challenge || '');
+      const pending = twoFactorChallenges.get(challenge);
+      if (!pending || pending.expiresAt < Date.now()) {
+        twoFactorChallenges.delete(challenge);
+        return fail(401, 'challenge_expired');
+      }
+      const user = db.users[pending.userId];
+      if (!user || !user.cloudPasswordHash || !user.cloudPasswordSalt) return fail(401, 'bad_credentials');
+      const attempt = hashPassword(String(body.cloudPassword || ''), user.cloudPasswordSalt).hash;
+      const a = Buffer.from(attempt, 'hex');
+      const b = Buffer.from(user.cloudPasswordHash, 'hex');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return fail(401, 'bad_cloud_password');
+      twoFactorChallenges.delete(challenge);
+      const token = crypto.randomBytes(32).toString('hex');
+      db.tokens[token] = user.id;
+      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
+      save();
+      return reply(200, { ok: true, user: selfUser(user, token) });
+    }
+
+    if (url.pathname === '/api/cloud-password/set') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const password = String(body.cloudPassword || '');
+      if (password.length < 7 || password.length > 128) return fail(400, 'short_password');
+      if (user.cloudPasswordHash && user.cloudPasswordSalt) {
+        const current = String(body.currentPassword || '');
+        const currentHash = hashPassword(current, user.cloudPasswordSalt).hash;
+        if (currentHash !== user.cloudPasswordHash) return fail(401, 'bad_cloud_password');
+      }
+      const hashed = hashPassword(password);
+      user.cloudPasswordSalt = hashed.salt;
+      user.cloudPasswordHash = hashed.hash;
+      save();
+      return reply(200, { ok: true, enabled: true });
+    }
+
+    if (url.pathname === '/api/cloud-password/disable') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      if (!user.cloudPasswordHash || !user.cloudPasswordSalt) return reply(200, { ok: true, enabled: false });
+      const current = String(body.currentPassword || '');
+      const currentHash = hashPassword(current, user.cloudPasswordSalt).hash;
+      if (currentHash !== user.cloudPasswordHash) return fail(401, 'bad_cloud_password');
+      delete user.cloudPasswordHash;
+      delete user.cloudPasswordSalt;
+      save();
+      return reply(200, { ok: true, enabled: false });
     }
 
     if (url.pathname === '/api/sessions') {
