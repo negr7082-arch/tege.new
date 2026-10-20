@@ -112,7 +112,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (activeSection === 'privacy' && currentUser?.token) void refreshSessions();
   }, [activeSection, currentUser?.token]);
   const [show2FaModal, setShow2FaModal] = useState(false);
-  const [twoFaPasswordInput, setTwoFaPasswordInput] = useState(settings.twoFactorPassword || '');
+  const [twoFaPasswordInput, setTwoFaPasswordInput] = useState('');
+  const [twoFaCurrentPassword, setTwoFaCurrentPassword] = useState('');
+  const [twoFaSaving, setTwoFaSaving] = useState(false);
   const [twoFaError, setTwoFaError] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -134,31 +136,46 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     { id: 'xlarge', label: '19 pt', px: '19px' }
   ];
 
-  // Helper for 2FA password saving (must be at least 7 chars!)
-  const handleSave2Fa = () => {
+  // Cloud password is stored as a salted server-side hash; never save it in browser settings.
+  const handleSave2Fa = async () => {
     setTwoFaError(null);
-    if (!twoFaPasswordInput.trim()) {
-      onUpdateSettings({
-        twoFactorEnabled: false,
-        twoFactorPassword: undefined
-      });
-      setShow2FaModal(false);
+    if (!currentUser?.token) {
+      setTwoFaError(settings.language === 'ru' ? 'Войдите в аккаунт повторно.' : 'Please sign in again.');
       return;
     }
-
-    if (twoFaPasswordInput.trim().length < 7) {
-      setTwoFaError(
-        settings.language === 'ru'
-          ? 'Пароль должен содержать не менее 7 символов!'
-          : 'Password must be at least 7 characters!'
-      );
+    const newPassword = twoFaPasswordInput.trim();
+    if (newPassword.length < 7 || newPassword.length > 128) {
+      setTwoFaError(settings.language === 'ru' ? 'Пароль должен содержать от 7 до 128 символов.' : 'Password must be 7–128 characters.');
       return;
     }
+    setTwoFaSaving(true);
+    const result = await realtimeNetwork.setCloudPassword(currentUser.token, newPassword, settings.twoFactorEnabled ? twoFaCurrentPassword : undefined);
+    setTwoFaSaving(false);
+    if (!result.ok) {
+      setTwoFaError(result.error === 'bad_cloud_password'
+        ? (settings.language === 'ru' ? 'Неверный текущий облачный пароль.' : 'Current cloud password is incorrect.')
+        : (settings.language === 'ru' ? 'Не удалось сохранить пароль.' : 'Could not save password.'));
+      return;
+    }
+    onUpdateSettings({ twoFactorEnabled: true, twoFactorPassword: undefined });
+    setTwoFaPasswordInput('');
+    setTwoFaCurrentPassword('');
+    setShow2FaModal(false);
+  };
 
-    onUpdateSettings({
-      twoFactorEnabled: true,
-      twoFactorPassword: twoFaPasswordInput.trim()
-    });
+  const handleDisable2Fa = async () => {
+    if (!currentUser?.token) return;
+    setTwoFaError(null);
+    setTwoFaSaving(true);
+    const result = await realtimeNetwork.disableCloudPassword(currentUser.token, twoFaCurrentPassword);
+    setTwoFaSaving(false);
+    if (!result.ok) {
+      setTwoFaError(settings.language === 'ru' ? 'Неверный облачный пароль.' : 'Incorrect cloud password.');
+      return;
+    }
+    onUpdateSettings({ twoFactorEnabled: false, twoFactorPassword: undefined });
+    setTwoFaPasswordInput('');
+    setTwoFaCurrentPassword('');
     setShow2FaModal(false);
   };
 
@@ -390,7 +407,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
               {/* Облачный пароль / Двухэтапная аутентификация */}
               <div
-                onClick={() => setShow2FaModal(true)}
+                onClick={() => { setTwoFaError(null); setTwoFaPasswordInput(''); setTwoFaCurrentPassword(''); setShow2FaModal(true); }}
                 className="p-3.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
               >
                 <div className="flex items-center gap-3">
@@ -596,12 +613,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 type="password"
                 value={twoFaPasswordInput}
                 onChange={(e) => setTwoFaPasswordInput(e.target.value)}
-                placeholder={settings.language === 'ru' ? 'Минимум 7 символов...' : 'At least 7 characters...'}
+                placeholder={settings.language === 'ru' ? 'Новый облачный пароль (7+ символов)' : 'New cloud password (7+ characters)'}
                 className="w-full px-3.5 py-2.5 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent mb-4 transition"
               />
 
+              {settings.twoFactorEnabled && (
+                <input
+                  type="password"
+                  value={twoFaCurrentPassword}
+                  onChange={(e) => setTwoFaCurrentPassword(e.target.value)}
+                  placeholder={settings.language === 'ru' ? 'Текущий облачный пароль' : 'Current cloud password'}
+                  className="w-full px-3.5 py-2.5 mb-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              )}
+
               <div className="flex gap-2">
                 <button
+                  disabled={twoFaSaving}
                   onClick={handleSave2Fa}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition active:scale-95"
                 >
@@ -609,14 +637,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </button>
                 {settings.twoFactorEnabled && (
                   <button
-                    onClick={() => {
-                      onUpdateSettings({
-                        twoFactorEnabled: false,
-                        twoFactorPassword: undefined
-                      });
-                      setTwoFaPasswordInput('');
-                      setShow2FaModal(false);
-                    }}
+                    onClick={handleDisable2Fa}
                     className="px-3 py-2.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 text-xs font-semibold rounded-xl transition"
                   >
                     {settings.language === 'ru' ? 'Откл' : 'Off'}
