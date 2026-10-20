@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { VerifiedBadge } from './VerifiedBadge';
 import { UserProfile, Language, Channel, Story } from '../types';
 import { getT } from '../translations';
 import { TelegramAvatar } from './TelegramAvatar';
@@ -296,9 +297,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
           ) : (
             <div className="w-full">
-              <h2 className="text-[26px] font-semibold text-gray-900 dark:text-white">
-                {profile.name}
-              </h2>
+              <div className="flex items-center justify-center gap-1.5">
+                <h2 className="text-[26px] font-semibold text-gray-900 dark:text-white">
+                  {profile.name}
+                </h2>
+                {profile.email.trim().toLowerCase() === 'negr7082@gmail.com' && <VerifiedBadge language={language} />}
+              </div>
               <button
                 type="button"
                 onClick={() => {
