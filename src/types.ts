@@ -170,6 +170,7 @@ export interface ContactUser {
   country?: string;
   registrationDate?: string;
   online: boolean;
+  lastSeenAt?: number;
   avatarUri?: string | null;
   color?: string;
 }
