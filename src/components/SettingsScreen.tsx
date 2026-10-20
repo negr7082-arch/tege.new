@@ -123,7 +123,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [twoFaPasswordInput, setTwoFaPasswordInput] = useState('');
   const [twoFaCurrentPassword, setTwoFaCurrentPassword] = useState('');
   const [twoFaSaving, setTwoFaSaving] = useState(false);
-  const [cloudPasswordEnabled, setCloudPasswordEnabled] = useState(Boolean(cloudPasswordEnabled));
+  const [cloudPasswordEnabled, setCloudPasswordEnabled] = useState(Boolean(settings.twoFactorEnabled));
   const [twoFaError, setTwoFaError] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
