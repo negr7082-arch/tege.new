@@ -27,15 +27,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const ru = language === 'ru';
   const item = (tab: BottomNavTab) =>
-    `flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-3xl transition ${
+    `flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-3xl transition ${
       active === tab ? 'bg-sky-500/15 text-sky-500' : 'text-gray-500 dark:text-zinc-300'
     }`;
 
   return (
-    <nav className="absolute bottom-3 inset-x-3 z-20 h-16 rounded-[32px] bg-white/75 dark:bg-zinc-800/75 backdrop-blur-xl border border-white/30 dark:border-white/5 shadow-lg shadow-black/25 flex items-center justify-around px-2 select-none">
+    <nav style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }} className="fixed inset-x-3 z-50 mx-auto h-16 max-w-md rounded-[32px] bg-white/90 dark:bg-zinc-800/95 backdrop-blur-xl border border-gray-200/70 dark:border-white/10 shadow-lg shadow-black/25 flex items-center justify-around gap-0 px-1 select-none">
       <button type="button" onClick={onChats} className={item('chats')}>
         <MessageCircle className="w-6 h-6" />
-        <span className="text-[12px] font-medium">{ru ? 'Чаты' : 'Chats'}</span>
+        <span className="whitespace-nowrap text-[11px] sm:text-xs font-medium">{ru ? 'Чаты' : 'Chats'}</span>
       </button>
       <button type="button" onClick={onContacts} className={item('contacts')}>
         <Users className="w-6 h-6" />
