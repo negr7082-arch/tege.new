@@ -160,3 +160,24 @@ html[data-text-size="xlarge"] {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.6);
 }
+
+
+/* Telegram-inspired surface polish across Tege */
+:root {
+  --tege-blue: #3390ec;
+  --tege-light-bg: #ffffff;
+  --tege-dark-bg: #17212b;
+}
+button, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  touch-action: manipulation;
+}
+::selection {
+  background: rgba(51, 144, 236, 0.22);
+}
+@media (max-width: 640px) {
+  body { background: #e7ebf0; }
+  .dark body { background: #0e1621; }
+}
