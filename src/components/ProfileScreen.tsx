@@ -146,7 +146,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         className="hidden"
       />
 
-      <div className="max-w-lg mx-auto w-full p-4 space-y-4">
+      <div className="max-w-lg mx-auto w-full p-4 pb-28 space-y-4">
         {/* Header card with Avatar & ID & Stories ring */}
         <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-xs border border-gray-100 dark:border-zinc-800 flex flex-col items-center text-center">
           <div className="relative mb-3 group">

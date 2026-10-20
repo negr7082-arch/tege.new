@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Chat, ContactUser, Language, Channel, Story, UserAccount, Message } from '../types';
 import { TegeTopBar } from './TegeTopBar';
 import { ChatRow } from './ChatRow';
+import { BottomNav } from './BottomNav';
 import { getT } from '../translations';
 import { realtimeNetwork } from '../services/realtimeNetwork';
 import {
@@ -18,8 +19,7 @@ import {
   MessageSquare,
   Clock,
   Sparkles,
-  Pencil,
-  Settings
+  Pencil
 } from 'lucide-react';
 import { TelegramAvatar } from './TelegramAvatar';
 
@@ -619,24 +619,15 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       </div>
 
       {/* Telegram floating bottom navigation */}
-      <nav className="absolute bottom-3 inset-x-3 z-20 h-16 rounded-[32px] bg-white/75 dark:bg-zinc-800/75 backdrop-blur-xl border border-white/30 dark:border-white/5 shadow-lg shadow-black/25 flex items-center justify-around px-2 select-none">
-        <button type="button" className="flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-3xl bg-sky-500/15 text-sky-500">
-          <MessageCircle className="w-6 h-6" />
-          <span className="text-[12px] font-medium">{language === 'ru' ? 'Чаты' : 'Chats'}</span>
-        </button>
-        <button type="button" onClick={onOpenCreateChat} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
-          <Users className="w-6 h-6" />
-          <span className="text-[12px] font-medium">{language === 'ru' ? 'Контакты' : 'Contacts'}</span>
-        </button>
-        <button type="button" onClick={onOpenSettings} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
-          <Settings className="w-6 h-6" />
-          <span className="text-[12px] font-medium">{language === 'ru' ? 'Настройки' : 'Settings'}</span>
-        </button>
-        <button type="button" onClick={onOpenProfile} className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-zinc-300">
-          <TelegramAvatar src={currentUser?.avatarUri} name={currentUser?.name} id={currentUser?.id} size="xs" className="w-6 h-6 text-[11px]" />
-          <span className="text-[12px] font-medium">{language === 'ru' ? 'Профиль' : 'Profile'}</span>
-        </button>
-      </nav>
+      <BottomNav
+        active="chats"
+        language={language}
+        user={currentUser}
+        onChats={() => {}}
+        onContacts={onOpenCreateChat}
+        onSettings={onOpenSettings}
+        onProfile={onOpenProfile}
+      />
     </div>
   );
 };

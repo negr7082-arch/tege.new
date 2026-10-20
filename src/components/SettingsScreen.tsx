@@ -921,7 +921,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
       {/* Top Bar */}
-      <div className="h-14 px-4 flex items-center justify-between bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="h-16 px-4 flex items-center justify-between bg-white dark:bg-zinc-800 sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -929,7 +929,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-base font-semibold text-gray-900 dark:text-zinc-100 tracking-tight">
+          <h1 className="text-[22px] font-bold text-gray-900 dark:text-white">
             {t.settings}
           </h1>
         </div>
@@ -947,10 +947,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto w-full p-4 space-y-4">
+      <div className="max-w-xl mx-auto w-full p-4 pb-28 space-y-4">
         {/* TELEGRAM PROFILE HEADER CARD (NO PHONE NUMBER!) */}
         {currentUser && (
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-xs border border-gray-100 dark:border-zinc-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-5">
             <div className="flex items-center gap-4">
               <div
                 onClick={onOpenProfile}
@@ -995,10 +995,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 onClick={onOpenProfile}
                 className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-850 p-2 rounded-xl transition"
               >
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.language === 'ru' ? 'Имя пользователя' : 'Username'}
                 </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100 font-mono">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white font-mono">
                   {currentUser.username.startsWith('@') ? currentUser.username : `@${currentUser.username}`}
                 </p>
               </div>
@@ -1008,7 +1008,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   onClick={onOpenProfile}
                   className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-850 p-2 rounded-xl transition"
                 >
-                  <p className="text-xs text-gray-400">
+                  <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                     {settings.language === 'ru' ? 'О себе' : 'Bio'}
                   </p>
                   <p className="text-sm text-gray-800 dark:text-zinc-200">
@@ -1021,144 +1021,144 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         )}
 
         {/* TELEGRAM SETTINGS CATEGORY GROUP */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-xs border border-gray-100 dark:border-zinc-800 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-[22px] overflow-hidden py-1">
           {/* 🔔 Уведомления и звуки */}
           <div
             onClick={() => setActiveSection('notifications')}
-            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+            className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-rose-400 to-rose-600 text-white flex items-center justify-center">
                 <Bell className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                   {t.notifications}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.notificationsEnabled ? (settings.language === 'ru' ? 'Включены' : 'Enabled') : (settings.language === 'ru' ? 'Выключены' : 'Disabled')}
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            
           </div>
 
           {/* 🔒 Конфиденциальность (Privacy & Security) */}
           <div
             onClick={() => setActiveSection('privacy')}
-            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+            className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-emerald-400 to-emerald-600 text-white flex items-center justify-center">
                 <Shield className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                   {t.privacyAndSecurity}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.language === 'ru' ? 'Код-пароль, сеансы, блокировка' : 'Password, sessions, blacklist'}
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            
           </div>
 
           {/* 💬 Настройки чатов / Оформление */}
           <div
             onClick={() => setActiveSection('chat_settings')}
-            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+            className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-amber-400 to-amber-600 text-white flex items-center justify-center">
                 <Palette className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                   {t.chatSettings}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.language === 'ru' ? 'Тема, размер текста, обои' : 'Theme, text size, wallpapers'}
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            
           </div>
 
           {/* 💾 Данные и память */}
           <div
             onClick={() => setActiveSection('data_storage')}
-            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+            className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-indigo-400 to-indigo-600 text-white flex items-center justify-center">
                 <HardDrive className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                   {t.dataAndStorage}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.language === 'ru' ? 'Кэш, память сообщений' : 'Cache, storage usage'}
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            
           </div>
 
           {/* ⭐️ Избранное (Saved Messages) */}
           {onOpenSavedMessages && (
             <div
               onClick={onOpenSavedMessages}
-              className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+              className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-sky-500 to-sky-700 text-white flex items-center justify-center">
                   <Bookmark className="w-5 h-5 fill-white text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                  <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                     {t.savedMessages}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                     {t.savedMessagesSub}
                   </p>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              
             </div>
           )}
 
           {/* 🌐 Язык (Language) */}
           <div
             onClick={() => onUpdateSettings({ language: settings.language === 'ru' ? 'en' : 'ru' })}
-            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-850 cursor-pointer transition"
+            className="px-4 py-3 flex items-center justify-between active:bg-gray-100 dark:active:bg-zinc-800 cursor-pointer transition"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-500 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-[11px] bg-gradient-to-b from-purple-400 to-purple-600 text-white flex items-center justify-center">
                 <Globe className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                <p className="text-[17px] font-medium text-gray-900 dark:text-white">
                   {t.language}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[15px] text-gray-400 dark:text-zinc-400">
                   {settings.language === 'ru' ? 'Русский (Russian)' : 'English'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-sky-500">
+              <span className="text-[15px] text-sky-400">
                 {settings.language === 'ru' ? 'Русский' : 'English'}
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              
             </div>
           </div>
         </div>
 
         {/* LOGOUT BUTTON */}
         {onLogout && (
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-[22px] px-5 py-4">
             {showLogoutConfirm ? (
               <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900/60">
                 <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2.5">
@@ -1188,7 +1188,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <LogOut className="w-5 h-5 text-rose-500" />
                   <span>{t.logout}</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-rose-400" />
+                
               </button>
             )}
           </div>

@@ -22,6 +22,7 @@ import {
 } from './sampleData';
 import { realtimeNetwork, NetworkMessagePayload, ConnectionStatus } from './services/realtimeNetwork';
 import { ChatListScreen } from './components/ChatListScreen';
+import { BottomNav } from './components/BottomNav';
 import { ChatDetailScreen } from './components/ChatDetailScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { ChannelsScreen } from './components/ChannelsScreen';
@@ -1298,7 +1299,7 @@ export const App: React.FC = () => {
 
         {/* Right Side / Active Screen on Mobile */}
         <main
-          className={`h-full flex-1 min-w-0 flex-col transition-all overflow-hidden ${
+          className={`relative h-full flex-1 min-w-0 flex-col transition-all overflow-hidden ${
             currentRoute.type === 'chat_list' ? 'hidden lg:flex' : 'flex w-full'
           }`}
         >
@@ -1394,6 +1395,18 @@ export const App: React.FC = () => {
               onOpenSavedMessages={handleOpenSavedMessages}
               onOpenProfile={() => setCurrentRoute({ type: 'profile' })}
               onOpenChangePassword={() => setShowChangePasswordModal(true)}
+            />
+          )}
+
+          {(currentRoute.type === 'settings' || currentRoute.type === 'profile') && (
+            <BottomNav
+              active={currentRoute.type === 'settings' ? 'settings' : 'profile'}
+              language={settings.language}
+              user={account}
+              onChats={() => setCurrentRoute({ type: 'chat_list' })}
+              onContacts={() => setCurrentRoute({ type: 'create_chat' })}
+              onSettings={() => setCurrentRoute({ type: 'settings' })}
+              onProfile={() => setCurrentRoute({ type: 'profile' })}
             />
           )}
 
