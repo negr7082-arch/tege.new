@@ -152,7 +152,8 @@ const publicUser = (u) => ({
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
-  online: online.has(u.id)
+  online: online.has(u.id),
+  lastSeenAt: u.lastSeenAt || null
 });
 const selfUser = (u, token) => ({
   id: u.id,
@@ -470,7 +471,7 @@ attachWebSocket(server, (conn, url) => {
   const wasOffline = !set;
   if (!set) online.set(user.id, (set = new Set()));
   set.add(conn);
-  if (wasOffline) broadcast({ type: 'presence', userId: user.id, online: true }, conn);
+  if (wasOffline) broadcast({ type: 'presence', userId: user.id, online: true, lastSeenAt: user.lastSeenAt || null }, conn);
 
   conn.send({
     type: 'snapshot',
@@ -496,7 +497,9 @@ attachWebSocket(server, (conn, url) => {
     set.delete(conn);
     if (set.size === 0) {
       online.delete(user.id);
-      broadcast({ type: 'presence', userId: user.id, online: false });
+      user.lastSeenAt = Date.now();
+      save();
+      broadcast({ type: 'presence', userId: user.id, online: false, lastSeenAt: user.lastSeenAt });
     }
   };
 
