@@ -45,6 +45,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const t = getT(language);
 
   const [busy, setBusy] = useState(false);
+  const [loginChallenge, setLoginChallenge] = useState<string | null>(null);
+  const [cloudPassword, setCloudPassword] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'free' | 'taken' | 'invalid'>('idle');
 
   // Live @username availability check (debounced) while registering.
@@ -92,6 +94,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     e.preventDefault();
     if (busy) return;
     setError(null);
+
+    if (loginChallenge) {
+      if (!cloudPassword) {
+        setError(language === 'ru' ? 'Введите облачный пароль.' : 'Enter your cloud password.');
+        return;
+      }
+      setBusy(true);
+      const result = await realtimeNetwork.loginWithCloudPassword(loginChallenge, cloudPassword);
+      setBusy(false);
+      if (!result.ok || !result.user) {
+        setError(result.error === 'challenge_expired'
+          ? (language === 'ru' ? 'Время входа истекло. Войдите снова.' : 'Login expired. Please sign in again.')
+          : (language === 'ru' ? 'Неверный облачный пароль.' : 'Incorrect cloud password.'));
+        if (result.error === 'challenge_expired') setLoginChallenge(null);
+        return;
+      }
+      onLogin(result.user);
+      return;
+    }
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
@@ -161,7 +182,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setBusy(true);
       const res = await realtimeNetwork.login(cleanEmail, password);
       setBusy(false);
-      if (!res.ok || !res.user) {
+      if (!res.ok) {
+        setError(serverError(res.error));
+        return;
+      }
+      if (res.requiresTwoFactor && res.challenge) {
+        setLoginChallenge(res.challenge);
+        setCloudPassword('');
+        setError(null);
+        return;
+      }
+      if (!res.user) {
         setError(serverError(res.error));
         return;
       }
@@ -318,7 +349,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </>
           )}
 
-          {/* Password */}
+          {/* Password / cloud password second step */}
+          {!loginChallenge ? (
           <div>
             <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
               {t.enterPassword} <span className="text-rose-500">*</span>
@@ -346,6 +378,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </p>
           </div>
 
+          ) : (
+            <div>
+              <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                {language === 'ru' ? 'Облачный пароль' : 'Cloud password'} <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="password"
+                autoFocus
+                required
+                value={cloudPassword}
+                onChange={(e) => setCloudPassword(e.target.value)}
+                placeholder={language === 'ru' ? 'Введите дополнительный пароль' : 'Enter your additional password'}
+                className="w-full px-4 py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <p className="text-xs text-gray-400 mt-2">
+                {language === 'ru' ? 'Дополнительная защита аккаунта' : 'An extra layer of account protection'}
+              </p>
+              <button type="button" onClick={() => { setLoginChallenge(null); setCloudPassword(''); setPassword(''); }} className="text-xs text-sky-600 mt-2">
+                {language === 'ru' ? 'Назад ко входу' : 'Back to sign in'}
+              </button>
+            </div>
+          )}
+
           {/* Confirm Password (if Registering) */}
           {isRegister && (
             <div>
@@ -372,7 +427,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               disabled={busy}
               className="w-full py-3.5 disabled:opacity-60 bg-sky-500 hover:bg-sky-600 active:scale-98 text-white font-bold rounded-xl shadow-sm shadow-sky-500/20 transition flex items-center justify-center gap-2 text-sm"
             >
-              <span>{isRegister ? (language === 'ru' ? 'Создать аккаунт' : 'Create account') : t.loginBtn}</span>
+              <span>{loginChallenge ? (language === 'ru' ? 'Подтвердить вход' : 'Verify sign in') : isRegister ? (language === 'ru' ? 'Создать аккаунт' : 'Create account') : t.loginBtn}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
