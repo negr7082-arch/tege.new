@@ -109,12 +109,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   useEffect(() => {
-    if (activeSection === 'privacy' && currentUser?.token) void refreshSessions();
+    if (activeSection === 'privacy' && currentUser?.token) {
+      void refreshSessions();
+      void realtimeNetwork.getCloudPasswordStatus(currentUser.token).then((result) => {
+        if (result.ok) {
+          setCloudPasswordEnabled(result.enabled);
+          onUpdateSettings({ twoFactorEnabled: result.enabled, twoFactorPassword: undefined });
+        }
+      });
+    }
   }, [activeSection, currentUser?.token]);
   const [show2FaModal, setShow2FaModal] = useState(false);
   const [twoFaPasswordInput, setTwoFaPasswordInput] = useState('');
   const [twoFaCurrentPassword, setTwoFaCurrentPassword] = useState('');
   const [twoFaSaving, setTwoFaSaving] = useState(false);
+  const [cloudPasswordEnabled, setCloudPasswordEnabled] = useState(Boolean(cloudPasswordEnabled));
   const [twoFaError, setTwoFaError] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -149,7 +158,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return;
     }
     setTwoFaSaving(true);
-    const result = await realtimeNetwork.setCloudPassword(currentUser.token, newPassword, settings.twoFactorEnabled ? twoFaCurrentPassword : undefined);
+    const result = await realtimeNetwork.setCloudPassword(currentUser.token, newPassword, cloudPasswordEnabled ? twoFaCurrentPassword : undefined);
     setTwoFaSaving(false);
     if (!result.ok) {
       setTwoFaError(result.error === 'bad_cloud_password'
@@ -157,6 +166,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         : (settings.language === 'ru' ? 'Не удалось сохранить пароль.' : 'Could not save password.'));
       return;
     }
+    setCloudPasswordEnabled(true);
     onUpdateSettings({ twoFactorEnabled: true, twoFactorPassword: undefined });
     setTwoFaPasswordInput('');
     setTwoFaCurrentPassword('');
@@ -173,6 +183,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setTwoFaError(settings.language === 'ru' ? 'Неверный облачный пароль.' : 'Incorrect cloud password.');
       return;
     }
+    setCloudPasswordEnabled(false);
     onUpdateSettings({ twoFactorEnabled: false, twoFactorPassword: undefined });
     setTwoFaPasswordInput('');
     setTwoFaCurrentPassword('');
