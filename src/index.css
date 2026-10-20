@@ -36,6 +36,38 @@
   html.dark {
     color-scheme: dark;
   }
+
+  /* Phone: never let anything poke out of the screen */
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+  textarea,
+  input,
+  select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* Long words / links / emoji strings wrap instead of overflowing the bubble */
+.tege-msg-text,
+.whitespace-pre-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Dynamic text size scaling */

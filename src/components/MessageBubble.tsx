@@ -16,7 +16,9 @@ import {
   CheckCircle2,
   Circle,
   Copy,
-  Trash2
+  Trash2,
+  Pencil,
+  Forward
 } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -29,6 +31,8 @@ interface MessageBubbleProps {
   onPinMessage?: (messageId: number) => void;
   onReplyMessage?: (message: Message) => void;
   onDeleteMessage?: (messageId: number) => void;
+  onEditMessage?: (message: Message) => void;
+  onForwardMessage?: (message: Message) => void;
 }
 
 const COMMON_REACTIONS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '⚡'];
@@ -47,7 +51,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onOpenComments,
   onPinMessage,
   onReplyMessage,
-  onDeleteMessage
+  onDeleteMessage,
+  onEditMessage,
+  onForwardMessage
 }) => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -201,7 +207,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
           {/* Floating Telegram time badge */}
           <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-            <span>{message.time}</span>
+            <span>{message.edited ? 'изменено · ' : ''}{message.time}</span>
             {isMine && <CheckCheck className="w-3 h-3 text-sky-400" />}
           </div>
 
@@ -288,7 +294,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       )}
       <div
         style={{ transform: dragX ? `translateX(${dragX}px)` : undefined }}
-        className={`max-w-[85%] sm:max-w-[76%] rounded-[18px] px-3 py-1.5 relative ${bubbleBgClass} ${
+        className={`max-w-[85%] sm:max-w-[76%] min-w-0 [overflow-wrap:anywhere] rounded-[18px] px-3 py-1.5 relative ${bubbleBgClass} ${
           isMine && !isChannel ? 'rounded-br-xs' : 'rounded-bl-xs'
         }`}
       >
@@ -298,6 +304,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <Pin className="w-3 h-3 rotate-45" />
             <span>Закреплено</span>
           </div>
+        )}
+
+        {message.forwardedFrom && (
+          <p className="text-[12px] font-semibold text-sky-500 dark:text-sky-400 mb-1 truncate select-none">
+            Переслано от {message.forwardedFrom}
+          </p>
         )}
 
         {/* Quoted reply message header */}
@@ -329,7 +341,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <img
               src={message.attachmentUri}
               alt="attachment"
-              className="w-full max-h-80 object-cover rounded-xl hover:opacity-95 transition cursor-pointer"
+              className="w-full max-w-full max-h-80 object-cover rounded-xl hover:opacity-95 transition cursor-pointer"
               loading="lazy"
             />
           </div>
@@ -341,7 +353,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <video
               src={message.videoUri}
               controls
-              className="w-full max-h-80 rounded-xl object-contain"
+              className="w-full max-w-full max-h-80 rounded-xl object-contain"
             />
           </div>
         )}
@@ -508,7 +520,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Text */}
         {message.text && (
-          <p className="leading-relaxed break-words whitespace-pre-wrap select-text text-[14px]">
+          <p className="leading-relaxed break-words [overflow-wrap:anywhere] whitespace-pre-wrap select-text text-[14px]">
             {message.text}
           </p>
         )}
@@ -565,7 +577,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
 
           <div className="flex items-center gap-1 ml-auto">
-            <span className="text-[10px]">{message.time}</span>
+            <span className="text-[10px]">{message.edited ? 'изменено · ' : ''}{message.time}</span>
             {isMine && !isChannel && (
               <CheckCheck className="w-3.5 h-3.5 text-sky-500 dark:text-sky-300" />
             )}
@@ -641,7 +653,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           onClick={() => setShowMenu(false)}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <div className="w-[270px] flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <div className="w-[270px] max-w-[90vw] flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
             {onReact && (
               <div className="bg-white/95 dark:bg-zinc-800/95 rounded-full shadow-xl px-2 py-1.5 flex items-center justify-between">
                 {COMMON_REACTIONS.map((emoji) => (
@@ -686,6 +698,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   <span>Копировать текст</span>
                 </button>
               )}
+              {onEditMessage && isMine && message.text && !message.poll && !message.isSystemBotMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onEditMessage(message);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left"
+                >
+                  <Pencil className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
+                  <span>Изменить</span>
+                </button>
+              )}
+              {onForwardMessage && !message.poll && !message.isSystemBotMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onForwardMessage(message);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 active:bg-black/5 dark:active:bg-white/10 text-left"
+                >
+                  <Forward className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
+                  <span>Переслать</span>
+                </button>
+              )}
               {onPinMessage && (
                 <button
                   type="button"
@@ -699,7 +737,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   <span>{message.isPinned ? 'Открепить' : 'Закрепить'}</span>
                 </button>
               )}
-              {onDeleteMessage && isMine && (
+              {onDeleteMessage && (
                 <button
                   type="button"
                   onClick={() => {

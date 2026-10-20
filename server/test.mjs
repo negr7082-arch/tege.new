@@ -120,6 +120,19 @@ try {
   await cb3.waitFor((m) => m.type === 'message' && m.payload.message.text === 'breaking');
   console.log('✓ channel posting restricted to owner/admins');
 
+  // delete / edit of an already sent message is relayed (author comes from the token, push stays silent)
+  ca.send({ type: 'send', payload: { id: 8, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 8001, text: 'to edit', time: '12:07' } } });
+  await cb3.waitFor((m) => m.type === 'message' && m.payload.message.id === 8001);
+  ca.send({ type: 'send', payload: { id: 9, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'edit', targetId: 8001, message: { id: 8001, text: 'edited text', time: '' } } });
+  const ed = await cb3.waitFor((m) => m.type === 'message' && m.payload.action === 'edit');
+  assert.equal(ed.payload.targetId, 8001); assert.equal(ed.payload.message.text, 'edited text'); assert.equal(ed.payload.fromUser.id, a.id);
+  ca.send({ type: 'send', payload: { id: 10, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'delete', targetId: 8001, fromUser: { id: 999 }, message: { id: 8001, text: '', time: '' } } });
+  const del = await cb3.waitFor((m) => m.type === 'message' && m.payload.action === 'delete');
+  assert.equal(del.payload.targetId, 8001); assert.equal(del.payload.fromUser.id, a.id, 'author must come from token');
+  ca.send({ type: 'send', payload: { id: 11, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'delete', targetId: 'abc', message: { id: 1 } } });
+  assert.equal((await ca.waitFor((m) => m.type === 'send_result' && m.id === 11)).ok, false);
+  console.log('✓ delete / edit relayed to the other side, bad action rejected');
+
   // presence off + profile
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });
   const up = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.name === 'Alice A.');

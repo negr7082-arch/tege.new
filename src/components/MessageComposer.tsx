@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Poll, MessageReplyInfo, ChatPermissions } from '../types';
+import { Poll, Message, MessageReplyInfo, ChatPermissions } from '../types';
 import { PollCreatorModal } from './PollCreatorModal';
 import { VideoNoteRecorderModal } from './VideoNoteRecorderModal';
 import {
@@ -39,6 +39,9 @@ interface MessageComposerProps {
   cooldownRemaining?: number;
   replyToMessage?: MessageReplyInfo | null;
   onClearReply?: () => void;
+  editingMessage?: Message | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (text: string) => void;
   onToggleMute?: () => void;
   onSubscribe?: () => void;
   onBack?: () => void;
@@ -111,6 +114,9 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   cooldownRemaining = 0,
   replyToMessage,
   onClearReply,
+  editingMessage,
+  onCancelEdit,
+  onSaveEdit,
   onToggleMute,
   onSubscribe,
   onBack,
@@ -344,7 +350,24 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
     setVoiceDuration(0);
   };
 
+  // Edit mode: put the old text into the input
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.text || '');
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+  }, [editingMessage?.id]);
+
   const handleSend = () => {
+    if (editingMessage) {
+      const edited = text.trim();
+      if (!edited) return;
+      if (onSaveEdit) onSaveEdit(edited);
+      setText('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      return;
+    }
+
     if (cooldownRemaining > 0 && !isAdmin) {
       showPermissionError(`Медленный режим: подождите ещё ${cooldownRemaining} сек.`);
       return;
@@ -489,6 +512,26 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           <span>{restrictionNotice}</span>
           <button onClick={() => setRestrictionNotice(null)} className="p-0.5">
             <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {editingMessage && (
+        <div className="mb-2 p-2 bg-gray-50 dark:bg-zinc-800/80 rounded-xl border-l-4 border-sky-500 flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <span className="text-xs font-bold text-sky-500 block truncate">Редактирование</span>
+            <span className="text-xs text-gray-600 dark:text-zinc-300 truncate block">{editingMessage.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setText('');
+              if (onCancelEdit) onCancelEdit();
+            }}
+            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200 transition"
+            title="Отменить"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -719,7 +762,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
                   ? `От лица ${channelOrGroupName}...`
                   : 'Сообщение...'
               }
-              className="flex-1 bg-transparent text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 text-[15px] sm:text-base outline-none px-2.5 py-2 resize-none min-h-[40px] max-h-36 leading-normal"
+              className="flex-1 min-w-0 w-full bg-transparent text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 text-[15px] sm:text-base outline-none px-2.5 py-2 resize-none min-h-[40px] max-h-36 leading-normal"
             />
 
             {/* Paperclip (Скрепка) button inside the capsule on the right */}

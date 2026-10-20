@@ -14,6 +14,9 @@ export interface NetworkMessagePayload {
   chatType: 'direct' | 'group' | 'channel';
   message: Message;
   channelOrGroupName?: string;
+  /** delete/edit of an already sent message (message.id === targetId, only the author can do it) */
+  action?: 'delete' | 'edit';
+  targetId?: number;
   /** set by the server; used for ack + de-duplication */
   deliveryId?: string;
 }

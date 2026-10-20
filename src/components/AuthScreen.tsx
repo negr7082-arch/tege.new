@@ -170,7 +170,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-zinc-950 p-4 select-none relative overflow-y-auto">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-100 dark:bg-zinc-950 p-4 select-none relative overflow-y-auto">
       {/* Top right quick controls: Language & Theme */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         {onLanguageChange && (

@@ -37,6 +37,20 @@ import { TelegramDrawer } from './components/TelegramDrawer';
 import { AddAccountModal } from './components/AddAccountModal';
 import { getT } from './translations';
 import { refreshPush } from './services/pushService';
+
+// Short text for the chat list preview, for any kind of message
+function messagePreview(m: Message | undefined, ru: boolean): string {
+  if (!m) return '';
+  if (m.poll) return (ru ? '📊 Опрос: ' : '📊 Poll: ') + m.poll.question;
+  if (m.videoNoteUri) return ru ? '⚪ Видеосообщение' : '⚪ Video note';
+  if (m.isVoice) return ru ? '🎤 Голосовое сообщение' : '🎤 Voice message';
+  if (m.audioUri) return ru ? '🎵 Аудио' : '🎵 Audio';
+  if (m.fileUri) return `📁 ${m.fileName || (ru ? 'Файл' : 'File')}`;
+  if (m.text) return m.text;
+  if (m.videoUri) return ru ? '📹 Видео' : '📹 Video';
+  if (m.attachmentUri) return ru ? '📷 Фото' : '📷 Photo';
+  return '';
+}
 import { Smartphone, Search } from 'lucide-react';
 
 const STORAGE_CHATS_KEY = 'tege_chats_pure_v3';
@@ -463,6 +477,45 @@ export const App: React.FC = () => {
       // Ignore messages sent by ourselves
       if (payload.fromUser.id === account.id) return;
 
+      // The author deleted or edited an already delivered message
+      if (payload.action && payload.targetId != null) {
+        const group = payload.chatType === 'channel' || payload.chatType === 'group';
+        const ru = settings.language === 'ru';
+        setChats((prevChats) =>
+          prevChats.map((c) => {
+            const match = group
+              ? c.id === payload.chatId || (!!payload.channelOrGroupName && c.name === payload.channelOrGroupName)
+              : c.userId === payload.fromUser.id || c.username?.toLowerCase() === payload.fromUser.username.toLowerCase();
+            if (!match) return c;
+            const idx = c.messages.findIndex(
+              (m) => m.id === payload.targetId && !m.isMine && m.senderId === payload.fromUser.id
+            );
+            if (idx === -1) return c;
+            const target = c.messages[idx];
+            if (payload.action === 'delete') {
+              const messages = c.messages.filter((_, i) => i !== idx);
+              let unread = c.unread;
+              if (unread > 0) {
+                const incoming = c.messages.filter((m) => !m.isMine);
+                if (incoming.length - 1 - incoming.indexOf(target) < unread) unread -= 1;
+              }
+              return {
+                ...c,
+                messages,
+                unread,
+                lastMessage: messagePreview(messages[messages.length - 1], ru),
+                ...(c.pinnedMessageId === target.id ? { pinnedMessageId: undefined } : {})
+              };
+            }
+            const newText = String(payload.message?.text ?? '').slice(0, 4096);
+            if (!newText) return c;
+            const messages = c.messages.map((m, i) => (i === idx ? { ...m, text: newText, edited: true } : m));
+            return { ...c, messages, ...(idx === c.messages.length - 1 ? { lastMessage: newText } : {}) };
+          })
+        );
+        return;
+      }
+
       const isTargetUser =
         payload.toUserId === account.id ||
         (payload.toUsername && payload.toUsername.toLowerCase() === account.username.toLowerCase());
@@ -850,7 +903,8 @@ export const App: React.FC = () => {
     audioUri?: string | null,
     fileUri?: string | null,
     fileName?: string,
-    fileSize?: string
+    fileSize?: string,
+    forwardedFrom?: string
   ) => {
     if (!account) return;
 
@@ -927,6 +981,7 @@ export const App: React.FC = () => {
       asChannel: shouldPostAsChannel,
       poll: poll || undefined,
       replyTo: replyTo || undefined,
+      forwardedFrom: forwardedFrom || undefined,
       reactions: {},
       comments: [],
       views: isChannel ? 1 : undefined
@@ -980,6 +1035,86 @@ export const App: React.FC = () => {
         message: newMessage
       });
     }
+  };
+
+  // Tell the other side that we deleted / edited one of OUR messages
+  const sendMessageAction = (chat: Chat, action: 'delete' | 'edit', msg: Message, newText?: string) => {
+    if (!account) return;
+    const asChannel = chat.type !== 'direct' && Boolean(msg.asChannel);
+    realtimeNetwork.sendMessage({
+      id: Date.now(),
+      fromUser: {
+        id: account.id,
+        name: asChannel ? chat.name : account.name,
+        username: account.username,
+        avatarUri: asChannel ? chat.avatarUri : account.avatarUri
+      },
+      toUserId: chat.userId,
+      toUsername: chat.username,
+      chatId: chat.id,
+      chatType: chat.type || 'direct',
+      channelOrGroupName: chat.name,
+      message: { id: msg.id, text: newText ?? '', time: '', isMine: true },
+      action,
+      targetId: msg.id
+    });
+  };
+
+  const handleDeleteMessage = (chatId: number, messageId: number, forEveryone: boolean) => {
+    const chat = chats.find((c) => c.id === chatId);
+    const msg = chat?.messages.find((m) => m.id === messageId);
+    if (!chat || !msg) return;
+    const ru = settings.language === 'ru';
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const messages = c.messages.filter((m) => m.id !== messageId);
+        return {
+          ...c,
+          messages,
+          lastMessage: messagePreview(messages[messages.length - 1], ru),
+          ...(c.pinnedMessageId === messageId ? { pinnedMessageId: undefined } : {})
+        };
+      })
+    );
+    if (forEveryone && msg.isMine && chatId !== 999999 && !chat.isSavedMessages) {
+      sendMessageAction(chat, 'delete', msg);
+    }
+  };
+
+  const handleEditMessage = (chatId: number, messageId: number, newText: string) => {
+    const text = newText.trim().slice(0, 4096);
+    const chat = chats.find((c) => c.id === chatId);
+    const msg = chat?.messages.find((m) => m.id === messageId && m.isMine);
+    if (!text || !chat || !msg) return;
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const messages = c.messages.map((m) => (m.id === messageId ? { ...m, text, edited: true } : m));
+        const isLast = c.messages[c.messages.length - 1]?.id === messageId;
+        return { ...c, messages, ...(isLast ? { lastMessage: text } : {}) };
+      })
+    );
+    if (chatId !== 999999 && !chat.isSavedMessages) sendMessageAction(chat, 'edit', msg, text);
+  };
+
+  const handleForwardMessage = (toChatId: number, m: Message, fromName: string) => {
+    handleSendMessage(
+      toChatId,
+      m.text,
+      m.attachmentUri,
+      m.videoUri,
+      false,
+      undefined,
+      undefined,
+      m.videoNoteUri,
+      m.audioUri,
+      m.fileUri,
+      m.fileName,
+      m.fileSize,
+      m.forwardedFrom || fromName
+    );
+    showToast(settings.language === 'ru' ? 'Сообщение переслано' : 'Message forwarded');
   };
 
   // Create chat, group, or channel with Telegram-like settings and non-repeating 1122 ID
@@ -1337,6 +1472,10 @@ export const App: React.FC = () => {
               stories={stories}
               onViewStory={(idx) => setViewingStoryIndex(idx)}
               onSendMessage={handleSendMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onEditMessage={handleEditMessage}
+              onForwardMessage={handleForwardMessage}
+              forwardTargets={chats}
               onUpdateChat={handleUpdateChat}
               onClearHistory={handleClearHistory}
               onDeleteChat={handleDeleteChat}

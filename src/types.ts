@@ -121,6 +121,8 @@ export interface Message {
   poll?: Poll;
   comments?: Comment[];
   replyTo?: MessageReplyInfo;
+  edited?: boolean; // text was changed after sending ("изменено")
+  forwardedFrom?: string; // original author when the message was forwarded
 }
 
 export interface AdminMember {

@@ -114,6 +114,7 @@ function pushText(m = {}) {
   return 'Новое сообщение';
 }
 async function sendPush(userId, p) {
+  if (p.action) return; // delete/edit events are silent
   const subs = db.pushSubs[userId];
   if (!webpush || !subs || !subs.length) return;
   const isDirect = p.chatType === 'direct';
@@ -423,7 +424,10 @@ function handleSend(user, conn, payload) {
           username: user.username,
           avatarUri: payload.fromUser?.avatarUri ?? user.avatarUri ?? null
         };
+  const action = payload.action === 'delete' || payload.action === 'edit' ? payload.action : undefined;
+  if (action && !Number.isFinite(Number(payload.targetId))) return no('bad_action');
   const out = {
+    ...(action ? { action, targetId: Number(payload.targetId) } : {}),
     id: payload.id,
     fromUser,
     chatId: payload.chatId,

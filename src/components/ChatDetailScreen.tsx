@@ -57,6 +57,10 @@ interface ChatDetailScreenProps {
     fileName?: string,
     fileSize?: string
   ) => void;
+  onDeleteMessage?: (chatId: number, messageId: number, forEveryone: boolean) => void;
+  onEditMessage?: (chatId: number, messageId: number, text: string) => void;
+  onForwardMessage?: (toChatId: number, message: Message, fromName: string) => void;
+  forwardTargets?: Chat[];
   onUpdateChat?: (chatId: number, updated: Partial<Chat>) => void;
   onClearHistory?: (chatId: number) => void;
   onDeleteChat?: (chatId: number) => void;
@@ -80,6 +84,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   stories = [],
   onViewStory,
   onSendMessage,
+  onDeleteMessage: onDeleteMessageSync,
+  onEditMessage: onEditMessageSync,
+  onForwardMessage: onForwardMessageSync,
+  forwardTargets = [],
   onUpdateChat,
   onClearHistory,
   onDeleteChat,
@@ -97,6 +105,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [activeCommentsPost, setActiveCommentsPost] = useState<Message | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<MessageReplyInfo | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Message | null>(null);
+  const [deleteForEveryone, setDeleteForEveryone] = useState(true);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [showGroupVideoChat, setShowGroupVideoChat] = useState(false);
   const [directCallVideo, setDirectCallVideo] = useState(false);
   const [showBroadcastNoticeModal, setShowBroadcastNoticeModal] = useState(false);
@@ -361,15 +373,49 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     }
   };
 
-  // Handle Reply to message
+  // Delete: ask first (Telegram-style: only for me / also for everyone)
   const handleDeleteMessage = (messageId: number) => {
-    const updatedMessages = chat.messages.filter((m) => m.id !== messageId);
-    if (onUpdateChat) {
+    const msg = chat.messages.find((m) => m.id === messageId);
+    if (!msg) return;
+    setDeleteForEveryone(true);
+    setDeleteTarget(msg);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const everyone = deleteForEveryone && deleteTarget.isMine && !chat.isSavedMessages;
+    if (onDeleteMessageSync) {
+      onDeleteMessageSync(chat.id, deleteTarget.id, everyone);
+    } else if (onUpdateChat) {
       onUpdateChat(chat.id, {
-        messages: updatedMessages,
-        ...(chat.pinnedMessageId === messageId ? { pinnedMessageId: undefined } : {})
+        messages: chat.messages.filter((m) => m.id !== deleteTarget.id),
+        ...(chat.pinnedMessageId === deleteTarget.id ? { pinnedMessageId: undefined } : {})
       });
     }
+    if (editingMessage && editingMessage.id === deleteTarget.id) setEditingMessage(null);
+    setDeleteTarget(null);
+  };
+
+  const handleStartEdit = (message: Message) => {
+    setReplyToMessage(null);
+    setEditingMessage(message);
+  };
+
+  const handleSaveEdit = (newText: string) => {
+    if (!editingMessage) return;
+    if (newText !== editingMessage.text && onEditMessageSync) {
+      onEditMessageSync(chat.id, editingMessage.id, newText);
+    }
+    setEditingMessage(null);
+  };
+
+  const handleForwardTo = (target: Chat) => {
+    if (!forwardingMessage || !onForwardMessageSync) return;
+    const fromName =
+      forwardingMessage.forwardedFrom ||
+      (forwardingMessage.isMine ? currentAccount.name : forwardingMessage.senderName || chat.name);
+    onForwardMessageSync(target.id, forwardingMessage, fromName);
+    setForwardingMessage(null);
   };
 
   const handleReplyMessage = (message: Message) => {
@@ -785,6 +831,8 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
               onPinMessage={handlePinMessage}
               onReplyMessage={handleReplyMessage}
               onDeleteMessage={handleDeleteMessage}
+              onEditMessage={onEditMessageSync ? handleStartEdit : undefined}
+              onForwardMessage={onForwardMessageSync ? (m) => setForwardingMessage(m) : undefined}
             />
           </div>
         ))}
@@ -831,6 +879,9 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           }
           replyToMessage={replyToMessage}
           onClearReply={() => setReplyToMessage(null)}
+          editingMessage={editingMessage}
+          onCancelEdit={() => setEditingMessage(null)}
+          onSaveEdit={handleSaveEdit}
           onToggleMute={() => {
             if (onUpdateChat) {
               onUpdateChat(chat.id, { isMuted: !chat.isMuted });
@@ -862,6 +913,98 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             setReplyToMessage(null);
           }}
         />
+      )}
+
+      {/* Delete message dialog (Telegram-style) */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-base font-bold text-gray-900 dark:text-zinc-100">Удалить сообщение?</h4>
+            {deleteTarget.isMine && !chat.isSavedMessages ? (
+              <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-zinc-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deleteForEveryone}
+                  onChange={(e) => setDeleteForEveryone(e.target.checked)}
+                  className="w-5 h-5 accent-sky-500"
+                />
+                <span>
+                  {chat.type === 'direct' ? `Также удалить для ${chat.name}` : 'Удалить для всех участников'}
+                </span>
+              </label>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-zinc-400">
+                Сообщение будет удалено только у вас.
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-zinc-800 text-sm font-semibold text-gray-700 dark:text-zinc-200 active:scale-95 transition"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 py-2.5 rounded-xl bg-rose-500 text-white text-sm font-semibold active:scale-95 transition"
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forward message: pick a chat */}
+      {forwardingMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs select-none"
+          onClick={() => setForwardingMessage(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[70vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800">
+              <h4 className="text-base font-bold text-gray-900 dark:text-zinc-100">Переслать в…</h4>
+              <button
+                type="button"
+                onClick={() => setForwardingMessage(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto">
+              {forwardTargets.filter((c) => c.type !== 'channel').length === 0 && (
+                <p className="p-5 text-sm text-gray-500 dark:text-zinc-400 text-center">Нет чатов, куда можно переслать.</p>
+              )}
+              {forwardTargets
+                .filter((c) => c.type !== 'channel')
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleForwardTo(c)}
+                    className="w-full px-5 py-3 flex items-center gap-3 text-left active:bg-gray-100 dark:active:bg-zinc-800 transition"
+                  >
+                    <TelegramAvatar src={c.avatarUri} name={c.name} id={c.id} size="md" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-zinc-100 truncate">
+                      {c.isSavedMessages ? 'Избранное' : c.name}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Chat Confirmation Dialog */}
