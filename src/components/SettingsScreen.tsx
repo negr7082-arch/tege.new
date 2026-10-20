@@ -4,6 +4,7 @@ import { AppSettings, WallpaperId, TextSize, Language, BlockedUser, UserAccount 
 import { TegeTopBar } from './TegeTopBar';
 import { getT } from '../translations';
 import { BlacklistModal } from './BlacklistModal';
+import { realtimeNetwork } from '../services/realtimeNetwork';
 import { TelegramAvatar } from './TelegramAvatar';
 import {
   ArrowLeft,
@@ -92,6 +93,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [cacheSizeMb, setCacheSizeMb] = useState<number>(18.4);
   const [cacheClearedNotice, setCacheClearedNotice] = useState(false);
   const [sessionsTerminatedNotice, setSessionsTerminatedNotice] = useState(false);
+  const [activeSessions, setActiveSessions] = useState<Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }>>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
+
+  const refreshSessions = async () => {
+    if (!currentUser?.token) return;
+    setSessionsLoading(true);
+    setSessionsError(null);
+    const result = await realtimeNetwork.listSessions(currentUser.token);
+    setActiveSessions(result.sessions);
+    if (!result.ok) setSessionsError(settings.language === 'ru' ? 'Не удалось загрузить устройства' : 'Could not load devices');
+    setSessionsLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeSection === 'privacy' && currentUser?.token) void refreshSessions();
+  }, [activeSection, currentUser?.token]);
   const [show2FaModal, setShow2FaModal] = useState(false);
   const [twoFaPasswordInput, setTwoFaPasswordInput] = useState(settings.twoFactorPassword || '');
   const [twoFaError, setTwoFaError] = useState<string | null>(null);
@@ -455,41 +474,79 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
               </div>
 
-              {/* Устройства / Активные сеансы */}
+              {/* Active sessions / devices */}
               <div className="p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center">
-                      <Smartphone className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">
-                        {t.sessionsAndDevices}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        TEGE Android • {settings.language === 'ru' ? 'Текущий сеанс онлайн' : 'Active online'}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">{t.sessionsAndDevices}</p>
+                    <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Управляйте входами в аккаунт' : 'Manage devices signed into your account'}</p>
                   </div>
                 </div>
 
-                {sessionsTerminatedNotice ? (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-xl border border-emerald-200 dark:border-emerald-900">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{settings.language === 'ru' ? 'Все другие сеансы завершены' : 'All other sessions terminated'}</span>
-                  </p>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setSessionsTerminatedNotice(true);
-                      setTimeout(() => setSessionsTerminatedNotice(false), 3000);
-                    }}
-                    className="w-full py-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-gray-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition active:scale-98"
-                  >
-                    {t.terminateOtherSessions}
-                  </button>
+                {sessionsLoading && <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Загрузка устройств…' : 'Loading devices…'}</p>}
+                {sessionsError && <p role="alert" className="text-xs text-rose-500">{sessionsError}</p>}
+                {!sessionsLoading && activeSessions.length === 0 && !sessionsError && (
+                  <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Активные сеансы не найдены' : 'No active sessions found'}</p>
                 )}
-              </div>
+                <div className="space-y-2">
+                  {activeSessions.map((session) => (
+                    <div key={session.token} className="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-zinc-800/70 p-3">
+                      <Smartphone className="w-4 h-4 shrink-0 text-gray-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 truncate">{session.device}</p>
+                        <p className="text-xs text-gray-400">
+                          {session.current ? (settings.language === 'ru' ? 'Это устройство · текущий сеанс' : 'This device · current session') : (settings.language === 'ru' ? 'Другой сеанс' : 'Other session')}
+                          {session.createdAt ? ' · ' + new Date(session.createdAt).toLocaleString(settings.language === 'ru' ? 'ru-RU' : 'en-US') : ''}
+                        </p>
+                      </div>
+                      {!session.current && (
+                        <button
+                          disabled={revokingSession === session.token}
+                          onClick={async () => {
+                            if (!currentUser?.token) return;
+                            setRevokingSession(session.token);
+                            const ok = await realtimeNetwork.revokeSession(currentUser.token, session.token);
+                            setRevokingSession(null);
+                            if (ok) await refreshSessions();
+                            else setSessionsError(settings.language === 'ru' ? 'Не удалось завершить сеанс' : 'Could not terminate session');
+                          }}
+                          className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 disabled:opacity-50"
+                        >
+                          {revokingSession === session.token ? '…' : (settings.language === 'ru' ? 'Выйти' : 'Sign out')}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {sessionsTerminatedNotice && (
+                  <p role="status" className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-xl">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{settings.language === 'ru' ? 'Другие сеансы завершены' : 'Other sessions terminated'}</span>
+                  </p>
+                )}
+                <button
+                  disabled={sessionsLoading || !currentUser?.token || activeSessions.filter((s) => !s.current).length === 0}
+                  onClick={async () => {
+                    if (!currentUser?.token) return;
+                    setSessionsError(null);
+                    const ok = await realtimeNetwork.revokeOtherSessions(currentUser.token);
+                    if (ok) {
+                      setSessionsTerminatedNotice(true);
+                      await refreshSessions();
+                    } else {
+                      setSessionsError(settings.language === 'ru' ? 'Не удалось завершить другие сеансы' : 'Could not terminate other sessions');
+                    }
+                    setTimeout(() => setSessionsTerminatedNotice(false), 3000);
+                  }}
+                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-gray-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+                >
+                  {settings.language === 'ru' ? 'Выйти со всех других устройств' : 'Sign out all other devices'}
+                </button>
+              </div>div>
             </div>
           </div>
 
