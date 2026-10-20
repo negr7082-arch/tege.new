@@ -126,6 +126,12 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     return () => unsubscribe();
   }, [chat.id]);
 
+  // Keep online/last-seen text in sync with live presence updates.
+  const [, setDirectoryVersion] = useState(0);
+  useEffect(() => realtimeNetwork.subscribeToDirectory(() => {
+    setDirectoryVersion((version) => version + 1);
+  }), []);
+
   const activeVideoChat = networkVideoChat?.isActive ? networkVideoChat : chat.activeVideoChat?.isActive ? chat.activeVideoChat : null;
 
   // Swipe-to-back gesture support for mobile
