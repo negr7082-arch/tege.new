@@ -101,6 +101,8 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [activeCallStatus, setActiveCallStatus] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [activeCommentsPost, setActiveCommentsPost] = useState<Message | null>(null);
@@ -646,10 +648,24 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             </button>
           )}
 
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchOpen((open) => !open);
+              setMessageSearchQuery('');
+              setShowOptionsMenu(false);
+            }}
+            className={`w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition cursor-pointer ${isSearchOpen ? 'bg-sky-50 text-sky-600 dark:bg-zinc-800 dark:text-sky-400' : 'hover:bg-gray-100 dark:hover:bg-zinc-800'}`}
+            title={language === 'ru' ? 'Поиск по сообщениям' : 'Search messages'}
+            aria-label={language === 'ru' ? 'Поиск по сообщениям' : 'Search messages'}
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
           {!isSavedMessages && (
             <button
               type="button"
-              onClick={() => setShowOptionsMenu((prev) => !prev)}
+              onClick={() => setShowOptionsMenu((prev) => !prev)
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 active:scale-95 transition"
               title="Ещё"
             >
@@ -849,6 +865,40 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         </>
       )}
 
+      {isSearchOpen && (
+        <div className="shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-zinc-800 px-3 py-2">
+            <Search className="w-4 h-4 text-gray-400 shrink-0" />
+            <input
+              autoFocus
+              type="search"
+              value={messageSearchQuery}
+              onChange={(event) => setMessageSearchQuery(event.target.value)}
+              placeholder={language === 'ru' ? 'Поиск в переписке' : 'Search this chat'}
+              aria-label={language === 'ru' ? 'Поиск в переписке' : 'Search this chat'}
+              className="min-w-0 flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-zinc-100 placeholder:text-gray-400"
+            />
+            {messageSearchQuery && (
+              <button type="button" onClick={() => setMessageSearchQuery('')} className="text-xs text-sky-600 dark:text-sky-400">
+                {language === 'ru' ? 'Очистить' : 'Clear'}
+              </button>
+            )}
+            <button type="button" onClick={() => { setIsSearchOpen(false); setMessageSearchQuery(''); }} aria-label={language === 'ru' ? 'Закрыть поиск' : 'Close search'} className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {messageSearchQuery.trim() && (
+            <p className="px-1 pt-1.5 text-[11px] text-gray-500 dark:text-zinc-400">
+              {(() => {
+                const query = messageSearchQuery.trim().toLocaleLowerCase();
+                const count = chat.messages.filter((message) => [message.text, message.senderName, message.fileName, message.forwardedFrom].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query))).length;
+                return language === 'ru' ? `Найдено сообщений: ${count}` : `Messages found: ${count}`;
+              })()}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Messages Feed View */}
       <div
         className="flex-1 overflow-y-auto p-4 space-y-2 select-text"
@@ -872,7 +922,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           </span>
         </div>
 
-        {chat.messages.map((message) => (
+        {chat.messages.filter((message) => {
+          const query = messageSearchQuery.trim().toLocaleLowerCase();
+          return !query || [message.text, message.senderName, message.fileName, message.forwardedFrom].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query));
+        }).map((message) => (
           <div key={message.id} id={`msg-${message.id}`}>
             <MessageBubble
               message={message}
