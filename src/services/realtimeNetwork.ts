@@ -356,7 +356,7 @@ class RealtimeNetworkService {
         break;
       case 'presence': {
         const u = this.users.get(ev.userId);
-        if (u) this.users.set(ev.userId, { ...u, online: ev.online });
+        if (u) this.users.set(ev.userId, { ...u, online: ev.online, ...(typeof ev.lastSeenAt === 'number' ? { lastSeenAt: ev.lastSeenAt } : {}) });
         this.emitDirectory();
         break;
       }
