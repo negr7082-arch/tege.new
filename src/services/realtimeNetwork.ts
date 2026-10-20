@@ -25,6 +25,8 @@ export interface AuthResult {
   ok: boolean;
   error?: string;
   user?: UserAccount;
+  requiresTwoFactor?: boolean;
+  challenge?: string;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'online' | 'offline';
@@ -125,7 +127,22 @@ class RealtimeNetworkService {
 
   public async login(email: string, password: string): Promise<AuthResult> {
     const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel() });
-    return r.ok ? { ok: true, user: { ...r.user, password } } : { ok: false, error: r.error };
+    return r.ok ? { ok: true, user: r.user ? { ...r.user, password } : undefined, requiresTwoFactor: Boolean(r.requiresTwoFactor), challenge: r.challenge } : { ok: false, error: r.error };
+  }
+
+  public async loginWithCloudPassword(challenge: string, cloudPassword: string): Promise<AuthResult> {
+    const r = await this.api('/api/login/cloud-password', { challenge, cloudPassword, device: this.getDeviceLabel() });
+    return r.ok ? { ok: true, user: r.user ? { ...r.user, password: '' } : undefined } : { ok: false, error: r.error };
+  }
+
+  public async setCloudPassword(token: string, cloudPassword: string, currentPassword?: string): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/cloud-password/set', { token, cloudPassword, currentPassword });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
+  public async disableCloudPassword(token: string, currentPassword: string): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/cloud-password/disable', { token, currentPassword });
+    return { ok: Boolean(r.ok), error: r.error };
   }
 
   public async changePassword(token: string, newPassword: string): Promise<boolean> {
