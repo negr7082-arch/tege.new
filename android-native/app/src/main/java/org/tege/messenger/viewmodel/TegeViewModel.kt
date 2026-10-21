@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import okhttp3.WebSocket
+import org.tege.messenger.service.BackendClient
+import org.tege.messenger.service.TegeSocketListener
 import org.tege.messenger.data.SampleData
 import org.tege.messenger.model.*
 import org.tege.messenger.service.StreakManager
@@ -23,17 +27,20 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsPrefs = application.getSharedPreferences("tege_local_settings", Context.MODE_PRIVATE)
 
     private fun loadLocalAccount(): UserAccount? {
+        // A saved display name is not an authenticated account. Restore only a server session.
+        if (profilePrefs.getString("auth_token", null).isNullOrBlank()) return null
         val name = profilePrefs.getString("name", null)?.trim().orEmpty()
         if (name.isBlank()) return null
         return UserAccount(
-            id = profilePrefs.getLong("id", System.currentTimeMillis()),
-            email = "",
+            id = profilePrefs.getLong("id", 0L),
+            email = profilePrefs.getString("email", "").orEmpty(),
             name = name,
             username = profilePrefs.getString("username", "").orEmpty(),
             bio = profilePrefs.getString("bio", "").orEmpty(),
             phone = profilePrefs.getString("phone", "").orEmpty(),
-            country = "",
+            country = profilePrefs.getString("country", "").orEmpty(),
             registrationDate = profilePrefs.getString("created_at", "").orEmpty(),
+            avatarUri = profilePrefs.getString("avatar_uri", null),
             isOnline = false
         )
     }
@@ -44,10 +51,13 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val editor = profilePrefs.edit()
         if (account == null) editor.clear().apply()
         else editor.putLong("id", account.id)
+            .putString("email", account.email)
             .putString("name", account.name)
             .putString("username", account.username)
             .putString("bio", account.bio)
             .putString("phone", account.phone)
+            .putString("country", account.country)
+            .putString("avatar_uri", account.avatarUri)
             .putString("created_at", account.registrationDate)
             .apply()
     }
@@ -92,6 +102,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     .put("unread", chat.unread).put("isPinned", chat.isPinned)
                     .put("isMuted", chat.isMuted).put("online", chat.online)
                     .put("color", chat.color).put("isSavedMessages", chat.isSavedMessages)
+                chat.userId?.let { item.put("userId", it) }
+                chat.avatarUri?.let { item.put("avatarUri", it) }
                 chat.username?.let { item.put("username", it) }
                 item.put("subscribersCount", chat.subscribersCount)
                 val messages = JSONArray()
@@ -200,8 +212,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 Chat(
                     id = id,
                     type = restoredType,
-                    name = item.optString("name", "Локальный чат"),
+                    userId = item.optLong("userId").takeIf { it > 0L },
+                    name = item.optString("name", "Локальный черновик"),
                     username = item.optString("username").takeIf { it.isNotBlank() },
+                    avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
                     description = item.optString("description", "Локальный черновик"),
                     lastMessage = item.optString("lastMessage"),
                     time = item.optString("time"),
@@ -255,9 +269,274 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _contacts = MutableStateFlow<List<ContactUser>>(emptyList())
+    val contacts: StateFlow<List<ContactUser>> = _contacts.asStateFlow()
+    private val _connectionState = MutableStateFlow("Не подключено")
+    val connectionState: StateFlow<String> = _connectionState.asStateFlow()
+    private val _messageError = MutableStateFlow<String?>(null)
+    val messageError: StateFlow<String?> = _messageError.asStateFlow()
+
+    private var activeSocket: WebSocket? = null
+    private var reconnectScheduled = false
+    private val savedServerUrl: String
+        get() = profilePrefs.getString("api_base_url", BackendClient.DEFAULT_BASE_URL)
+            ?: BackendClient.DEFAULT_BASE_URL
+    private val savedToken: String?
+        get() = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
+
     init {
         restoreChats()
         viewModelScope.launch { _chats.collect { chats -> persistChats(chats) } }
+        val token = savedToken
+        if (token != null && savedLocalAccount != null) connectToServer(savedServerUrl, token)
+    }
+
+    suspend fun authenticate(
+        serverUrl: String,
+        email: String,
+        password: String,
+        displayName: String,
+        username: String,
+        register: Boolean
+    ): String? {
+        val normalizedUrl = BackendClient.normalizeBaseUrl(serverUrl)
+            ?: return "Укажи адрес сервера в формате https://example.com"
+        if (email.isBlank() || password.isBlank()) return "Введи почту и пароль"
+        if (register && displayName.isBlank()) return "Введи имя"
+        val result = BackendClient.authenticate(
+            normalizedUrl, register, email, password, displayName, username
+        )
+        val json = result.user
+        if (json == null) return authErrorText(result.error, result.requiresTwoFactor)
+        val token = json.optString("token")
+        if (token.isBlank()) return "Сервер не вернул токен сессии. Попробуй ещё раз."
+
+        val account = UserAccount(
+            id = json.optLong("id"),
+            email = json.optString("email", email.trim()),
+            name = json.optString("name", displayName.trim()),
+            username = json.optString("username").removePrefix("@"),
+            bio = json.optString("bio"),
+            phone = json.optString("phone"),
+            country = json.optString("country"),
+            registrationDate = json.optString("registrationDate"),
+            avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
+            isOnline = true
+        )
+        profilePrefs.edit()
+            .putString("auth_token", token)
+            .putString("api_base_url", normalizedUrl)
+            .apply()
+        _accounts.value = listOf(account)
+        _currentAccount.value = account
+        persistLocalAccount(account)
+        _connectionState.value = "Подключение…"
+        activeSocket?.close(1000, "New session")
+        connectToServer(normalizedUrl, token)
+        return null
+    }
+
+    private fun authErrorText(error: String?, twoFactor: Boolean = false): String = when {
+        twoFactor || error == "two_factor_not_supported" ->
+            "Для аккаунта с облачным паролем вход в Android пока не поддерживается."
+        error == "bad_server_url" -> "Неверный адрес сервера."
+        error == "bad_email" -> "Проверь адрес электронной почты."
+        error == "short_password" -> "Пароль должен содержать не меньше 7 символов."
+        error == "no_name" -> "Введи имя."
+        error == "email_taken" -> "Этот адрес уже зарегистрирован. Войди в аккаунт."
+        error == "username_taken" -> "Это имя пользователя уже занято."
+        error == "bad_username" -> "Username должен содержать 3–32 символа: латиницу, цифры или подчёркивание."
+        error == "bad_credentials" -> "Неверная почта или пароль."
+        error == "too_many_requests" -> "Слишком много попыток. Попробуй позже."
+        error == "connection_failed" -> "Не удалось связаться с сервером. Проверь адрес и интернет."
+        else -> "Не удалось выполнить вход. Проверь данные и попробуй ещё раз."
+    }
+
+    private fun connectToServer(baseUrl: String, token: String) {
+        _connectionState.value = "Подключение…"
+        val socket = BackendClient.connect(baseUrl, token, object : TegeSocketListener {
+            override fun onStatus(connected: Boolean, detail: String?) {
+                _connectionState.value = if (connected) "Соединение установлено" else "Нет соединения"
+                if (!connected && savedToken == token && !reconnectScheduled) {
+                    reconnectScheduled = true
+                    viewModelScope.launch {
+                        delay(3_000)
+                        reconnectScheduled = false
+                        if (savedToken == token) connectToServer(baseUrl, token)
+                    }
+                }
+            }
+
+            override fun onEvent(event: JSONObject) {
+                handleServerEvent(event)
+            }
+        })
+        if (socket == null) {
+            _connectionState.value = "Неверный адрес сервера"
+        } else {
+            activeSocket = socket
+        }
+    }
+
+    private fun handleServerEvent(event: JSONObject) {
+        when (event.optString("type")) {
+            "snapshot" -> {
+                val users = event.optJSONArray("users") ?: JSONArray()
+                val selfId = _currentAccount.value?.id
+                _contacts.value = (0 until users.length()).mapNotNull { index ->
+                    val user = users.optJSONObject(index) ?: return@mapNotNull null
+                    val id = user.optLong("id")
+                    if (id == 0L || id == selfId) return@mapNotNull null
+                    ContactUser(
+                        id = id,
+                        name = user.optString("name", "Пользователь"),
+                        username = user.optString("username"),
+                        bio = user.optString("bio"),
+                        phone = user.optString("phone"),
+                        country = user.optString("country"),
+                        registrationDate = user.optString("registrationDate"),
+                        online = user.optBoolean("online"),
+                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                    )
+                }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                _connectionState.value = "Подключено"
+            }
+            "user_upsert" -> {
+                val user = event.optJSONObject("user") ?: return
+                val id = user.optLong("id")
+                if (id == 0L || id == _currentAccount.value?.id) return
+                val contact = ContactUser(
+                    id = id, name = user.optString("name", "Пользователь"),
+                    username = user.optString("username"), bio = user.optString("bio"),
+                    phone = user.optString("phone"), country = user.optString("country"),
+                    registrationDate = user.optString("registrationDate"),
+                    online = user.optBoolean("online"),
+                    avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                )
+                _contacts.value = (_contacts.value.filterNot { it.id == id } + contact)
+                    .sortedBy { it.name.lowercase(Locale.ROOT) }
+            }
+            "presence" -> {
+                val id = event.optLong("userId")
+                val online = event.optBoolean("online")
+                _contacts.value = _contacts.value.map { if (it.id == id) it.copy(online = online) else it }
+                _chats.value = _chats.value.map { if (it.userId == id) it.copy(online = online) else it }
+            }
+            "message" -> handleIncomingMessage(event.optJSONObject("payload") ?: return)
+            "send_result" -> {
+                if (!event.optBoolean("ok", true)) {
+                    val id = event.optLong("id", -1L)
+                    val reason = when (event.optString("reason")) {
+                        "no_user" -> "Пользователь не найден."
+                        "blocked" -> "Пользователь ограничил получение сообщений."
+                        "self" -> "Нельзя отправить сообщение самому себе."
+                        "forbidden" -> "У тебя нет прав писать в этот канал."
+                        else -> "Сервер не принял сообщение. Попробуй ещё раз."
+                    }
+                    if (id > 0L) {
+                        _chats.value = _chats.value.map { chat ->
+                            if (chat.messages.any { it.id == id && it.isMine }) {
+                                val updated = chat.messages.filterNot { it.id == id && it.isMine }
+                                val last = updated.lastOrNull()
+                                chat.copy(messages = updated, lastMessage = last?.text.orEmpty(), time = last?.time.orEmpty())
+                            } else chat
+                        }
+                    }
+                    _messageError.value = reason
+                }
+            }
+            "auth_error" -> {
+                activeSocket?.close(1000, "Authentication expired")
+                activeSocket = null
+                profilePrefs.edit().remove("auth_token").apply()
+                _currentAccount.value = null
+                _accounts.value = emptyList()
+                _contacts.value = emptyList()
+                _connectionState.value = "Сессия завершена — войди снова"
+            }
+        }
+    }
+
+    private fun handleIncomingMessage(payload: JSONObject) {
+        if (payload.optString("chatType", "direct") != "direct") return
+        val sender = payload.optJSONObject("fromUser") ?: return
+        val senderId = sender.optLong("id")
+        val ownId = _currentAccount.value?.id ?: return
+        if (senderId == 0L || senderId == ownId) return
+        val chatId = payload.optLong("chatId")
+        if (chatId == 0L) return
+        val messageJson = payload.optJSONObject("message") ?: return
+        val messageId = messageJson.optLong("id", System.currentTimeMillis())
+        val replyJson = messageJson.optJSONObject("replyTo")
+        val incoming = Message(
+            id = messageId,
+            text = messageJson.optString("text"),
+            time = messageJson.optString("time", timeFormat.format(Date())),
+            isMine = false,
+            senderId = senderId,
+            senderName = sender.optString("name", "Пользователь"),
+            replyTo = replyJson?.let {
+                MessageReplyInfo(it.optLong("id"), it.optString("senderName"), it.optString("text"))
+            }
+        )
+        val currentRoute = _currentRoute.value
+        _chats.value = _chats.value.toMutableList().let { current ->
+            val index = current.indexOfFirst { it.id == chatId }
+            if (index >= 0) {
+                val chat = current[index]
+                if (chat.messages.any { it.id == messageId }) return@let current
+                current[index] = chat.copy(
+                    lastMessage = incoming.text,
+                    time = incoming.time,
+                    messages = chat.messages + incoming,
+                    unread = if (currentRoute == ScreenRoute.ChatDetail(chatId)) 0 else chat.unread + 1,
+                    online = true
+                )
+            } else {
+                val name = sender.optString("name", "Пользователь")
+                current.add(0, Chat(
+                    id = chatId, type = ChatType.DIRECT, userId = senderId,
+                    name = name, username = sender.optString("username"),
+                    description = sender.optString("bio"), lastMessage = incoming.text,
+                    time = incoming.time, unread = if (currentRoute == ScreenRoute.ChatDetail(chatId)) 0 else 1,
+                    online = true, avatarUri = sender.optString("avatarUri").takeIf { it.isNotBlank() },
+                    messages = listOf(incoming)
+                ))
+            }
+            current
+        }
+        BackendClient.acknowledge(activeSocket, payload.optString("deliveryId"))
+    }
+
+    fun clearMessageError() {
+        _messageError.value = null
+    }
+
+    fun reconnect() {
+        val token = savedToken ?: run {
+            _connectionState.value = "Сначала войди в аккаунт"
+            return
+        }
+        activeSocket?.cancel()
+        connectToServer(savedServerUrl, token)
+    }
+
+    fun openDirectChat(contact: ContactUser): Long {
+        val accountId = _currentAccount.value?.id ?: return -1L
+        if (contact.id == accountId) return -1L
+        val low = minOf(accountId, contact.id)
+        val high = maxOf(accountId, contact.id)
+        val chatId = low * 1_000_000_000L + high
+        val existing = _chats.value.firstOrNull { it.id == chatId || it.userId == contact.id }
+        val chat = existing ?: Chat(
+            id = chatId, type = ChatType.DIRECT, userId = contact.id,
+            username = contact.username, name = contact.name, description = contact.bio,
+            lastMessage = "", time = "", unread = 0, online = contact.online,
+            avatarUri = contact.avatarUri, color = "#2AABEE", messages = emptyList()
+        )
+        if (existing == null) _chats.value = listOf(chat) + _chats.value
+        _currentRoute.value = ScreenRoute.ChatDetail(chat.id)
+        return chat.id
     }
 
     fun navigateTo(route: ScreenRoute) {
@@ -339,6 +618,11 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Adds a locally recorded voice note. It is not uploaded or synced to a server. */
     fun sendVoiceMessage(chatId: Long, localPath: String, durationSeconds: Int) {
+        val targetChat = _chats.value.firstOrNull { it.id == chatId } ?: return
+        if (!targetChat.isSavedMessages && targetChat.userId != null) {
+            _messageError.value = "Голосовые сообщения пока не загружаются на сервер. Запись не отправлена."
+            return
+        }
         val nowTime = timeFormat.format(Date())
         val duration = "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
         val message = Message(
@@ -379,6 +663,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _accounts.value = _accounts.value.map { if (it.id == current.id) updated else it }
         _currentAccount.value = updated
         persistLocalAccount(updated)
+        BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone)
     }
 
     fun addAccount(name: String, username: String, phone: String) {
@@ -419,36 +704,50 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
-        val remaining = _accounts.value.filter { it.id != _currentAccount.value?.id }
-        _accounts.value = remaining
-        _currentAccount.value = remaining.firstOrNull()
-        persistLocalAccount(_currentAccount.value)
+        activeSocket?.close(1000, "Signed out")
+        activeSocket = null
+        _accounts.value = emptyList()
+        _currentAccount.value = null
+        _contacts.value = emptyList()
+        _connectionState.value = "Не подключено"
+        profilePrefs.edit().clear().apply()
     }
 
-    fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null) {
-        if (text.isBlank()) return
+    fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null): Boolean {
+        if (text.isBlank()) return false
+        val chat = _chats.value.firstOrNull { it.id == chatId } ?: return false
+        val cleanText = text.trim()
         val nowTime = timeFormat.format(Date())
-        val message = Message(
-            id = System.currentTimeMillis(),
-            text = text.trim(),
-            time = nowTime,
-            isMine = true,
-            senderId = _currentAccount.value?.id,
-            senderName = _currentAccount.value?.name,
-            replyTo = replyTo
-        )
+        val messageId = System.currentTimeMillis()
 
-        _chats.value = _chats.value.map { chat ->
-            if (chat.id == chatId) {
-                val updatedStreak = StreakManager.updateStreakOnMessage(chat.streak, isMine = true)
-                chat.copy(
-                    lastMessage = text.trim(),
-                    time = nowTime,
-                    messages = chat.messages + message,
-                    streak = updatedStreak
-                )
-            } else chat
+        // Saved Messages and older device-local drafts are local by design. A real direct chat
+        // must use the authenticated socket; don't present it as sent when offline.
+        if (!chat.isSavedMessages && chat.userId != null) {
+            val sent = BackendClient.sendDirectMessage(
+                activeSocket, chat.id, chat.userId, messageId, cleanText, nowTime,
+                reply?.id, reply?.senderName, reply?.text
+            )
+            if (!sent) {
+                _messageError.value = "Нет соединения с сервером. Сообщение не отправлено."
+                return false
+            }
         }
+
+        val message = Message(
+            id = messageId, text = cleanText, time = nowTime, isMine = true,
+            senderId = _currentAccount.value?.id, senderName = _currentAccount.value?.name,
+            replyTo = reply
+        )
+        _chats.value = _chats.value.map { current ->
+            if (current.id == chatId) {
+                val updatedStreak = StreakManager.updateStreakOnMessage(current.streak, isMine = true)
+                current.copy(
+                    lastMessage = cleanText, time = nowTime,
+                    messages = current.messages + message, streak = updatedStreak
+                )
+            } else current
+        }
+        return true
     }
 
     /** Edit a locally stored text message authored by the current user. */
