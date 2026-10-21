@@ -51,7 +51,7 @@ fun ChannelsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -84,9 +84,9 @@ fun ChannelsScreen(
                         )
                         Text(
                             text = channel.description,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            maxLines = 1
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
                         )
                     }
 
@@ -98,11 +98,11 @@ fun ChannelsScreen(
                             containerColor = if (channel.isSubscribed) MaterialTheme.colorScheme.surfaceVariant else TelegramBlue,
                             contentColor = if (channel.isSubscribed) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
                         ),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (channel.isSubscribed) "В сети" else "Читать",
+                            text = if (channel.isSubscribed) "Вы подписаны" else "Подписаться",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
