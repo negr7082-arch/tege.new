@@ -59,14 +59,14 @@ fun AuthScreen(
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = "Профиль TEGE",
+                text = "Добро пожаловать в TEGE",
                 fontSize = 23.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Как к вам обращаться?",
+                text = "Укажите имя для профиля.",
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -81,7 +81,7 @@ fun AuthScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Профиль и переписки сохраняются на этом устройстве. Вход по телефону и синхронизация с сервером пока не подключены.",
+                text = "Профиль сохраняется на этом устройстве. Вход по номеру телефона пока недоступен.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
