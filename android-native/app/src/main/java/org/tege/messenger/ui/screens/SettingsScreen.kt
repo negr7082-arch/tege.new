@@ -135,6 +135,63 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
+                    text = "Уведомления и приватность",
+                    color = TelegramBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.Notifications,
+                    title = "Уведомления",
+                    subtitle = "Настройка внутри приложения; системные push пока не подключены",
+                    checked = settings.notificationsEnabled,
+                    onCheckedChange = viewModel::setNotificationsEnabled
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.VolumeUp,
+                    title = "Звуки интерфейса",
+                    subtitle = "Предпочтение сохраняется на устройстве",
+                    checked = settings.soundEnabled,
+                    onCheckedChange = viewModel::setSoundEnabled
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.Animation,
+                    title = "Анимации",
+                    subtitle = "Предпочтение сохраняется на устройстве",
+                    checked = settings.animationsEnabled,
+                    onCheckedChange = viewModel::setAnimationsEnabled
+                )
+
+                SettingsChoiceRow(
+                    icon = Icons.Default.Visibility,
+                    title = "Кто видит время последнего посещения",
+                    value = settings.lastSeenPrivacy,
+                    options = listOf("everyone" to "Все", "contacts" to "Контакты", "nobody" to "Никто"),
+                    onSelected = viewModel::setLastSeenPrivacy
+                )
+
+                SettingsChoiceRow(
+                    icon = Icons.Default.AccountCircle,
+                    title = "Кто видит фото профиля",
+                    value = settings.photoPrivacy,
+                    options = listOf("everyone" to "Все", "contacts" to "Контакты", "nobody" to "Никто"),
+                    onSelected = viewModel::setPhotoPrivacy
+                )
+
+                Text(
+                    text = "Важно: приватность пока применяется только как локальная настройка и ещё не ограничивает данные на сервере.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                HorizontalDivider()
+
+                Text(
                     text = "Подключение и данные",
                     color = TelegramBlue,
                     fontWeight = FontWeight.Bold,
@@ -183,6 +240,66 @@ fun SettingsScreen(
                         text = "Аккаунт и сообщения хранятся на этом устройстве.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TelegramBlue, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun SettingsChoiceRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    options: List<Pair<String, String>>,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == value }?.second ?: options.first().second
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TelegramBlue, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp)
+            Text(selectedLabel, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Box {
+            Icon(Icons.Default.ExpandMore, contentDescription = "Выбрать")
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (optionValue, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onSelected(optionValue)
+                            expanded = false
+                        }
                     )
                 }
             }
