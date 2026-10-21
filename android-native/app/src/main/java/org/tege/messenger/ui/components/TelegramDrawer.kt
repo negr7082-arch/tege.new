@@ -78,6 +78,10 @@ fun TelegramDrawer(
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
         }
+        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
+            viewModel.navigateTo(ScreenRoute.Contacts)
+            onCloseDrawer()
+        }
         DrawerItem(icon = Icons.Default.PersonAdd, label = "Новое сообщение") {
             viewModel.navigateTo(ScreenRoute.CreateChat)
             onCloseDrawer()
