@@ -280,14 +280,14 @@ fun ChatDetailScreen(
                         }
                     }
 
-                    OutlinedTextField(
+                    TextField(
                         value = inputText,
                         onValueChange = { inputText = it },
                         placeholder = {
                             Text(
-                                if (editingMessageId != null) "Редактирование сообщения..."
+                                if (editingMessageId != null) "Редактирование..."
                                 else if (replyTo != null) "Ответ ${replyTo?.senderName}: ${replyTo?.text?.take(24)}"
-                                else "Сообщение..."
+                                else "Сообщение"
                             )
                         },
                         modifier = Modifier
@@ -298,7 +298,9 @@ fun ChatDetailScreen(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                             focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
