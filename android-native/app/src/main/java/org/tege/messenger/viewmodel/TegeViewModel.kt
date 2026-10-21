@@ -207,7 +207,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         senderName = m.optString("senderName").takeIf { m.has("senderName") },
                         isSystemBotMessage = m.optBoolean("isSystemBotMessage", false),
                         isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 0),
-                        reactions = reactions, userReactions = userReactions, replyTo = replyTo, poll = poll
+                        reactions = reactions, userReactions = userReactions, replyTo = reply, poll = poll
                     )
                 }
                 val restoredId = if (item.optBoolean("isSavedMessages", false)) {
