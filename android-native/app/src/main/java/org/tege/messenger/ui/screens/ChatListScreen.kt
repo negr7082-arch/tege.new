@@ -80,7 +80,7 @@ fun ChatListScreen(
                         Text(
                             text = "TEGE",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 25.sp,
+                            fontSize = 22.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -172,17 +172,14 @@ fun ChatListScreen(
                     onViewStory = onViewStory
                 )
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(listOf("Все", "Непрочитанные", "Закреплённые")) { filter ->
                         FilterChip(
                             selected = selectedChatFilter == filter,
                             onClick = { selectedChatFilter = filter },
-                            label = { Text(filter) },
-                            leadingIcon = if (selectedChatFilter == filter) {
-                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null
+                            label = { Text(filter) }
                         )
                     }
                 }
@@ -215,22 +212,22 @@ fun StoriesBar(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .padding(vertical = 8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // "My Story" item
         item {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .width(64.dp)
+                    .width(60.dp)
                     .clickable(onClick = onAddStory)
             ) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
                             .background(TelegramBlue.copy(alpha = 0.15f))
                             .border(1.5.dp, TelegramBlue, CircleShape),
@@ -270,7 +267,7 @@ fun StoriesBar(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .border(2.5.dp, TelegramBlue, CircleShape)
+                        .border(1.5.dp, TelegramBlue, CircleShape)
                         .padding(3.dp)
                         .clip(CircleShape)
                         .background(Color(android.graphics.Color.parseColor(story.backgroundColor))),
@@ -315,14 +312,14 @@ fun ChatRowItem(
                 onClick = onClick,
                 onLongClick = onTogglePin
             )
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
         Box(contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier
-                    .size(54.dp)
+                    .size(50.dp)
                     .clip(CircleShape)
                     .background(Color(android.graphics.Color.parseColor(chat.color))),
                 contentAlignment = Alignment.Center
