@@ -1,5 +1,6 @@
 package org.tege.messenger.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -29,6 +30,7 @@ import org.tege.messenger.model.UserAccount
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TelegramDrawer(
     viewModel: TegeViewModel,
