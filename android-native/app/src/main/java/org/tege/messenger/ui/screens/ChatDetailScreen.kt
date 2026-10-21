@@ -44,6 +44,7 @@ import org.tege.messenger.model.Poll
 import org.tege.messenger.model.TextSize
 import org.tege.messenger.model.WallpaperId
 import org.tege.messenger.ui.components.CreatePollDialog
+import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -144,24 +145,13 @@ fun ChatDetailScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color(android.graphics.Color.parseColor(chat.color))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (chat.isSavedMessages) {
-                                Icon(Icons.Default.Bookmark, contentDescription = null, tint = Color.White)
-                            } else {
-                                Text(
-                                    text = chat.name.take(1).uppercase(),
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
+                        TegeAvatar(
+                            avatarUri = chat.avatarUri,
+                            displayName = chat.name,
+                            color = Color(android.graphics.Color.parseColor(chat.color)),
+                            modifier = Modifier.size(40.dp),
+                            savedMessages = chat.isSavedMessages
+                        )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
