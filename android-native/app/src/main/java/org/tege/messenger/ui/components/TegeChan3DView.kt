@@ -143,19 +143,23 @@ class TegeChan3DView(
             Matrix.rotateM(global, 0, userYaw + idle * 2.1f + reactionYaw * reaction, 0f, 1f, 0f)
             Matrix.multiplyMM(vp, 0, projection, 0, view, 0)
 
-            // Rear hair and long side locks.
+            // Rear hair and long side locks, with cool-blue strands for a layered silhouette.
             part(0f, 0.91f, -0.13f, 0.36f, 0.43f, 0.25f, 0.055f, 0.09f, 0.20f)
             part(-0.265f, 0.64f, -0.035f, 0.105f, 0.34f, 0.13f, 0.055f, 0.09f, 0.20f)
             part(0.265f, 0.64f, -0.035f, 0.105f, 0.34f, 0.13f, 0.055f, 0.09f, 0.20f)
+            part(-0.285f, 0.69f, 0.045f, 0.025f, 0.25f, 0.018f, 0.12f, 0.25f, 0.43f)
+            part(0.285f, 0.69f, 0.045f, 0.025f, 0.25f, 0.018f, 0.12f, 0.25f, 0.43f)
 
             // Hoodie torso, collar and relaxed arms.
             part(0f, 0.02f + idle * 0.012f, 0f, 0.32f, 0.43f, 0.20f, 0.12f, 0.36f, 0.72f)
             part(0f, 0.38f, 0.015f, 0.15f, 0.13f, 0.14f, 0.18f, 0.39f, 0.78f)
             part(-0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
             part(0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
-            // Small bright drawstrings make the hoodie read more clearly at phone size.
+            // Small bright drawstrings and a central zipper detail on the hoodie.
             part(-0.055f, 0.23f, 0.188f, 0.012f, 0.105f, 0.012f, 0.36f, 0.72f, 0.96f)
             part(0.055f, 0.23f, 0.188f, 0.012f, 0.105f, 0.012f, 0.36f, 0.72f, 0.96f)
+            part(0f, 0.015f, 0.201f, 0.008f, 0.13f, 0.008f, 0.24f, 0.56f, 0.82f)
+            part(0f, -0.12f, 0.205f, 0.018f, 0.018f, 0.009f, 0.55f, 0.82f, 1f)
             part(-0.37f, -0.27f, 0.035f, 0.105f, 0.105f, 0.105f, 0.96f, 0.75f, 0.67f)
             part(0.37f, -0.27f, 0.035f, 0.105f, 0.105f, 0.105f, 0.96f, 0.75f, 0.67f)
             part(-0.14f, -0.51f, 0f, 0.13f, 0.27f, 0.14f, 0.07f, 0.10f, 0.19f)
@@ -171,6 +175,9 @@ class TegeChan3DView(
             part(0.03f, 0.965f, 0.245f, 0.13f, 0.10f, 0.06f, 0.045f, 0.075f, 0.17f)
             part(0.17f, 0.91f, 0.205f, 0.095f, 0.18f, 0.075f, 0.045f, 0.075f, 0.17f)
 
+            // Brows, layered irises and eye glints add readable expression at phone size.
+            part(-0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
+            part(0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
             // Big glossy eyes; a short scale pulse simulates blinking.
             val eyeHeight = 0.052f * blink
             part(-0.105f, 0.82f, 0.267f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
@@ -179,6 +186,10 @@ class TegeChan3DView(
             part(0.109f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
             part(-0.114f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
             part(0.096f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
+            // A tiny nose and subtle lower-eye highlights give the face more depth.
+            part(0f, 0.785f, 0.284f, 0.010f, 0.009f, 0.009f, 0.88f, 0.56f, 0.52f)
+            part(-0.075f, 0.775f, 0.274f, 0.012f, 0.006f, 0.006f, 0.98f, 0.80f, 0.77f)
+            part(0.135f, 0.775f, 0.274f, 0.012f, 0.006f, 0.006f, 0.98f, 0.80f, 0.77f)
             // Mouth changes shape/color briefly after a tap to suggest a surprised reaction.
             val mouthOpen = 0.022f + reaction * 0.018f
             part(0f, 0.755f, 0.269f, 0.018f, mouthOpen, 0.015f, 0.88f - reaction * 0.12f, 0.39f, 0.43f)
