@@ -67,6 +67,20 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    /** Mute or unmute notifications for a single chat locally. */
+    fun toggleChatMute(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(isMuted = !chat.isMuted) else chat
+        }
+    }
+
+    /** Mark the currently opened chat as read in local app state. */
+    fun markChatRead(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId && chat.unread != 0) chat.copy(unread = 0) else chat
+        }
+    }
+
     /** Adds a locally recorded voice note. It is not uploaded or synced to a server. */
     fun sendVoiceMessage(chatId: Long, localPath: String, durationSeconds: Int) {
         val nowTime = timeFormat.format(Date())

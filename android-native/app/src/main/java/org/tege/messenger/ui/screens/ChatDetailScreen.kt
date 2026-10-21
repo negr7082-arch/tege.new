@@ -59,6 +59,10 @@ fun ChatDetailScreen(
     var recordingStartedAt by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
 
+    LaunchedEffect(chatId) {
+        viewModel.markChatRead(chatId)
+    }
+
     val startRecording: () -> Unit = {
         try {
             val file = File(context.cacheDir, "tege-voice-${System.currentTimeMillis()}.m4a")
@@ -165,6 +169,27 @@ fun ChatDetailScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text(if (chat.isMuted) "Включить уведомления" else "Отключить уведомления") },
+                            onClick = {
+                                viewModel.toggleChatMute(chat.id)
+                                showMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (chat.isMuted) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
+                            onClick = {
+                                viewModel.toggleChatPin(chat.id)
+                                showMenu = false
+                            },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                        )
                         DropdownMenuItem(
                             text = { Text("Очистить историю") },
                             onClick = {
