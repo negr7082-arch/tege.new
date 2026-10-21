@@ -106,6 +106,9 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
+                                is ScreenRoute.Telegram -> {
+                                    TelegramWebScreen(onBack = { viewModel.navigateBack() })
+                                }
                                 is ScreenRoute.Contacts -> {
                                     ContactsScreen(
                                         viewModel = viewModel,
