@@ -143,7 +143,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Профиль</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{language === 'ru' ? 'Профиль' : 'Profile'}</h1>
       </div>
 
       {/* Hidden file input for channel photo updates */}
