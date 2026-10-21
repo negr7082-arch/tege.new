@@ -96,7 +96,9 @@ fun TelegramDrawer(
                             }
                         }
                         Text(
-                            text = currentAccount?.phone ?: "@${currentAccount?.username ?: "user"}",
+                            text = currentAccount?.phone?.takeIf { it.isNotBlank() }
+                                ?: currentAccount?.username?.takeIf { it.isNotBlank() }?.let { "@$it" }
+                                ?: "Профиль на устройстве",
                             color = Color.White.copy(alpha = 0.85f),
                             fontSize = 13.sp
                         )
@@ -191,7 +193,7 @@ fun TelegramDrawer(
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.GroupAdd, label = "Создать чат / группу") {
+        DrawerItem(icon = Icons.Default.GroupAdd, label = "Новый чат") {
             viewModel.navigateTo(ScreenRoute.CreateChat)
             onCloseDrawer()
         }

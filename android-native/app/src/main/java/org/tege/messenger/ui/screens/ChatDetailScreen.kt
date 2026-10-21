@@ -38,6 +38,8 @@ import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.Message
 import org.tege.messenger.model.MessageReplyInfo
 import org.tege.messenger.model.Poll
+import org.tege.messenger.model.TextSize
+import org.tege.messenger.model.WallpaperId
 import org.tege.messenger.ui.components.CreatePollDialog
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
@@ -50,7 +52,16 @@ fun ChatDetailScreen(
     onBack: () -> Unit
 ) {
     val chats by viewModel.chats.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     val chat = chats.find { it.id == chatId } ?: return
+    val chatBackground = when (settings.wallpaper) {
+        WallpaperId.PATTERN -> MaterialTheme.colorScheme.background
+        WallpaperId.DARK -> Color(0xFF101820)
+        WallpaperId.EMERALD -> Color(0xFF0D2818)
+        WallpaperId.SUNSET -> Color(0xFFFCE7F3)
+        WallpaperId.OCEAN -> Color(0xFFE0F2FE)
+        WallpaperId.MINIMAL -> MaterialTheme.colorScheme.surface
+    }
 
     var inputText by remember { mutableStateOf("") }
     var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
@@ -145,8 +156,7 @@ fun ChatDetailScreen(
                             val subtitle = when {
                                 chat.type == ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
                                 chat.isSavedMessages -> "сохранённые сообщения"
-                                chat.online -> "в сети"
-                                else -> ""
+                                else -> "локальный чат"
                             }
                             if (subtitle.isNotBlank()) {
                                 Text(
@@ -164,19 +174,6 @@ fun ChatDetailScreen(
                     }
                 },
                 actions = {
-                    // Video Call / Live Broadcast button for Groups & Channels
-                    if (chat.type == ChatType.GROUP || chat.type == ChatType.CHANNEL) {
-                        IconButton(
-                            onClick = { viewModel.toggleGroupVideoChat(chat.id) }
-                        ) {
-                            Icon(
-                                imageVector = if (chat.activeVideoChat?.isActive == true) Icons.Default.Radio else Icons.Default.Videocam,
-                                contentDescription = "Video Call",
-                                tint = if (chat.activeVideoChat?.isActive == true) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
                     IconButton(onClick = { showPollDialog = true }) {
                         Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = MaterialTheme.colorScheme.onSurface)
                     }
@@ -331,9 +328,6 @@ fun ChatDetailScreen(
                             )
                         }
                     } else {
-                        IconButton(onClick = { viewModel.sendVideoNote(chat.id) }) {
-                            Icon(Icons.Default.Videocam, contentDescription = "Отправить видеосообщение", tint = TelegramBlue)
-                        }
                         IconButton(
                             onClick = {
                                 if (isRecording) {
@@ -360,50 +354,8 @@ fun ChatDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(chatBackground)
         ) {
-            // Telegram Active Video Chat Banner for Groups & Channels
-            if (chat.activeVideoChat?.isActive == true) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF229ED9))
-                        .clickable { viewModel.toggleGroupVideoChat(chat.id) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF4CAF50))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = if (chat.type == ChatType.CHANNEL) "Прямая трансляция активна" else "Видеочат активен",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                text = "Организатор: ${chat.activeVideoChat.startedByName} • Подключиться",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = { viewModel.toggleGroupVideoChat(chat.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = TelegramBlue),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Войти", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
 
             LazyColumn(
                 modifier = Modifier
@@ -411,10 +363,44 @@ fun ChatDetailScreen(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(chat.messages, key = { it.id }) { message ->
+                if (chat.messages.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 28.dp, vertical = 56.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = if (chat.isSavedMessages) Icons.Default.Bookmark else Icons.Default.ChatBubbleOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(38.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = if (chat.isSavedMessages) "Сохранённые сообщения" else "Пока нет сообщений",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (chat.isSavedMessages)
+                                    "Сообщения здесь сохраняются на этом устройстве."
+                                else
+                                    "Это локальный черновик. Сообщения не доставляются другим пользователям без подключения сервера.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    items(chat.messages, key = { it.id }) { message ->
                     MessageBubble(
                         message = message,
                         isChannel = chat.type == ChatType.CHANNEL,
+                        textSize = settings.textSize,
                         onVotePoll = { optId -> viewModel.votePoll(chat.id, message.id, optId) },
                         onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) },
                         onReply = {
@@ -434,6 +420,7 @@ fun ChatDetailScreen(
                         },
                         onDelete = { deletingMessageId = message.id }
                     )
+                    }
                 }
             }
         }
@@ -495,6 +482,7 @@ fun ChatDetailScreen(
 fun MessageBubble(
     message: Message,
     isChannel: Boolean = false,
+    textSize: TextSize = TextSize.MEDIUM,
     onVotePoll: (Int) -> Unit,
     onReaction: (String) -> Unit,
     onReply: () -> Unit = {},
@@ -638,13 +626,19 @@ fun MessageBubble(
                     PollWidget(
                         poll = message.poll,
                         isMine = message.isMine,
+                        textSize = textSize,
                         onVote = onVotePoll
                     )
                 } else {
                     Text(
                         text = message.text,
                         color = textColor,
-                        fontSize = 15.sp
+                        fontSize = when (textSize) {
+                            TextSize.SMALL -> 13.sp
+                            TextSize.MEDIUM -> 15.sp
+                            TextSize.LARGE -> 17.sp
+                            TextSize.XLARGE -> 19.sp
+                        }
                     )
                 }
 
@@ -741,6 +735,7 @@ fun MessageBubble(
 fun PollWidget(
     poll: Poll,
     isMine: Boolean,
+    textSize: TextSize = TextSize.MEDIUM,
     onVote: (Int) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -748,7 +743,12 @@ fun PollWidget(
             text = poll.question,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 16.sp
+            fontSize = when (textSize) {
+                TextSize.SMALL -> 14.sp
+                TextSize.MEDIUM -> 16.sp
+                TextSize.LARGE -> 18.sp
+                TextSize.XLARGE -> 20.sp
+            }
         )
         Text(
             text = "Анонимный опрос • Всего голосов: ${poll.totalVotes}",
@@ -769,7 +769,16 @@ fun PollWidget(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = opt.text, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                    Text(
+                        text = opt.text,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = when (textSize) {
+                            TextSize.SMALL -> 12.sp
+                            TextSize.MEDIUM -> 14.sp
+                            TextSize.LARGE -> 16.sp
+                            TextSize.XLARGE -> 18.sp
+                        }
+                    )
                     Text(text = "$percentage%", color = TelegramBlue, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.height(3.dp))

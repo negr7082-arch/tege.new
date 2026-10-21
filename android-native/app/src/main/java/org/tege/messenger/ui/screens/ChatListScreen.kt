@@ -258,7 +258,9 @@ fun ChatRowItem(
 ) {
     val matchingMessage = if (searchQuery.isBlank()) null else
         chat.messages.lastOrNull { it.text.contains(searchQuery, ignoreCase = true) }
-    val previewText = matchingMessage?.text ?: chat.lastMessage
+    val previewText = matchingMessage?.text ?: chat.lastMessage.ifBlank {
+        if (chat.isSavedMessages) "Сохранённые сообщения" else "Локальный чат"
+    }
 
     Row(
         modifier = Modifier

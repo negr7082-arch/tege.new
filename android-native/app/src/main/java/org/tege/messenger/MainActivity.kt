@@ -105,6 +105,12 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
+                                is ScreenRoute.CreateChat -> {
+                                    CreateChatScreen(
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.navigateBack() }
+                                    )
+                                }
                                 else -> {
                                     ChatListScreen(
                                         viewModel = viewModel,
