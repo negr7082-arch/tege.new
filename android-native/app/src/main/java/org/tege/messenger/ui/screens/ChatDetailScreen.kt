@@ -172,7 +172,9 @@ fun ChatDetailScreen(
                                 chat.type == ChatType.CHANNEL -> if (chat.subscribersCount > 0) "${chat.subscribersCount} подписчиков" else "канал"
                                 chat.type == ChatType.GROUP -> if (chat.membersCount > 0) "${chat.membersCount} участников" else "группа"
                                 chat.online -> "в сети"
-                                !chat.username.isNullOrBlank() -> "@${chat.username}"
+                                !chat.username.isNullOrBlank() -> chat.username.let {
+                                    if (it.startsWith("@")) it else "@$it"
+                                }
                                 else -> "профиль"
                             }
                             if (subtitle.isNotBlank()) {
