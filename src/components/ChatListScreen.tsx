@@ -163,7 +163,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       />
 
       {/* TELEGRAM UNIFIED SEARCH BAR (No confusing ID / ЮЗ toggles!) */}
-      <div className="px-3.5 pb-2.5 bg-white dark:bg-[#17212b] transition-colors">
+      <div className="px-3.5 pb-3 bg-white dark:bg-[#17212b] transition-colors">
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 absolute left-3.5 pointer-events-none" />
           <input
@@ -220,7 +220,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       <div className="flex-1 overflow-y-auto">
         {/* Telegram Stories Horizontal Bar (Only when not actively searching) */}
         {!cleanQuery && (
-          <div className="py-2.5 px-4 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50/40 dark:bg-zinc-900/40">
+          <div className="py-3 px-4 border-b border-gray-100/80 dark:border-white/[0.045] bg-white dark:bg-[#17212b]">
             <div className="flex items-center gap-3 overflow-x-auto pb-1 no-scrollbar">
               {/* My Story item */}
               <div className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
