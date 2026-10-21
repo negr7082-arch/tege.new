@@ -96,11 +96,13 @@ fun ProfileScreen(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = "Профиль на устройстве",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp
-                    )
+                    account?.username?.takeIf { it.isNotBlank() }?.let { username ->
+                        Text(
+                            text = if (username.startsWith("@")) username else "@$username",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
 
