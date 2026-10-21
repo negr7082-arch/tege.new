@@ -146,13 +146,15 @@ fun ChatListScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
-                containerColor = TelegramBlue,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = "New Chat")
+            if (!isSearchActive) {
+                FloatingActionButton(
+                    onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
+                    containerColor = TelegramBlue,
+                    contentColor = Color.White,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Новое сообщение")
+                }
             }
         }
     ) { paddingValues ->
@@ -183,25 +185,18 @@ fun ChatListScreen(
                             .padding(horizontal = 32.dp, vertical = 48.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = if (searchQuery.isBlank()) "Нет чатов" else "Ничего не найдено",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 17.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                         if (searchQuery.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "Попробуйте изменить запрос",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "Ничего не найдено",
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
