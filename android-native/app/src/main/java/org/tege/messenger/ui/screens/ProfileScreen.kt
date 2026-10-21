@@ -108,7 +108,7 @@ fun ProfileScreen(
                         }
                     }
                     Text(
-                        text = "Локальный профиль",
+                        text = "Профиль на устройстве",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
