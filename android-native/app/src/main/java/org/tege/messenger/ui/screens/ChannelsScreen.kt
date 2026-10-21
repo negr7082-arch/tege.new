@@ -60,14 +60,14 @@ fun ChannelsScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Каналы пока не подключены",
+                        text = "Каналов пока нет",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Поиск каналов и подписки появятся после подключения серверной части.",
+                        text = "Подписанные каналы будут отображаться здесь.",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
