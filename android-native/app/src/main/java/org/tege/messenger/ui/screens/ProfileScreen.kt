@@ -36,10 +36,10 @@ fun ProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Профиль", fontWeight = FontWeight.Bold, color = Color.White) },
+                title = { Text("Профиль", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 actions = {
@@ -50,13 +50,13 @@ fun ProfileScreen(
                         editPhone = account?.phone.orEmpty()
                         showEditDialog = true
                     }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = Color.White)
+                        Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(onClick = { viewModel.logout() }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color.White)
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TelegramBlue)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { paddingValues ->
@@ -69,8 +69,8 @@ fun ProfileScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(TelegramBlue)
-                    .padding(bottom = 24.dp),
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -78,7 +78,7 @@ fun ProfileScreen(
                         modifier = Modifier
                             .size(90.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
+                            .background(TelegramBlue),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -95,7 +95,7 @@ fun ProfileScreen(
                     ) {
                         Text(
                             text = account?.name ?: "Пользователь",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -106,7 +106,7 @@ fun ProfileScreen(
                     }
                     Text(
                         text = if (account?.isOnline == true) "в сети" else "был(а) недавно",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
                 }
