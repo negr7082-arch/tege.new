@@ -166,15 +166,14 @@ fun ChatListScreen(
                             fontSize = 17.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (searchQuery.isBlank())
-                                "Нажмите на кнопку нового сообщения, чтобы начать общение."
-                            else
-                                "Попробуйте изменить запрос.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (searchQuery.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Попробуйте изменить запрос",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
