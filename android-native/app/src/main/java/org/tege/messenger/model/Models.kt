@@ -214,5 +214,6 @@ sealed class ScreenRoute {
     object Profile : ScreenRoute()
     object Channels : ScreenRoute()
     object CreateChat : ScreenRoute()
+    object Contacts : ScreenRoute()
     object Settings : ScreenRoute()
 }
