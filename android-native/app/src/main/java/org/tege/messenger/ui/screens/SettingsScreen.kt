@@ -153,6 +153,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Default.VolumeUp,
                     title = "Звуки интерфейса",
+                    subtitle = "Звуки действий в приложении",
                     checked = settings.soundEnabled,
                     onCheckedChange = viewModel::setSoundEnabled
                 )
@@ -160,6 +161,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Default.Animation,
                     title = "Анимации",
+                    subtitle = "Анимации переходов и элементов",
                     checked = settings.animationsEnabled,
                     onCheckedChange = viewModel::setAnimationsEnabled
                 )
