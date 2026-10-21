@@ -62,6 +62,8 @@ fun ChatDetailScreen(
         WallpaperId.OCEAN -> Color(0xFFE0F2FE)
         WallpaperId.MINIMAL -> MaterialTheme.colorScheme.surface
     }
+    val isDarkChatWallpaper = settings.wallpaper == WallpaperId.DARK ||
+        settings.wallpaper == WallpaperId.EMERALD
 
     var inputText by remember { mutableStateOf("") }
     var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
@@ -185,19 +187,6 @@ fun ChatDetailScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text(if (chat.isMuted) "Включить уведомления" else "Отключить уведомления") },
-                            onClick = {
-                                viewModel.toggleChatMute(chat.id)
-                                showMenu = false
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    if (chat.isMuted) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
-                                    contentDescription = null
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
                             text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
                             onClick = {
                                 viewModel.toggleChatPin(chat.id)
@@ -248,13 +237,6 @@ fun ChatDetailScreen(
                             onClick = {
                                 showMenu = false
                                 showClearHistoryDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Заблокировать") },
-                            onClick = {
-                                viewModel.blockUser(chat.id, chat.name, chat.username ?: "user")
-                                showMenu = false
                             }
                         )
                     }
@@ -374,7 +356,7 @@ fun ChatDetailScreen(
                             Icon(
                                 imageVector = if (chat.isSavedMessages) Icons.Default.Bookmark else Icons.Default.ChatBubbleOutline,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isDarkChatWallpaper) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(38.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
@@ -382,7 +364,7 @@ fun ChatDetailScreen(
                                 text = if (chat.isSavedMessages) "Сохранённые сообщения" else "Пока нет сообщений",
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isDarkChatWallpaper) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -391,7 +373,7 @@ fun ChatDetailScreen(
                                 else
                                     "Это локальный черновик. Сообщения не доставляются другим пользователям без подключения сервера.",
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isDarkChatWallpaper) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

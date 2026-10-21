@@ -128,7 +128,7 @@ fun ProfileScreen(
                 ProfileInfoRow(
                     icon = Icons.Default.Phone,
                     title = account?.phone?.takeIf { it.isNotBlank() } ?: "Не указан",
-                    subtitle = "Нажмите, чтобы изменить номер"
+                    subtitle = "Номер телефона"
                 )
 
                 ProfileInfoRow(
@@ -146,7 +146,7 @@ fun ProfileScreen(
                 ProfileInfoRow(
                     icon = Icons.Default.CalendarToday,
                     title = account?.registrationDate?.takeIf { it.isNotBlank() } ?: "Не указана",
-                    subtitle = "Дата регистрации"
+                    subtitle = "Профиль создан"
                 )
             }
         }

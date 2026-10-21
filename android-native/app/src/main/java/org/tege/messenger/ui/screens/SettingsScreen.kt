@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.TextSize
 import org.tege.messenger.model.WallpaperId
-import org.tege.messenger.ui.components.BlacklistDialog
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -30,7 +29,6 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
-    var showBlacklistDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -136,23 +134,6 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Конфиденциальность",
-                    color = TelegramBlue,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
-                )
-
-                SettingsClickableRow(
-                    icon = Icons.Default.Block,
-                    title = "Чёрный список",
-                    subtitle = "${settings.blockedUsers.size} пользователей",
-                    onClick = { showBlacklistDialog = true }
-                )
-
-                HorizontalDivider()
-
-                Text(
                     text = "О приложении",
                     color = TelegramBlue,
                     fontWeight = FontWeight.Bold,
@@ -183,13 +164,11 @@ fun SettingsScreen(
         }
     }
 
-    if (showBlacklistDialog) {
-        BlacklistDialog(
-            blockedUsers = settings.blockedUsers,
-            onUnblock = { viewModel.unblockUser(it) },
-            onDismiss = { showBlacklistDialog = false }
-        )
-    }
+
+}
+
+@Composable
+fun SettingsClickableRow
 }
 
 @Composable

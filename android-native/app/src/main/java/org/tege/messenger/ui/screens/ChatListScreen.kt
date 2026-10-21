@@ -141,6 +141,40 @@ fun ChatListScreen(
                 }
             }
 
+            if (filteredChats.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (searchQuery.isBlank()) "Нет чатов" else "Ничего не найдено",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (searchQuery.isBlank())
+                                "Создайте локальный черновик через кнопку ниже."
+                            else
+                                "Попробуйте другое имя или текст сообщения.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             // Chats list
             items(filteredChats, key = { it.id }) { chat ->
                 ChatRowItem(
