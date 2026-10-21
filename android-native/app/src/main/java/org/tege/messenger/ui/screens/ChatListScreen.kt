@@ -69,9 +69,10 @@ fun ChatListScreen(
                         )
                     } else {
                         Text(
-                            text = "TEGE Messenger",
+                            text = "TEGE",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            fontSize = 25.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },
@@ -81,27 +82,30 @@ fun ChatListScreen(
                             isSearchActive = false
                             viewModel.setSearchQuery("")
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else {
                         IconButton(onClick = onOpenDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },
                 actions = {
                     if (!isSearchActive) {
                         IconButton(onClick = { isSearchActive = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White)
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.White)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = TelegramBlue
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -191,7 +195,7 @@ fun StoriesBar(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "История",
+                    text = "Добавить ...",
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -250,14 +254,14 @@ fun ChatRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
         Box(contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(54.dp)
                     .clip(CircleShape)
                     .background(Color(android.graphics.Color.parseColor(chat.color))),
                 contentAlignment = Alignment.Center

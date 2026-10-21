@@ -2,7 +2,10 @@ package org.tege.messenger.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
@@ -32,14 +35,19 @@ fun AuthScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
+            .background(Color(0xFFE8EBF0))
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(Color.White)
+                .padding(horizontal = 24.dp, vertical = 28.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Box(
                 modifier = Modifier
@@ -59,7 +67,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "TEGE Messenger",
+                text = if (isRegister) "Регистрация в Tege" else "Добро пожаловать в Tege",
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 color = TelegramBlue
@@ -67,7 +75,7 @@ fun AuthScreen(
             Text(
                 text = if (isRegister) "Регистрация нового аккаунта" else "Вход в аккаунт",
                 fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color(0xFF707985)
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -75,7 +83,9 @@ fun AuthScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Юзернейм или Email") },
+                label = { Text("Имя пользователя или e-mail") },
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF1F3F5), focusedContainerColor = Color(0xFFF1F3F5)),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -86,6 +96,8 @@ fun AuthScreen(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Пароль") },
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF1F3F5), focusedContainerColor = Color(0xFFF1F3F5)),
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -104,6 +116,7 @@ fun AuthScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TelegramBlue)
             ) {
                 Text(
@@ -125,7 +138,7 @@ fun AuthScreen(
                     .fillMaxWidth()
                     .height(48.dp)
             ) {
-                Text("Быстрый демо-вход (Павел Дуров)")
+                Text("Быстрый демо-вход")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
