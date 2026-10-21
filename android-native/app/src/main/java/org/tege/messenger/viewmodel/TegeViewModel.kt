@@ -81,7 +81,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             isDarkMode = settingsPrefs.getBoolean("dark_mode", false),
             wallpaper = wallpaper,
             textSize = textSize,
-            language = language
+            language = language,
+            soundEnabled = settingsPrefs.getBoolean("sound_enabled", true),
+            notificationsEnabled = settingsPrefs.getBoolean("notifications_enabled", true),
+            lastSeenPrivacy = settingsPrefs.getString("last_seen_privacy", "everyone") ?: "everyone",
+            photoPrivacy = settingsPrefs.getString("photo_privacy", "everyone") ?: "everyone",
+            animationsEnabled = settingsPrefs.getBoolean("animations_enabled", true)
         )
     }
 
@@ -91,6 +96,11 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             .putString("wallpaper", settings.wallpaper.name)
             .putString("text_size", settings.textSize.name)
             .putString("language", settings.language.name)
+            .putBoolean("sound_enabled", settings.soundEnabled)
+            .putBoolean("notifications_enabled", settings.notificationsEnabled)
+            .putString("last_seen_privacy", settings.lastSeenPrivacy)
+            .putString("photo_privacy", settings.photoPrivacy)
+            .putBoolean("animations_enabled", settings.animationsEnabled)
             .apply()
     }
 
@@ -983,6 +993,31 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLanguage(lang: Language) {
         _settings.value = _settings.value.copy(language = lang)
+        persistAppSettings(_settings.value)
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        _settings.value = _settings.value.copy(notificationsEnabled = enabled)
+        persistAppSettings(_settings.value)
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        _settings.value = _settings.value.copy(soundEnabled = enabled)
+        persistAppSettings(_settings.value)
+    }
+
+    fun setAnimationsEnabled(enabled: Boolean) {
+        _settings.value = _settings.value.copy(animationsEnabled = enabled)
+        persistAppSettings(_settings.value)
+    }
+
+    fun setLastSeenPrivacy(value: String) {
+        _settings.value = _settings.value.copy(lastSeenPrivacy = value)
+        persistAppSettings(_settings.value)
+    }
+
+    fun setPhotoPrivacy(value: String) {
+        _settings.value = _settings.value.copy(photoPrivacy = value)
         persistAppSettings(_settings.value)
     }
 
