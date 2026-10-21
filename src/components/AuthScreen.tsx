@@ -201,9 +201,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#e7ebf0] dark:bg-[#0e1621] p-4 select-none relative overflow-y-auto">
+    <div className="min-h-[100dvh] w-full flex flex-col items-center justify-start sm:justify-center bg-[#e7ebf0] dark:bg-[#0e1621] px-3 pt-16 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 select-none relative overflow-y-auto overscroll-contain">
       {/* Top right quick controls: Language & Theme */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 sm:right-4 flex items-center gap-2 z-10">
         {onLanguageChange && (
           <button
             onClick={() => onLanguageChange(language === 'ru' ? 'en' : 'ru')}
@@ -226,14 +226,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         )}
       </div>
 
-      <div className="bg-white dark:bg-[#17212b] border border-gray-200/70 dark:border-white/5 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-xl shadow-slate-900/10 dark:shadow-black/30 relative my-6">
+      <div className="bg-white dark:bg-[#17212b] border border-gray-200/70 dark:border-white/5 rounded-[24px] max-w-sm sm:max-w-md w-full p-4 sm:p-8 shadow-xl shadow-slate-900/10 dark:shadow-black/30 relative my-2 sm:my-6">
         {/* App Logo & Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-16 h-16 rounded-full bg-[#3390ec] text-white flex items-center justify-center font-bold text-3xl shadow-xl shadow-sky-500/30 mb-3 transform hover:scale-105 transition">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#3390ec] text-white flex items-center justify-center font-bold text-3xl shadow-xl shadow-sky-500/30 mb-3 transform hover:scale-105 transition">
             T
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-zinc-100 tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-zinc-100 tracking-tight">
             {isRegister ? t.authTitleRegister : t.authTitleLogin}
           </h2>
 
@@ -263,14 +263,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {/* Email */}
           <div>
             <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
               {t.enterEmail} <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
+              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="email"
                 required
@@ -278,7 +278,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="example@mail.com"
-                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[#f1f3f5] dark:bg-[#0e1621] text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-[#f1f3f5] dark:bg-[#0e1621] text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
               />
             </div>
             <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
@@ -294,14 +294,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   {language === 'ru' ? 'Ваше имя' : 'Your Name'} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                  <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={language === 'ru' ? 'Иван Иванов' : 'Alex Rivera'}
-                    className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                    className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
                   />
                 </div>
               </div>
@@ -312,7 +312,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   {language === 'ru' ? 'Имя пользователя' : 'Choose @username'} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <AtSign className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                  <AtSign className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     required
@@ -321,7 +321,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="@chat_razraba"
-                    className={`w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 border transition font-mono ${usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-rose-500 focus:ring-rose-500' : 'border-transparent focus:ring-sky-500'}`}
+                    className={`w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 border transition font-mono ${usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-rose-500 focus:ring-rose-500' : 'border-transparent focus:ring-sky-500'}`}
                   />
                 </div>
                 {usernameStatus === 'taken' ? (
@@ -356,19 +356,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {t.enterPassword} <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
+              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                className="w-full min-h-12 pl-12 pr-12 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -408,14 +408,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 {t.repeatPasswordTwice} <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                  className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
                 />
               </div>
             </div>
