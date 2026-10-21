@@ -42,7 +42,38 @@ fun ChannelsScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        if (channels.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Campaign,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(52.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Здесь пока пусто",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Каналы, на которые вы подпишетесь, появятся здесь.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
@@ -109,6 +140,7 @@ fun ChannelsScreen(
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 76.dp))
+            }
             }
         }
     }
