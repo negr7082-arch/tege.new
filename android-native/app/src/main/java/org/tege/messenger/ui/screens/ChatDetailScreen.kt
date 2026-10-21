@@ -195,11 +195,11 @@ fun ChatDetailScreen(
                 actions = {
                     if (allowLocalTools) {
                         IconButton(onClick = { showPollDialog = true }) {
-                            Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = Color.White)
                         }
                     }
                     IconButton(onClick = { showMenu = !showMenu }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
                     }
                     DropdownMenu(
                         expanded = showMenu,
