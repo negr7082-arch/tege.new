@@ -165,7 +165,7 @@ fun ChatDetailScreen(
                                 text = chat.name,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
                             val subtitle = when {
                                 chat.isSavedMessages -> "Избранное"
@@ -181,7 +181,7 @@ fun ChatDetailScreen(
                                 Text(
                                     text = subtitle,
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.82f)
                                 )
                             }
                         }
@@ -189,7 +189,7 @@ fun ChatDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 actions = {
@@ -260,12 +260,13 @@ fun ChatDetailScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TelegramBlue)
             )
         },
         bottomBar = {
             Surface(
-                tonalElevation = 3.dp,
+                tonalElevation = 2.dp,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
