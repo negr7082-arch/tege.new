@@ -29,6 +29,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -130,6 +131,30 @@ fun SettingsScreen(
                         }
                     }
                 }
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Подключение и данные",
+                    color = TelegramBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
+                )
+
+                SettingsClickableRow(
+                    icon = Icons.Default.Wifi,
+                    title = "Соединение с сервером",
+                    subtitle = connectionState,
+                    onClick = { viewModel.reconnect() }
+                )
+
+                Text(
+                    text = "Нажми на состояние, чтобы переподключиться. Обычные личные сообщения отправляются через сервер. «Избранное», тема и параметры оформления сохраняются на этом устройстве. Push-уведомления и синхронизация медиа в нативной версии пока не подключены.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
 
                 HorizontalDivider()
 
