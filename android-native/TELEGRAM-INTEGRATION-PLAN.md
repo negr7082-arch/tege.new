@@ -26,7 +26,8 @@
 
 ## API credentials
 
-- `api_id` and `api_hash` are Telegram application credentials. Never commit them to source files, build logs, or the repository.
+- The vendored upstream `BuildVars.java` currently contains upstream Telegram API values. Do not treat those values as credentials for TEGE or as permission to ship a fork. Configure the fork with its own `api_id` and `api_hash` before testing a real Telegram sign-in or distributing a build.
+- `api_id` and `api_hash` are Telegram application credentials. Never commit your own values to source files, build logs, or the repository.
 - If build-time configuration is needed, store credentials as repository Actions secrets and pass them only to the relevant build step. A secret being configured does not by itself complete Telegram login integration.
 - The client must still implement Telegram's authentication/session flow; merely adding the credentials does not connect Telegram to TEGE.
 
