@@ -617,29 +617,39 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     fun createLocalChat(title: String): Long? {
         val cleanTitle = title.trim()
         if (cleanTitle.isBlank()) return null
-        val existing = _chats.value.firstOrNull {
-            !it.isSavedMessages && it.name.equals(cleanTitle, ignoreCase = true)
+        val normalizedQuery = cleanTitle.removePrefix("@").trim()
+        val contact = _contacts.value.firstOrNull { user ->
+            user.name.equals(normalizedQuery, ignoreCase = true) ||
+                user.username.equals(normalizedQuery, ignoreCase = true) ||
+                user.username.removePrefix("@").equals(normalizedQuery, ignoreCase = true)
         }
+        if (contact == null) {
+            _messageError.value = "Пользователь не найден на сервере. Создать фальшивый диалог нельзя."
+            return null
+        }
+        val existing = _chats.value.firstOrNull { !it.isSavedMessages && it.userId == contact.id }
         if (existing != null) {
             _currentRoute.value = ScreenRoute.ChatDetail(existing.id)
             return existing.id
         }
-        val id = System.currentTimeMillis()
         val chat = Chat(
-            id = id,
+            id = contact.id,
             type = ChatType.DIRECT,
-            name = cleanTitle,
-            description = "Локальный черновик",
+            userId = contact.id,
+            username = contact.username,
+            name = contact.name,
+            description = contact.bio,
             lastMessage = "",
             time = "",
             unread = 0,
-            online = false,
-            color = "#2AABEE",
+            online = contact.online,
+            color = contact.color,
+            avatarUri = contact.avatarUri,
             messages = emptyList()
         )
         _chats.value = listOf(chat) + _chats.value
-        _currentRoute.value = ScreenRoute.ChatDetail(id)
-        return id
+        _currentRoute.value = ScreenRoute.ChatDetail(chat.id)
+        return chat.id
     }
 
     fun clearChatHistory(chatId: Long) {
