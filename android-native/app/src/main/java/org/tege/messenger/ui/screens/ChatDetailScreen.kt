@@ -53,6 +53,8 @@ fun ChatDetailScreen(
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
+    var editingMessageId by remember { mutableStateOf<Long?>(null) }
+    var deletingMessageId by remember { mutableStateOf<Long?>(null) }
     var isRecording by remember { mutableStateOf(false) }
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var recordingFile by remember { mutableStateOf<File?>(null) }
@@ -229,7 +231,8 @@ fun ChatDetailScreen(
                         onValueChange = { inputText = it },
                         placeholder = {
                             Text(
-                                if (replyTo != null) "Ответ ${replyTo?.senderName}: ${replyTo?.text?.take(24)}"
+                                if (editingMessageId != null) "Редактирование сообщения..."
+                                else if (replyTo != null) "Ответ ${replyTo?.senderName}: ${replyTo?.text?.take(24)}"
                                 else "Сообщение..."
                             )
                         },
@@ -245,12 +248,26 @@ fun ChatDetailScreen(
                         )
                     )
 
+                    if (editingMessageId != null) {
+                        IconButton(onClick = {
+                            inputText = ""
+                            editingMessageId = null
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Отменить редактирование", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     if (inputText.isNotBlank()) {
                         IconButton(
                             onClick = {
-                                viewModel.sendMessage(chat.id, inputText, replyTo)
+                                val editingId = editingMessageId
+                                if (editingId != null) {
+                                    viewModel.editMessage(chat.id, editingId, inputText)
+                                } else {
+                                    viewModel.sendMessage(chat.id, inputText, replyTo)
+                                }
                                 inputText = ""
                                 replyTo = null
+                                editingMessageId = null
                             }
                         ) {
                             Icon(
@@ -353,7 +370,15 @@ fun ChatDetailScreen(
                                 text = message.text
                             )
                         },
-                        onPin = { viewModel.pinMessage(chat.id, message.id) }
+                        onPin = { viewModel.pinMessage(chat.id, message.id) },
+                        onEdit = {
+                            if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
+                                editingMessageId = message.id
+                                inputText = message.text
+                                replyTo = null
+                            }
+                        },
+                        onDelete = { deletingMessageId = message.id }
                     )
                 }
             }
@@ -383,6 +408,25 @@ fun ChatDetailScreen(
         )
     }
 
+    if (deletingMessageId != null) {
+        AlertDialog(
+            onDismissRequest = { deletingMessageId = null },
+            title = { Text("Удалить сообщение?") },
+            text = { Text("Сообщение будет удалено из локальной истории этого чата.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingMessageId?.let { viewModel.deleteMessage(chat.id, it) }
+                    if (editingMessageId == deletingMessageId) {
+                        editingMessageId = null
+                        inputText = ""
+                    }
+                    deletingMessageId = null
+                }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deletingMessageId = null }) { Text("Отмена") } }
+        )
+    }
+
     if (showPollDialog) {
         CreatePollDialog(
             onDismiss = { showPollDialog = false },
@@ -400,7 +444,9 @@ fun MessageBubble(
     onVotePoll: (Int) -> Unit,
     onReaction: (String) -> Unit,
     onReply: () -> Unit = {},
-    onPin: () -> Unit = {}
+    onPin: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     // 1. Telegram Circular Video Note (Кружочек)
     if (message.videoNoteUri != null) {
@@ -581,6 +627,16 @@ fun MessageBubble(
             }
             IconButton(onClick = onPin, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Default.PushPin, contentDescription = if (message.isPinned) "Открепить сообщение" else "Закрепить сообщение", tint = if (message.isPinned) TelegramBlue else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
+            if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Редактировать сообщение", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                }
+            }
+            if (message.isMine) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить сообщение", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                }
             }
             listOf("❤️", "🔥", "👍").forEach { emoji ->
                 val count = message.reactions[emoji] ?: 0

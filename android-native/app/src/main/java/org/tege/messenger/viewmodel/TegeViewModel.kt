@@ -191,6 +191,41 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    /** Edit a locally stored text message authored by the current user. */
+    fun editMessage(chatId: Long, messageId: Long, newText: String) {
+        val text = newText.trim()
+        if (text.isBlank()) return
+        val nowTime = timeFormat.format(Date())
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id != chatId) return@map chat
+            val updatedMessages = chat.messages.map { message ->
+                if (message.id == messageId && message.isMine) message.copy(text = text, time = nowTime) else message
+            }
+            val last = updatedMessages.lastOrNull()
+            chat.copy(
+                messages = updatedMessages,
+                lastMessage = if (last?.id == messageId) text else chat.lastMessage,
+                time = if (last?.id == messageId) nowTime else chat.time
+            )
+        }
+    }
+
+    /** Delete a locally stored message authored by the current user. */
+    fun deleteMessage(chatId: Long, messageId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id != chatId) return@map chat
+            val target = chat.messages.find { it.id == messageId }
+            if (target == null || !target.isMine) return@map chat
+            val updatedMessages = chat.messages.filterNot { it.id == messageId }
+            val last = updatedMessages.lastOrNull()
+            chat.copy(
+                messages = updatedMessages,
+                lastMessage = last?.let { if (it.poll != null) "📊 ${it.poll.question}" else it.text }.orEmpty(),
+                time = last?.time.orEmpty()
+            )
+        }
+    }
+
     fun sendPoll(chatId: Long, question: String, options: List<String>) {
         if (question.isBlank() || options.size < 2) return
         val nowTime = timeFormat.format(Date())
