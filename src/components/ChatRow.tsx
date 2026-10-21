@@ -19,10 +19,10 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
   return (
     <div
       onClick={onClick}
-      className={`group flex items-center px-4 py-2.5 min-h-[76px] cursor-pointer select-none transition-colors relative border-b border-gray-100/80 dark:border-white/[0.04] ${
+      className={`group flex items-center px-3 py-0 min-h-[76px] cursor-pointer select-none transition-colors relative ${
         isActive
-          ? 'bg-sky-50 dark:bg-sky-950/30'
-          : 'active:bg-gray-100 dark:active:bg-zinc-800'
+          ? 'bg-sky-50 dark:bg-sky-950/30 border-l-[3px] border-l-sky-500 pl-[9px]'
+          : 'hover:bg-gray-50 dark:hover:bg-white/[0.025] active:bg-gray-100 dark:active:bg-zinc-800'
       }`}
     >
       {/* Telegram Avatar or Saved Messages Bookmark avatar */}
@@ -42,7 +42,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
       )}
 
       {/* Content */}
-      <div className="ml-3 flex-1 min-w-0">
+      <div className="ml-3 flex-1 min-w-0 self-stretch flex flex-col justify-center py-2.5 border-b border-gray-100/90 dark:border-white/[0.055]">
         <div className="flex items-center justify-between mb-0.5">
           <div className="flex items-center gap-1.5 min-w-0">
             {chat.type === 'channel' && (
