@@ -119,7 +119,8 @@ fun ChatListScreen(
             FloatingActionButton(
                 onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
                 containerColor = TelegramBlue,
-                contentColor = Color.White
+                contentColor = Color.White,
+                shape = CircleShape
             ) {
                 Icon(Icons.Default.Edit, contentDescription = "New Chat")
             }
