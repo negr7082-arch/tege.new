@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.Chat
+import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.Story
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -41,6 +42,8 @@ fun ChatListScreen(
     val stories by viewModel.stories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
+    var selectedFolder by remember { mutableIntStateOf(0) }
+    val folderLabels = listOf("Все", "Личные", "Группы", "Каналы")
     // Telegram-style search across chat names, usernames, previews and local messages.
     // Show Saved Messages and conversations backed by a real server user.
     // Older device-only drafts are left in storage, but are not presented as real chats.
@@ -54,9 +57,18 @@ fun ChatListScreen(
                 (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
                 chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
         }
+    val visibleChats = filteredChats.filter { chat ->
+        when (selectedFolder) {
+            1 -> chat.type == ChatType.DIRECT
+            2 -> chat.type == ChatType.GROUP
+            3 -> chat.type == ChatType.CHANNEL
+            else -> true
+        }
+    }
 
     Scaffold(
         topBar = {
+            Column {
             TopAppBar(
                 title = {
                     if (isSearchActive) {
@@ -78,7 +90,7 @@ fun ChatListScreen(
                             text = "TEGE",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                     }
                 },
@@ -88,7 +100,7 @@ fun ChatListScreen(
                             isSearchActive = false
                             viewModel.setSearchQuery("")
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
                     } else {
                         IconButton(onClick = onOpenDrawer) {
@@ -108,41 +120,35 @@ fun ChatListScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = TelegramBlue,
+                    navigationIconContentColor = Color.White,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
-        },
-        bottomBar = {
             if (!isSearchActive) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = true,
-                        onClick = { viewModel.navigateTo(ScreenRoute.ChatList) },
-                        icon = { Icon(Icons.Default.Chat, contentDescription = null) },
-                        label = { Text("Чаты") }
-                    )
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
-                        icon = { Icon(Icons.Default.Contacts, contentDescription = null) },
-                        label = { Text("Контакты") }
-                    )
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { viewModel.navigateTo(ScreenRoute.Settings) },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text("Настройки") }
-                    )
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { viewModel.navigateTo(ScreenRoute.Profile) },
-                        icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                        label = { Text("Профиль") }
-                    )
+                TabRow(
+                    selectedTabIndex = selectedFolder,
+                    containerColor = Color(0xFF287FC7),
+                    contentColor = Color.White
+                ) {
+                    folderLabels.forEachIndexed { index, label ->
+                        Tab(
+                            selected = selectedFolder == index,
+                            onClick = { selectedFolder = index },
+                            text = {
+                                Text(
+                                    text = label,
+                                    fontWeight = if (selectedFolder == index) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1
+                                )
+                            },
+                            selectedContentColor = Color.White,
+                            unselectedContentColor = Color.White.copy(alpha = 0.78f)
+                        )
+                    }
                 }
+            }
             }
         },
         floatingActionButton = {
@@ -177,7 +183,7 @@ fun ChatListScreen(
                 }
             }
 
-            if (filteredChats.isEmpty()) {
+            if (visibleChats.isEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
@@ -185,7 +191,7 @@ fun ChatListScreen(
                             .padding(horizontal = 32.dp, vertical = 48.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (searchQuery.isNotBlank()) {
+                        if (searchQuery.isNotBlank() || selectedFolder != 0) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = null,
@@ -194,7 +200,7 @@ fun ChatListScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "Ничего не найдено",
+                                text = if (searchQuery.isNotBlank()) "Ничего не найдено" else "В этой папке пока нет чатов",
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -204,7 +210,7 @@ fun ChatListScreen(
             }
 
             // Chats list
-            items(filteredChats, key = { it.id }) { chat ->
+            items(visibleChats, key = { it.id }) { chat ->
                 ChatRowItem(
                     chat = chat,
                     searchQuery = searchQuery,
