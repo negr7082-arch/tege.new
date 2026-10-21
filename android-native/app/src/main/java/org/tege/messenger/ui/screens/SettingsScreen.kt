@@ -163,12 +163,6 @@ fun SettingsScreen(
             }
         }
     }
-
-
-}
-
-@Composable
-fun SettingsClickableRow
 }
 
 @Composable
