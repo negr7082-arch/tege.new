@@ -192,3 +192,40 @@ button {
   nav.fixed button { overflow: hidden; }
   nav.fixed button span { max-width: 100%; text-overflow: ellipsis; overflow: hidden; }
 }
+
+
+/* Tege design system: Telegram-inspired surfaces, motion, mobile ergonomics and focus states. */
+:root {
+  --tege-blue: #3390ec;
+  --tege-light-bg: #ffffff;
+  --tege-light-canvas: #f4f4f5;
+  --tege-dark-bg: #17212b;
+  --tege-dark-canvas: #0e1621;
+  --tege-muted-light: #707579;
+  --tege-muted-dark: #a8b3bd;
+}
+button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid rgba(51, 144, 236, .72);
+  outline-offset: 2px;
+}
+input, textarea, select { accent-color: var(--tege-blue); }
+::selection { background: rgba(51, 144, 236, .24); }
+.dark body { background: var(--tege-dark-canvas); }
+@media (max-width: 640px) {
+  body { background: var(--tege-light-bg); }
+  .dark body { background: var(--tege-dark-bg); }
+  input, textarea, select { font-size: 16px; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

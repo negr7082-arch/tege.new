@@ -80,14 +80,14 @@ export const CreateChatScreen: React.FC<CreateChatScreenProps> = ({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="flex flex-col h-full bg-white dark:bg-zinc-950 overflow-y-auto select-none"
+      className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none"
     >
       <TegeTopBar
         title={language === 'ru' ? 'Создать диалог, группу или канал' : 'Create Chat, Group, or Channel'}
         onBack={onBack}
       />
 
-      <div className="max-w-md mx-auto w-full p-6 space-y-5">
+      <div className="max-w-md mx-auto w-full px-4 py-4 sm:p-6 space-y-5">
         {/* Type Selector (Direct Chat / Group / Channel) */}
         <div>
           <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider block mb-2">
