@@ -137,6 +137,33 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+
+    /**
+     * Detects legacy AI/bot conversations saved by older builds so they can be
+     * removed during restore instead of reappearing after an app update.
+     */
+    private fun isAiConversation(name: String, username: String?, messages: List<Message>): Boolean {
+        if (messages.any { it.isSystemBotMessage }) return true
+
+        val identity = "${name} ${username.orEmpty()}"
+            .lowercase(Locale.ROOT)
+            .replace('ё', 'е')
+        val aiMarkers = listOf(
+            "нейросет", "нейронк", "chatgpt", "chat gpt", "openai",
+            "deepseek", "claude", "gemini", "copilot", "perplexity",
+            "mistral", "llama", "искусственный интеллект"
+        )
+        if (aiMarkers.any { it in identity }) return true
+
+        val tokens = Regex("[a-z0-9]+|[а-яё]+")
+            .findAll(identity)
+            .map { it.value }
+            .toSet()
+        return tokens.any {
+            it in setOf("ai", "ии", "gpt", "bot", "бот", "ассистент", "assistant")
+        }
+    }
+
     private fun restoreChats() {
         val saved = chatPrefs.getString(persistedChatsKey, null) ?: return
         try {
@@ -184,8 +211,29 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 item.optLong("id") to (item to messages)
             }
+            // Purge legacy AI/bot conversations from saved local storage on upgrade.
+            // Saved Messages is always preserved, even if a user changed its display name.
+            val aiChatIds = restoredById.filter { (_, savedEntry) ->
+                val item = savedEntry.first
+                !item.optBoolean("isSavedMessages", false) &&
+                    isAiConversation(
+                        item.optString("name"),
+                        item.optString("username").takeIf { it.isNotBlank() },
+                        savedEntry.second
+                    )
+            }.keys
+            val cleanRestoredById = restoredById.filterKeys { it !in aiChatIds }
+            if (aiChatIds.isNotEmpty()) {
+                val cleanedArray = JSONArray()
+                for (index in 0 until array.length()) {
+                    val item = array.getJSONObject(index)
+                    if (item.optLong("id") !in aiChatIds) cleanedArray.put(item)
+                }
+                chatPrefs.edit().putString(persistedChatsKey, cleanedArray.toString()).apply()
+            }
+
             val existingIds = _chats.value.map { it.id }.toSet()
-            val restoredDrafts = restoredById.filterKeys { it !in existingIds }.map { (id, savedEntry) ->
+            val restoredDrafts = cleanRestoredById.filterKeys { it !in existingIds }.map { (id, savedEntry) ->
                 val item = savedEntry.first
                 val restoredType = runCatching {
                     ChatType.valueOf(item.optString("type", ChatType.DIRECT.name))
@@ -209,7 +257,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             val restoredInitial = _chats.value.map { chat ->
-                val savedEntry = restoredById[chat.id] ?: return@map chat
+                val savedEntry = cleanRestoredById[chat.id] ?: return@map chat
                 val item = savedEntry.first
                 chat.copy(lastMessage = item.optString("lastMessage", chat.lastMessage),
                     time = item.optString("time", chat.time), unread = item.optInt("unread", chat.unread),
