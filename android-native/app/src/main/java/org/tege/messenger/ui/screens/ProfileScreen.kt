@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -75,20 +76,12 @@ fun ProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(TelegramBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = account?.name?.take(1)?.uppercase() ?: "T",
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    TegeAvatar(
+                        avatarUri = account?.avatarUri,
+                        displayName = account?.name ?: "TEGE",
+                        color = TelegramBlue,
+                        modifier = Modifier.size(80.dp)
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = account?.name ?: "Пользователь",
