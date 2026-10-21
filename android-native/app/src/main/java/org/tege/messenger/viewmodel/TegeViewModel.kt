@@ -81,6 +81,13 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    /** Mark a chat as unread locally and keep it visible in the unread filter. */
+    fun markChatUnread(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(unread = maxOf(chat.unread, 1)) else chat
+        }
+    }
+
     /** Adds a locally recorded voice note. It is not uploaded or synced to a server. */
     fun sendVoiceMessage(chatId: Long, localPath: String, durationSeconds: Int) {
         val nowTime = timeFormat.format(Date())
