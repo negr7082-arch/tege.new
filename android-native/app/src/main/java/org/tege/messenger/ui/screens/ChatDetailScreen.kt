@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -507,6 +509,7 @@ fun ChatDetailScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
@@ -565,16 +568,16 @@ fun MessageBubble(
     // 2. Telegram Bubble Styling:
     // - In channels: clean neutral card
     // - Direct chats: soft telegram colors
-    val bubbleColor = if (isChannel) {
-        MaterialTheme.colorScheme.surface
-    } else if (message.isMine) {
-        Color(0xFFEFFEDD)
-    } else {
-        MaterialTheme.colorScheme.surface
+    val isDarkSurface = MaterialTheme.colorScheme.background.red < 0.25f
+    val bubbleColor = when {
+        isChannel -> MaterialTheme.colorScheme.surface
+        message.isMine && isDarkSurface -> Color(0xFF2B5278)
+        message.isMine -> Color(0xFFE1FFC7)
+        else -> MaterialTheme.colorScheme.surface
     }
 
     val textColor = if (message.isMine && !isChannel) {
-        Color(0xFF1E293B)
+        if (isDarkSurface) Color(0xFFF1F5F9) else Color(0xFF1E293B)
     } else {
         MaterialTheme.colorScheme.onSurface
     }
@@ -591,7 +594,12 @@ fun MessageBubble(
                 bottomEnd = if (message.isMine && !isChannel) 4.dp else 16.dp
             ),
             colors = CardDefaults.cardColors(containerColor = bubbleColor),
-            modifier = Modifier.widthIn(max = 300.dp)
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showMessageActions = true }
+                )
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (isChannel && message.senderName != null) {
@@ -684,6 +692,15 @@ fun MessageBubble(
                         fontSize = 11.sp,
                         color = textColor.copy(alpha = 0.7f)
                     )
+                    if (message.isMine && !isChannel) {
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(
+                            imageVector = Icons.Default.DoneAll,
+                            contentDescription = "Отправлено",
+                            tint = if (isDarkSurface) Color(0xFF8AC7F7) else Color(0xFF5A9E65),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
         }
