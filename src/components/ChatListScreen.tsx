@@ -155,7 +155,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
     matchingMessages.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-zinc-900 relative select-none">
+    <div className="flex flex-col h-full min-h-0 bg-white dark:bg-[#17212b] relative select-none">
       {/* Clean Telegram Top Bar: side menu drawer button and title */}
       <TegeTopBar
         title={t.appName}
@@ -163,7 +163,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       />
 
       {/* TELEGRAM UNIFIED SEARCH BAR (No confusing ID / ЮЗ toggles!) */}
-      <div className="px-4 pb-2 bg-white dark:bg-zinc-900 transition-colors">
+      <div className="px-3.5 pb-2.5 bg-white dark:bg-[#17212b] transition-colors">
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 absolute left-3.5 pointer-events-none" />
           <input
@@ -172,7 +172,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
             onFocus={() => setIsSearchFocused(true)}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={language === 'ru' ? 'Поиск' : 'Search'}
-            className="w-full pl-9 pr-9 py-2 bg-gray-100 dark:bg-zinc-800 text-[15px] text-gray-900 dark:text-zinc-100 rounded-full placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40 border border-transparent transition"
+            className="w-full min-h-[42px] pl-10 pr-10 py-2.5 bg-[#f1f3f5] dark:bg-[#242f3d] text-[15px] text-gray-900 dark:text-zinc-100 rounded-full placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40 border border-transparent transition"
           />
           {searchQuery && (
             <button
@@ -548,13 +548,13 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
                   onOpenSavedMessages();
                 }
               }}
-              className="flex items-center px-3 py-2.5 cursor-pointer select-none active:bg-gray-100 dark:active:bg-zinc-800 transition-colors"
+              className="flex items-center px-4 py-2.5 cursor-pointer select-none border-b border-gray-100/80 dark:border-white/[0.04] active:bg-gray-100 dark:active:bg-zinc-800 transition-colors"
             >
               <div className="w-15 h-15 rounded-full bg-gradient-to-b from-sky-400 to-sky-600 text-white flex items-center justify-center shrink-0">
                 <Bookmark className="w-6 h-6 fill-white text-white" />
               </div>
 
-              <div className="ml-3.5 flex-1 min-w-0">
+              <div className="ml-3 flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="font-medium text-[17px] text-gray-900 dark:text-white">
                     {t.savedMessages}
@@ -610,7 +610,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       <div className="absolute bottom-24 right-5 z-20">
         <button
           onClick={onOpenCreateChat}
-          className="w-15 h-15 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white rounded-full flex items-center justify-center shadow-lg shadow-black/30 transition-all duration-200"
+          className="w-14 h-14 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white rounded-full flex items-center justify-center shadow-lg shadow-sky-500/25 transition-all duration-200"
           aria-label={t.newChat}
           title={t.newChat}
         >

@@ -19,7 +19,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
   return (
     <div
       onClick={onClick}
-      className={`group flex items-center px-4 py-2.5 cursor-pointer select-none transition-colors relative border-b border-gray-100/80 dark:border-white/[0.04] ${
+      className={`group flex items-center px-4 py-2.5 min-h-[76px] cursor-pointer select-none transition-colors relative border-b border-gray-100/80 dark:border-white/[0.04] ${
         isActive
           ? 'bg-sky-50 dark:bg-sky-950/30'
           : 'active:bg-gray-100 dark:active:bg-zinc-800'
@@ -51,11 +51,11 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
             {chat.type === 'group' && (
               <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
             )}
-            <span className="font-medium text-[17px] text-gray-900 dark:text-white truncate">
+            <span className="font-medium text-[16px] text-gray-900 dark:text-white truncate">
               {chat.name}
             </span>
             {chat.username && (
-              <span className="text-xs text-sky-500 font-normal shrink-0">
+              <span className="hidden sm:inline text-xs text-sky-500 font-normal shrink-0">
                 {chat.username}
               </span>
             )}
@@ -76,7 +76,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[15px] text-gray-500 dark:text-zinc-400 truncate flex-1">
+          <p className="text-[14px] text-gray-500 dark:text-[#a8b3bd] truncate flex-1">
             {chat.lastMessage || <span className="italic text-gray-400 dark:text-zinc-500">Нет сообщений</span>}
           </p>
 
