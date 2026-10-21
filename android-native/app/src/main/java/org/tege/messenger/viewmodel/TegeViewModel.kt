@@ -51,6 +51,16 @@ class TegeViewModel : ViewModel() {
         _searchQuery.value = query
     }
 
+    fun clearChatHistory(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) {
+                chat.copy(messages = emptyList(), lastMessage = "", unread = 0)
+            } else {
+                chat
+            }
+        }
+    }
+
     fun switchAccount(accountId: Long) {
         _accounts.value.find { it.id == accountId }?.let {
             _currentAccount.value = it
