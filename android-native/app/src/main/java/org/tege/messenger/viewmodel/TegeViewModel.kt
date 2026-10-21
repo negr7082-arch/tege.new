@@ -1,6 +1,8 @@
 package org.tege.messenger.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,10 +11,130 @@ import kotlinx.coroutines.launch
 import org.tege.messenger.data.SampleData
 import org.tege.messenger.model.*
 import org.tege.messenger.service.StreakManager
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 
-class TegeViewModel : ViewModel() {
+class TegeViewModel(application: Application) : AndroidViewModel(application) {
+    private val chatPrefs = application.getSharedPreferences("tege_local_chats", Context.MODE_PRIVATE)
+    private val persistedChatsKey = "chats_json"
+
+    init {
+        restoreChats()
+        viewModelScope.launch { _chats.collect { chats -> persistChats(chats) } }
+    }
+
+    private fun persistChats(chats: List<Chat>) {
+        try {
+            val array = JSONArray()
+            chats.forEach { chat ->
+                val item = JSONObject().put("id", chat.id).put("lastMessage", chat.lastMessage)
+                    .put("time", chat.time).put("unread", chat.unread)
+                    .put("isPinned", chat.isPinned).put("isMuted", chat.isMuted)
+                val messages = JSONArray()
+                chat.messages.forEach { message ->
+                    val m = JSONObject().put("id", message.id).put("text", message.text)
+                        .put("time", message.time).put("isMine", message.isMine)
+                        .put("isVoice", message.isVoice).put("isPinned", message.isPinned).put("views", message.views)
+                    listOf(
+                        "attachmentUri" to message.attachmentUri, "videoUri" to message.videoUri,
+                        "videoNoteUri" to message.videoNoteUri, "audioUri" to message.audioUri,
+                        "voiceDuration" to message.voiceDuration, "fileName" to message.fileName,
+                        "fileSize" to message.fileSize, "senderName" to message.senderName
+                    ).forEach { (key, value) -> if (value != null) m.put(key, value) }
+                    message.senderId?.let { m.put("senderId", it) }
+                    val reactions = JSONObject()
+                    message.reactions.forEach { (emoji, count) -> reactions.put(emoji, count) }
+                    m.put("reactions", reactions)
+                    val userReactions = JSONObject()
+                    message.userReactions.forEach { (userId, emoji) -> userReactions.put(userId.toString(), emoji) }
+                    m.put("userReactions", userReactions)
+                    message.replyTo?.let { reply -> m.put("replyTo", JSONObject()
+                        .put("id", reply.id).put("senderName", reply.senderName).put("text", reply.text)) }
+                    message.poll?.let { poll ->
+                        val options = JSONArray()
+                        poll.options.forEach { option ->
+                            val voters = JSONArray()
+                            option.votedUserIds.forEach { voters.put(it) }
+                            options.put(JSONObject().put("id", option.id).put("text", option.text)
+                                .put("votes", option.votes).put("votedUserIds", voters))
+                        }
+                        m.put("poll", JSONObject().put("question", poll.question).put("options", options)
+                            .put("totalVotes", poll.totalVotes).put("isClosed", poll.isClosed)
+                            .put("allowsMultiple", poll.allowsMultiple))
+                    }
+                    messages.put(m)
+                }
+                item.put("messages", messages)
+                array.put(item)
+            }
+            chatPrefs.edit().putString(persistedChatsKey, array.toString()).apply()
+        } catch (_: Exception) {
+            // A storage failure must not crash the chat UI.
+        }
+    }
+
+    private fun restoreChats() {
+        val saved = chatPrefs.getString(persistedChatsKey, null) ?: return
+        try {
+            val array = JSONArray(saved)
+            val restoredById = (0 until array.length()).associate { index ->
+                val item = array.getJSONObject(index)
+                val messagesJson = item.optJSONArray("messages") ?: JSONArray()
+                val messages = (0 until messagesJson.length()).map { messageIndex ->
+                    val m = messagesJson.getJSONObject(messageIndex)
+                    val reactionsJson = m.optJSONObject("reactions") ?: JSONObject()
+                    val reactions = reactionsJson.keys().asSequence().associateWith { reactionsJson.optInt(it) }
+                    val userReactionsJson = m.optJSONObject("userReactions") ?: JSONObject()
+                    val userReactions = userReactionsJson.keys().asSequence().mapNotNull { key ->
+                        key.toLongOrNull()?.let { it to userReactionsJson.optString(key) }
+                    }.toMap()
+                    val replyJson = m.optJSONObject("replyTo")
+                    val reply = replyJson?.let { MessageReplyInfo(it.optLong("id"), it.optString("senderName"), it.optString("text")) }
+                    val pollJson = m.optJSONObject("poll")
+                    val poll = pollJson?.let { p ->
+                        val optionsJson = p.optJSONArray("options") ?: JSONArray()
+                        val options = (0 until optionsJson.length()).map { optionIndex ->
+                            val option = optionsJson.getJSONObject(optionIndex)
+                            val voters = option.optJSONArray("votedUserIds") ?: JSONArray()
+                            PollOption(option.optInt("id"), option.optString("text"), option.optInt("votes"),
+                                (0 until voters.length()).map { voters.optLong(it) })
+                        }
+                        Poll(p.optString("question"), options, p.optInt("totalVotes"), p.optBoolean("isClosed"), p.optBoolean("allowsMultiple"))
+                    }
+                    Message(
+                        id = m.optLong("id"), text = m.optString("text"), time = m.optString("time"),
+                        isMine = m.optBoolean("isMine"),
+                        attachmentUri = m.optString("attachmentUri").takeIf { m.has("attachmentUri") },
+                        videoUri = m.optString("videoUri").takeIf { m.has("videoUri") },
+                        videoNoteUri = m.optString("videoNoteUri").takeIf { m.has("videoNoteUri") },
+                        audioUri = m.optString("audioUri").takeIf { m.has("audioUri") },
+                        isVoice = m.optBoolean("isVoice"),
+                        voiceDuration = m.optString("voiceDuration").takeIf { m.has("voiceDuration") },
+                        fileName = m.optString("fileName").takeIf { m.has("fileName") },
+                        fileSize = m.optString("fileSize").takeIf { m.has("fileSize") },
+                        senderId = if (m.has("senderId")) m.optLong("senderId") else null,
+                        senderName = m.optString("senderName").takeIf { m.has("senderName") },
+                        isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 1),
+                        reactions = reactions, userReactions = userReactions, replyTo = reply, poll = poll
+                    )
+                }
+                item.optLong("id") to (item to messages)
+            }
+            _chats.value = _chats.value.map { chat ->
+                val savedEntry = restoredById[chat.id] ?: return@map chat
+                val item = savedEntry.first
+                chat.copy(lastMessage = item.optString("lastMessage", chat.lastMessage),
+                    time = item.optString("time", chat.time), unread = item.optInt("unread", chat.unread),
+                    isPinned = item.optBoolean("isPinned", chat.isPinned),
+                    isMuted = item.optBoolean("isMuted", chat.isMuted), messages = savedEntry.second)
+            }
+        } catch (_: Exception) {
+            // Ignore corrupted or outdated local data and keep the sample chat list.
+        }
+    }
+
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     private val _accounts = MutableStateFlow<List<UserAccount>>(SampleData.defaultAccounts)
