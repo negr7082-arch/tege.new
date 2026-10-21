@@ -37,7 +37,6 @@ fun AuthScreen(
 ) {
     var isRegister by remember { mutableStateOf(false) }
     var serverUrl by remember { mutableStateOf(BackendClient.DEFAULT_BASE_URL) }
-    var showServer by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -107,16 +106,6 @@ fun AuthScreen(
                     color = AuthMuted
                 )
                 Spacer(Modifier.height(34.dp))
-
-                if (showServer) {
-                    AuthField(
-                        value = serverUrl,
-                        onValueChange = { serverUrl = it; error = null },
-                        label = "Адрес сервера",
-                        keyboardType = KeyboardType.Uri
-                    )
-                    Spacer(Modifier.height(16.dp))
-                }
 
                 AuthField(
                     value = email,
@@ -226,19 +215,6 @@ fun AuthScreen(
                         if (isRegister) "Уже есть аккаунт? Войти" else "Нет аккаунта? Зарегистрироваться",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-                TextButton(
-                    onClick = { showServer = !showServer },
-                    enabled = !loading,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        if (showServer) "Скрыть настройки сервера" else "Настройки сервера",
-                        fontSize = 13.sp,
-                        color = AuthMuted
                     )
                 }
 
