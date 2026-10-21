@@ -7,7 +7,7 @@ on:
       - "android-native/**"
       - ".github/workflows/native-android-apk.yml"
   push:
-    branches: [main]
+    branches: [main, feat/telegram-tege-integration]
     paths:
       - "android-native/**"
       - ".github/workflows/native-android-apk.yml"
