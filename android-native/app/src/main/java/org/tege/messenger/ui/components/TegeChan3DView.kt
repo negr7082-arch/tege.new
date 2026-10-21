@@ -174,6 +174,11 @@ class TegeChan3DView(
             part(-0.18f, 0.91f, 0.205f, 0.10f, 0.20f, 0.08f, 0.045f, 0.075f, 0.17f)
             part(0.03f, 0.965f, 0.245f, 0.13f, 0.10f, 0.06f, 0.045f, 0.075f, 0.17f)
             part(0.17f, 0.91f, 0.205f, 0.095f, 0.18f, 0.075f, 0.045f, 0.075f, 0.17f)
+            // Small cyan hair clips catch the light and make the silhouette more distinctive.
+            part(-0.245f, 0.955f, 0.235f, 0.055f, 0.018f, 0.012f, 0.20f, 0.72f, 0.98f)
+            part(-0.235f, 0.935f, 0.242f, 0.040f, 0.010f, 0.010f, 0.70f, 0.91f, 1f)
+            // Tiny collar badge, kept simple to avoid a heavy texture/material pipeline.
+            part(0f, 0.31f, 0.153f, 0.040f, 0.035f, 0.018f, 0.20f, 0.72f, 0.98f)
 
             // Brows, layered irises and eye glints add readable expression at phone size.
             part(-0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
@@ -190,6 +195,9 @@ class TegeChan3DView(
             part(0f, 0.785f, 0.284f, 0.010f, 0.009f, 0.009f, 0.88f, 0.56f, 0.52f)
             part(-0.075f, 0.775f, 0.274f, 0.012f, 0.006f, 0.006f, 0.98f, 0.80f, 0.77f)
             part(0.135f, 0.775f, 0.274f, 0.012f, 0.006f, 0.006f, 0.98f, 0.80f, 0.77f)
+            // A gentle smile with a slightly darker center makes the neutral face less blank.
+            part(0f, 0.725f, 0.282f, 0.038f, 0.008f, 0.010f, 0.56f, 0.20f, 0.25f)
+            part(0f, 0.729f, 0.291f, 0.023f, 0.004f, 0.006f, 0.96f, 0.43f, 0.47f)
             // Mouth changes shape/color briefly after a tap to suggest a surprised reaction.
             val mouthOpen = 0.022f + reaction * 0.018f
             part(0f, 0.755f, 0.269f, 0.018f, mouthOpen, 0.015f, 0.88f - reaction * 0.12f, 0.39f, 0.43f)
