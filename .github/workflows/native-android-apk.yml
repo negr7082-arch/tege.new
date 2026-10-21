@@ -51,7 +51,7 @@ jobs:
 
       - name: Compile debug APK
         working-directory: android-native
-        run: gradle --no-daemon --stacktrace assembleDebug
+        run: gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug
 
       - name: Upload native debug APK
         uses: actions/upload-artifact@v4
