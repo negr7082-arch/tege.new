@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.UserAccount
 import org.tege.messenger.ui.theme.TelegramBlue
+import org.tege.messenger.ui.components.VerifiedAccountBadge
+import org.tege.messenger.ui.components.isTegeVerifiedAccount
 import org.tege.messenger.viewmodel.TegeViewModel
 
 @Composable
@@ -81,12 +83,18 @@ fun TelegramDrawer(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text(
-                            text = currentAccount?.name ?: "TEGE User",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentAccount?.name ?: "TEGE User",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
+                            )
+                            if (isTegeVerifiedAccount(currentAccount?.email)) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                VerifiedAccountBadge(compact = true)
+                            }
+                        }
                         Text(
                             text = currentAccount?.phone ?: "@${currentAccount?.username ?: "user"}",
                             color = Color.White.copy(alpha = 0.85f),
@@ -132,7 +140,13 @@ fun TelegramDrawer(
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = acc.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = acc.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                if (isTegeVerifiedAccount(acc.email)) {
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    VerifiedAccountBadge(compact = true)
+                                }
+                            }
                             Text(text = "@${acc.username}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (acc.id == currentAccount?.id) {
