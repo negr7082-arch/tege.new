@@ -30,6 +30,9 @@ object BackendClient {
         .readTimeout(25, TimeUnit.SECONDS)
         .writeTimeout(25, TimeUnit.SECONDS)
         .build()
+    private val webSocketClient = client.newBuilder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
 
     fun normalizeBaseUrl(input: String): String? {
         var candidate = input.trim().trimEnd('/')
@@ -88,7 +91,7 @@ object BackendClient {
         val hostAndPath = normalizedUrl.substringAfter("://")
         val url = "$wsScheme$hostAndPath/ws?token=$token"
         val request = Request.Builder().url(url).build()
-        return client.newWebSocket(request, object : WebSocketListener() {
+        return webSocketClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 listener.onStatus(true)
             }
@@ -135,6 +138,32 @@ object BackendClient {
             .put("chatId", chatId)
             .put("chatType", "direct")
             .put("toUserId", targetUserId)
+            .put("message", message)
+        return socket.send(JSONObject().put("type", "send").put("payload", payload).toString())
+    }
+
+    fun sendDirectAction(
+        socket: WebSocket?,
+        chatId: Long,
+        targetUserId: Long,
+        action: String,
+        targetMessageId: Long,
+        text: String = "",
+        time: String
+    ): Boolean {
+        socket ?: return false
+        if (action != "edit" && action != "delete") return false
+        val message = JSONObject()
+            .put("id", System.currentTimeMillis())
+            .put("text", text)
+            .put("time", time)
+        val payload = JSONObject()
+            .put("id", System.currentTimeMillis())
+            .put("chatId", chatId)
+            .put("chatType", "direct")
+            .put("toUserId", targetUserId)
+            .put("action", action)
+            .put("targetId", targetMessageId)
             .put("message", message)
         return socket.send(JSONObject().put("type", "send").put("payload", payload).toString())
     }
