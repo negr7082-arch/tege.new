@@ -714,11 +714,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             phone = phone.trim()
         )
         if (savedToken != null) {
-            if (activeSocket == null || !BackendClientSocketOpen(activeSocket)) {
-                _messageError.value = "Нет соединения с сервером. Профиль не отправлен."
-                return
-            }
-            BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone)
+            val sent = BackendClient.updateProfile(
+                activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone
+            )
+            if (!sent) _messageError.value = "Нет соединения с сервером. Профиль не отправлен."
             return
         }
         _accounts.value = listOf(updated)
