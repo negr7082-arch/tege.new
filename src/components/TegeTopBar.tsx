@@ -37,7 +37,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
     : [];
 
   return (
-    <header className="h-[58px] px-2.5 sm:px-4 flex items-center justify-between bg-white dark:bg-[#17212b] border-b border-slate-200/70 dark:border-white/5 sticky top-0 z-30 shrink-0 select-none transition-colors">
+    <header className="h-[60px] px-3 sm:px-4 flex items-center justify-between bg-white dark:bg-[#17212b] border-b border-slate-200/70 dark:border-white/5 sticky top-0 z-30 shrink-0 select-none transition-colors">
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         {onBack ? (
           <button
