@@ -145,7 +145,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Default.Notifications,
                     title = "Уведомления",
-                    subtitle = "Настройка внутри приложения; системные push пока не подключены",
+                    subtitle = "Push-уведомления не подключены",
                     checked = settings.notificationsEnabled,
                     onCheckedChange = viewModel::setNotificationsEnabled
                 )
@@ -153,7 +153,6 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Default.VolumeUp,
                     title = "Звуки интерфейса",
-                    subtitle = "Предпочтение сохраняется на устройстве",
                     checked = settings.soundEnabled,
                     onCheckedChange = viewModel::setSoundEnabled
                 )
@@ -161,7 +160,6 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Default.Animation,
                     title = "Анимации",
-                    subtitle = "Предпочтение сохраняется на устройстве",
                     checked = settings.animationsEnabled,
                     onCheckedChange = viewModel::setAnimationsEnabled
                 )
@@ -183,7 +181,7 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Важно: приватность пока применяется только как локальная настройка и ещё не ограничивает данные на сервере.",
+                    text = "Настройки приватности пока не применяются на сервере.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -207,7 +205,7 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Нажми на состояние, чтобы переподключиться. Обычные личные сообщения отправляются через сервер. «Избранное», тема и параметры оформления сохраняются на этом устройстве. Push-уведомления и синхронизация медиа в нативной версии пока не подключены.",
+                    text = "Нажмите, чтобы переподключиться. Push-уведомления и синхронизация медиа не подключены.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
