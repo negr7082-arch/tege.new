@@ -65,12 +65,6 @@ fun ChannelsScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Подписанные каналы будут отображаться здесь.",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         } else {
