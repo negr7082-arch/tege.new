@@ -193,6 +193,15 @@ fun ChatDetailScreen(
                             leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
                         )
                         DropdownMenuItem(
+                            text = { Text("Отметить непрочитанным") },
+                            onClick = {
+                                viewModel.markChatUnread(chat.id)
+                                showMenu = false
+                                onBack()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Markunread, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Очистить историю") },
                             onClick = {
                                 showMenu = false
