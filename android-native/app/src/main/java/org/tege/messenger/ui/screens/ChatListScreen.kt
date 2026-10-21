@@ -41,21 +41,15 @@ fun ChatListScreen(
     val stories by viewModel.stories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
-    var selectedChatFilter by remember { mutableStateOf("Все") }
-
-    // Search chat names, usernames, previews, and the full local message history.
-    val filteredChats = chats.sortedByDescending { it.isPinned }.filter { chat ->
-        val matchesSearch = searchQuery.isBlank() ||
+    // Telegram-style search across chat names, usernames, previews and local messages.
+    val filteredChats = chats.sortedWith(
+        compareByDescending<Chat> { it.isPinned }.thenByDescending { it.time }
+    ).filter { chat ->
+        searchQuery.isBlank() ||
             chat.name.contains(searchQuery, ignoreCase = true) ||
             chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
             (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
             chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
-        val matchesFilter = when (selectedChatFilter) {
-            "Непрочитанные" -> chat.unread > 0
-            "Закреплённые" -> chat.isPinned
-            else -> true
-        }
-        matchesSearch && matchesFilter
     }
 
     Scaffold(
@@ -79,8 +73,8 @@ fun ChatListScreen(
                     } else {
                         Text(
                             text = "TEGE",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 20.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -118,37 +112,6 @@ fun ChatListScreen(
                 )
             )
         },
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = {},
-                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
-                    label = { Text("Чаты", maxLines = 1) }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { viewModel.navigateTo(ScreenRoute.Channels) },
-                    icon = { Icon(Icons.Default.Campaign, contentDescription = null) },
-                    label = { Text("Каналы", maxLines = 1) }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { viewModel.navigateTo(ScreenRoute.Settings) },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Настройки", maxLines = 1) }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { viewModel.navigateTo(ScreenRoute.Profile) },
-                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    label = { Text("Профиль", maxLines = 1) }
-                )
-            }
-        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
@@ -164,26 +127,18 @@ fun ChatListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Stories Row at the top
-            item {
-                StoriesBar(
-                    stories = stories,
-                    onAddStory = onOpenCreateStory,
-                    onViewStory = onViewStory
-                )
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(listOf("Все", "Непрочитанные", "Закреплённые")) { filter ->
-                        FilterChip(
-                            selected = selectedChatFilter == filter,
-                            onClick = { selectedChatFilter = filter },
-                            label = { Text(filter) }
-                        )
-                    }
+            // Stories are shown only when the user has actual stories to display.
+            if (stories.isNotEmpty()) {
+                item {
+                    StoriesBar(
+                        stories = stories,
+                        onAddStory = onOpenCreateStory,
+                        onViewStory = onViewStory
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             }
 
             // Chats list
