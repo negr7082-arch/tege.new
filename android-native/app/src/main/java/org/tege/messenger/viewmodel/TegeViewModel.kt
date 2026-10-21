@@ -791,11 +791,15 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val nowTime = timeFormat.format(Date())
         val messageId = System.currentTimeMillis()
 
-        // Saved Messages and older device-local drafts are local by design. A real direct chat
-        // must use the authenticated socket; don't present it as sent when offline.
-        if (!chat.isSavedMessages && chat.userId != null) {
+        // Never turn a device-only draft into a pretend conversation with a real person.
+        if (!chat.isSavedMessages && chat.userId == null) {
+            _messageError.value = "Это локальный черновик, а не чат с зарегистрированным пользователем. Создайте диалог через поиск пользователей."
+            return false
+        }
+        if (!chat.isSavedMessages) {
+            val recipientId = chat.userId ?: return false
             val sent = BackendClient.sendDirectMessage(
-                activeSocket, chat.id, chat.userId, messageId, cleanText, nowTime,
+                activeSocket, chat.id, recipientId, messageId, cleanText, nowTime,
                 reply?.id, reply?.senderName, reply?.text
             )
             if (!sent) {
@@ -828,8 +832,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val chat = _chats.value.firstOrNull { it.id == chatId } ?: return false
         val target = chat.messages.firstOrNull { it.id == messageId && it.isMine } ?: return false
         val nowTime = timeFormat.format(Date())
-        if (!chat.isSavedMessages && chat.userId != null &&
-            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId, "edit", messageId, text, nowTime)
+        if (!chat.isSavedMessages && chat.userId == null) {
+            _messageError.value = "Локальный черновик не является серверным диалогом."
+            return false
+        }
+        if (!chat.isSavedMessages &&
+            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId ?: return false, "edit", messageId, text, nowTime)
         ) {
             _messageError.value = "Нет соединения с сервером. Изменение не отправлено."
             return false
@@ -855,8 +863,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val chat = _chats.value.firstOrNull { it.id == chatId } ?: return false
         val target = chat.messages.find { it.id == messageId && it.isMine } ?: return false
         val nowTime = timeFormat.format(Date())
-        if (!chat.isSavedMessages && chat.userId != null &&
-            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId, "delete", messageId, time = nowTime)
+        if (!chat.isSavedMessages && chat.userId == null) {
+            _messageError.value = "Локальный черновик не является серверным диалогом."
+            return false
+        }
+        if (!chat.isSavedMessages &&
+            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId ?: return false, "delete", messageId, time = nowTime)
         ) {
             _messageError.value = "Нет соединения с сервером. Удаление не отправлено."
             return false
