@@ -27,6 +27,7 @@ import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.Story
+import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -398,24 +399,13 @@ fun ChatRowItem(
     ) {
         // Avatar
         Box(contentAlignment = Alignment.BottomEnd) {
-            Box(
-                modifier = Modifier
-                    .size(54.dp)
-                    .clip(CircleShape)
-                    .background(Color(android.graphics.Color.parseColor(chat.color))),
-                contentAlignment = Alignment.Center
-            ) {
-                if (chat.isSavedMessages) {
-                    Icon(Icons.Default.Bookmark, contentDescription = "Saved Messages", tint = Color.White)
-                } else {
-                    Text(
-                        text = chat.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            TegeAvatar(
+                avatarUri = chat.avatarUri,
+                displayName = chat.name,
+                color = Color(android.graphics.Color.parseColor(chat.color)),
+                modifier = Modifier.size(54.dp),
+                savedMessages = chat.isSavedMessages
+            )
             if (chat.online && !chat.isSavedMessages) {
                 Box(
                     modifier = Modifier
