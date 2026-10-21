@@ -15,13 +15,21 @@
 4. Treat web integration as a separate workstream: the Android Telegram source cannot simply be reused in the existing Vite web client. Use only an officially supported Telegram web/client approach or a separately implemented Telegram API client where permitted.
 5. Preserve upstream Telegram copyright and GPL-2.0 notices for any copied or derivative code. Do not use Telegram branding in a way that implies official affiliation.
 
-## Safe implementation sequence
+## Current integration milestone: Telegram Web inside the TEGE Android app
+
+- The native app now has a separate `Telegram` drawer entry that opens the official Telegram Web K client at `https://web.telegram.org/k/` inside an Android WebView.
+- This is a practical first step to use TEGE and Telegram from one installed Android app without merging incompatible Gradle projects or routing Telegram secrets through the TEGE backend.
+- WebView cookies/storage are handled by Android's WebView profile, separately from TEGE account state. This does not automatically import Telegram sessions from the native Telegram app.
+- This is a web-client integration, not a native MTProto integration. Availability of Telegram Web inside a WebView and all login flows must be verified on a real device; if Telegram blocks or limits embedded WebView use, the safe fallback is opening the official web client in the system browser.
+- The upstream Android Telegram source remains vendored but is not compiled into the TEGE app yet.
+
+## Remaining integration sequence
 
 - Phase A: preserve the existing TEGE build and establish CI validation on this integration branch.
-- Phase B: map the upstream Telegram app's Gradle modules, manifest/application entry points, API ID configuration, and session storage; identify collisions with TEGE before changing build files.
-- Phase C: choose an integration boundary. Prefer a separately built Telegram client/module boundary over wholesale source copying. Do not merge application manifests or Gradle plugin versions blindly.
-- Phase D: implement a visible service/account switcher only after both client entry points can compile and launch independently.
-- Phase E: add tests for independent sign-in/sign-out and verify no Telegram credentials or message payloads are sent to the TEGE backend.
+- Phase B: verify the embedded Telegram Web screen compiles and behaves on Android; test sign-in, navigation, cookies, and back handling.
+- Phase C: decide whether to continue with Telegram Web or invest in a full native MTProto integration. The upstream project has separate Gradle configuration, native libraries, manifests, and application lifecycle, so do not merge it blindly.
+- Phase D: keep TEGE and Telegram account/session state independent and test separate sign-out behavior.
+- Phase E: verify no Telegram credentials or message payloads are sent to the TEGE backend.
 - Phase F: handle web and server architecture explicitly; TEGE server should not proxy Telegram login passwords or store Telegram sessions.
 
 ## API credentials
