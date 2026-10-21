@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
-                                is ScreenRoute.Contacts -> {
+                                is ScreenRoute.Calls -> {\n                                    CallsScreen(\n                                        viewModel = viewModel,\n                                        onBack = { viewModel.navigateBack() }\n                                    )\n                                }\n                                is ScreenRoute.Contacts -> {
                                     ContactsScreen(
                                         viewModel = viewModel,
                                         onBack = { viewModel.navigateBack() }
