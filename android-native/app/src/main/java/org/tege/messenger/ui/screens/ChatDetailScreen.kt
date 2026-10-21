@@ -3,6 +3,7 @@ package org.tege.messenger.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
+import android.media.MediaPlayer
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -464,7 +465,49 @@ fun MessageBubble(
                     Text("↪ ${message.replyTo.senderName}: ${message.replyTo.text}", fontSize = 12.sp, color = textColor.copy(alpha = 0.75f), maxLines = 2)
                 }
 
-                if (message.poll != null) {
+                if (message.audioUri != null) {
+                    var isVoicePlaying by remember(message.id) { mutableStateOf(false) }
+                    var voicePlayer by remember(message.id) { mutableStateOf<MediaPlayer?>(null) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                if (isVoicePlaying) {
+                                    voicePlayer?.release()
+                                    voicePlayer = null
+                                    isVoicePlaying = false
+                                } else {
+                                    try {
+                                        val player = MediaPlayer()
+                                        player.setDataSource(message.audioUri)
+                                        player.setOnCompletionListener {
+                                            isVoicePlaying = false
+                                            voicePlayer = null
+                                            it.release()
+                                        }
+                                        player.prepare()
+                                        player.start()
+                                        voicePlayer = player
+                                        isVoicePlaying = true
+                                    } catch (_: Exception) {
+                                        voicePlayer?.release()
+                                        voicePlayer = null
+                                        isVoicePlaying = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isVoicePlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = if (isVoicePlaying) "Остановить голосовое" else "Воспроизвести голосовое",
+                                tint = TelegramBlue
+                            )
+                        }
+                        Column {
+                            Text("Голосовое сообщение", color = textColor, fontSize = 14.sp)
+                            Text(message.voiceDuration ?: "", color = textColor.copy(alpha = 0.7f), fontSize = 11.sp)
+                        }
+                    }
+                } else if (message.poll != null) {
                     PollWidget(
                         poll = message.poll,
                         isMine = message.isMine,
