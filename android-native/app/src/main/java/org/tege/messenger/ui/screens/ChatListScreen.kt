@@ -40,14 +40,13 @@ fun ChatListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
 
-    val filteredChats = if (searchQuery.isBlank()) {
-        chats
-    } else {
-        chats.filter {
-            it.name.contains(searchQuery, ignoreCase = true) ||
-            it.lastMessage.contains(searchQuery, ignoreCase = true) ||
-            (it.username?.contains(searchQuery, ignoreCase = true) == true)
-        }
+    // Search chat names, usernames, previews, and the full local message history.
+    val filteredChats = chats.sortedByDescending { it.isPinned }.filter { chat ->
+        searchQuery.isBlank() ||
+            chat.name.contains(searchQuery, ignoreCase = true) ||
+            chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
+            (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
+            chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
     }
 
     Scaffold(
@@ -135,7 +134,9 @@ fun ChatListScreen(
             items(filteredChats, key = { it.id }) { chat ->
                 ChatRowItem(
                     chat = chat,
-                    onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) }
+                    searchQuery = searchQuery,
+                    onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) },
+                    onTogglePin = { viewModel.toggleChatPin(chat.id) }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 76.dp),
@@ -237,8 +238,14 @@ fun StoriesBar(
 @Composable
 fun ChatRowItem(
     chat: Chat,
-    onClick: () -> Unit
+    searchQuery: String = "",
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit = {}
 ) {
+    val matchingMessage = if (searchQuery.isBlank()) null else
+        chat.messages.lastOrNull { it.text.contains(searchQuery, ignoreCase = true) }
+    val previewText = matchingMessage?.text ?: chat.lastMessage
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -305,11 +312,21 @@ fun ChatRowItem(
                         )
                     }
                 }
-                Text(
-                    text = chat.time,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = chat.time,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(onClick = onTogglePin, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = if (chat.isPinned) "Открепить чат" else "Закрепить чат",
+                            tint = if (chat.isPinned) TelegramBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -320,7 +337,7 @@ fun ChatRowItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = chat.lastMessage,
+                    text = previewText,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
