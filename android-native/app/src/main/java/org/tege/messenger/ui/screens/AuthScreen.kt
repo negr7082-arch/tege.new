@@ -35,7 +35,7 @@ fun AuthScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFE8EBF0))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -44,14 +44,14 @@ fun AuthScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(Color.White)
-                .padding(horizontal = 24.dp, vertical = 28.dp)
+                .padding(horizontal = 24.dp, vertical = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
                 modifier = Modifier
-                    .size(90.dp)
+                    .size(72.dp)
                     .clip(CircleShape)
                     .background(TelegramBlue),
                 contentAlignment = Alignment.Center
@@ -60,7 +60,7 @@ fun AuthScreen(
                     imageVector = Icons.Default.Send,
                     contentDescription = "TEGE Logo",
                     tint = Color.White,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
 
@@ -68,14 +68,14 @@ fun AuthScreen(
 
             Text(
                 text = if (isRegister) "Регистрация в Tege" else "Добро пожаловать в Tege",
-                fontSize = 26.sp,
+                fontSize = 23.sp,
                 fontWeight = FontWeight.Bold,
                 color = TelegramBlue
             )
             Text(
                 text = if (isRegister) "Регистрация нового аккаунта" else "Вход в аккаунт",
                 fontSize = 15.sp,
-                color = Color(0xFF707985)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -84,8 +84,8 @@ fun AuthScreen(
                 value = username,
                 onValueChange = { username = it },
                 label = { Text("Имя пользователя или e-mail") },
-                shape = RoundedCornerShape(18.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF1F3F5), focusedContainerColor = Color(0xFFF1F3F5)),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = MaterialTheme.colorScheme.surface, focusedContainerColor = MaterialTheme.colorScheme.surface),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
