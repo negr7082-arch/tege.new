@@ -2,15 +2,10 @@ package org.tege.messenger.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -127,38 +122,34 @@ fun TelegramDrawer(
                 },
                 title = { Text("TEGE-чан 💙") },
                 text = {
-                    val bounce by rememberInfiniteTransition(label = "tege-chan").animateFloat(
-                        initialValue = -7f,
-                        targetValue = 7f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 720, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "tege-chan-bounce"
-                    )
-                    val tilt by rememberInfiniteTransition(label = "tege-chan-tilt").animateFloat(
-                        initialValue = -5f,
-                        targetValue = 5f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "tege-chan-tilt-angle"
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "ฅ(＾・ω・＾ฅ)",
-                            fontSize = 38.sp,
-                            color = TelegramBlue,
-                            modifier = Modifier.graphicsLayer {
-                                translationY = bounce
-                                rotationZ = tilt
-                            }
+                    var reaction by remember { mutableStateOf("Проведи пальцем, чтобы повернуть меня, или коснись — я отвечу 💙") }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        AndroidView(
+                            factory = { context ->
+                                TegeChan3DView(context) { newReaction -> reaction = newReaction }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(270.dp)
+                                .clip(RoundedCornerShape(18.dp))
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Приветик! Я TEGE-чан — секретная пасхалка для своих ✨")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Telegram внутри, аниме-настроение снаружи. よろしくね！", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Привет! Я TEGE-чан 💙",
+                            fontWeight = FontWeight.SemiBold,
+                            color = TelegramBlue
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(reaction)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Проведи пальцем по сцене, чтобы поворачивать меня",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             )
