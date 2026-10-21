@@ -7,7 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,181 +19,74 @@ import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.UserAccount
 import org.tege.messenger.ui.theme.TelegramBlue
-import org.tege.messenger.ui.components.VerifiedAccountBadge
-import org.tege.messenger.ui.components.isTegeVerifiedAccount
 import org.tege.messenger.viewmodel.TegeViewModel
 
 @Composable
 fun TelegramDrawer(
     viewModel: TegeViewModel,
-    accounts: List<UserAccount>,
     currentAccount: UserAccount?,
-    onCloseDrawer: () -> Unit,
-    onOpenAddAccount: () -> Unit
+    onCloseDrawer: () -> Unit
 ) {
-    var accountsExpanded by remember { mutableStateOf(false) }
-
-    ModalDrawerSheet(
-        modifier = Modifier.width(300.dp)
-    ) {
-        // Drawer Header with Account Info
-        Box(
+    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(TelegramBlue)
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = currentAccount?.name?.take(1)?.uppercase() ?: "T",
-                            color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    IconButton(onClick = { viewModel.toggleDarkMode() }) {
-                        Icon(
-                            imageVector = Icons.Default.Brightness4,
-                            contentDescription = "Night Mode",
-                            tint = Color.White
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { accountsExpanded = !accountsExpanded },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = currentAccount?.name ?: "TEGE User",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
-                            )
-                            if (isTegeVerifiedAccount(currentAccount?.email)) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                VerifiedAccountBadge(compact = true)
-                            }
-                        }
-                        Text(
-                            text = currentAccount?.phone?.takeIf { it.isNotBlank() }
-                                ?: currentAccount?.username?.takeIf { it.isNotBlank() }?.let { "@$it" }
-                                ?: "Профиль на устройстве",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = if (accountsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Switch accounts",
-                        tint = Color.White
+                    Text(
+                        text = currentAccount?.name?.firstOrNull()?.uppercase() ?: "?",
+                        color = Color.White,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-            }
-        }
-
-        // Multi-Account Switcher Section (if expanded)
-        if (accountsExpanded) {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                accounts.forEach { acc ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.switchAccount(acc.id)
-                                accountsExpanded = false
-                            }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(TelegramBlue.copy(alpha = 0.8f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = acc.name.take(1).uppercase(),
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = acc.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                if (isTegeVerifiedAccount(acc.email)) {
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    VerifiedAccountBadge(compact = true)
-                                }
-                            }
-                            Text(text = "@${acc.username}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (acc.id == currentAccount?.id) {
-                            Icon(Icons.Default.Check, contentDescription = "Active", tint = TelegramBlue, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-
-                if (accounts.size < 5) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onOpenAddAccount()
-                                accountsExpanded = false
-                            }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add account", tint = TelegramBlue, modifier = Modifier.size(36.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = "Добавить аккаунт", color = TelegramBlue, fontWeight = FontWeight.Medium)
-                    }
+                IconButton(onClick = { viewModel.toggleDarkMode() }) {
+                    Icon(Icons.Default.Brightness4, contentDescription = "Ночной режим", tint = Color.White)
                 }
             }
-            HorizontalDivider()
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = currentAccount?.name ?: "TEGE",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                text = currentAccount?.username?.takeIf { it.isNotBlank() }?.let {
+                    if (it.startsWith("@")) it else "@$it"
+                } ?: currentAccount?.email.orEmpty(),
+                color = Color.White.copy(alpha = 0.82f),
+                fontSize = 13.sp
+            )
         }
 
-        // Drawer Menu Items
         DrawerItem(icon = Icons.Default.Person, label = "Мой профиль") {
             viewModel.navigateTo(ScreenRoute.Profile)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.Bookmark, label = "Избранное (Saved Messages)") {
+        DrawerItem(icon = Icons.Default.Bookmark, label = "Избранное") {
             val savedChat = viewModel.chats.value.find { it.isSavedMessages }
-            if (savedChat != null) {
-                viewModel.navigateTo(ScreenRoute.ChatDetail(savedChat.id))
-            }
+            if (savedChat != null) viewModel.navigateTo(ScreenRoute.ChatDetail(savedChat.id))
             onCloseDrawer()
         }
         DrawerItem(icon = Icons.Default.Campaign, label = "Каналы") {
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.GroupAdd, label = "Новый чат") {
+        DrawerItem(icon = Icons.Default.PersonAdd, label = "Новое сообщение") {
             viewModel.navigateTo(ScreenRoute.CreateChat)
             onCloseDrawer()
         }
@@ -225,10 +118,6 @@ private fun DrawerItem(
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Normal
-        )
+        Text(label, style = MaterialTheme.typography.bodyLarge)
     }
 }
