@@ -821,7 +821,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val message = Message(
             id = messageId, text = cleanText, time = nowTime, isMine = true,
             senderId = _currentAccount.value?.id, senderName = _currentAccount.value?.name,
-            replyTo = reply
+            replyTo = replyTo
         )
         _chats.value = _chats.value.map { current ->
             if (current.id == chatId) {
