@@ -39,14 +39,21 @@ fun ChatListScreen(
     val stories by viewModel.stories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
+    var selectedChatFilter by remember { mutableStateOf("Все") }
 
     // Search chat names, usernames, previews, and the full local message history.
     val filteredChats = chats.sortedByDescending { it.isPinned }.filter { chat ->
-        searchQuery.isBlank() ||
+        val matchesSearch = searchQuery.isBlank() ||
             chat.name.contains(searchQuery, ignoreCase = true) ||
             chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
             (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
             chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
+        val matchesFilter = when (selectedChatFilter) {
+            "Непрочитанные" -> chat.unread > 0
+            "Закреплённые" -> chat.isPinned
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
 
     Scaffold(
@@ -162,6 +169,21 @@ fun ChatListScreen(
                     onAddStory = onOpenCreateStory,
                     onViewStory = onViewStory
                 )
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(listOf("Все", "Непрочитанные", "Закреплённые")) { filter ->
+                        FilterChip(
+                            selected = selectedChatFilter == filter,
+                            onClick = { selectedChatFilter = filter },
+                            label = { Text(filter) },
+                            leadingIcon = if (selectedChatFilter == filter) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             }
 
