@@ -39,20 +39,12 @@ fun TelegramDrawer(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.22f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = currentAccount?.name?.firstOrNull()?.uppercase() ?: "?",
-                        color = Color.White,
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                TegeAvatar(
+                    avatarUri = currentAccount?.avatarUri,
+                    displayName = currentAccount?.name ?: "TEGE",
+                    color = Color.White.copy(alpha = 0.22f),
+                    modifier = Modifier.size(58.dp)
+                )
                 IconButton(onClick = { viewModel.toggleDarkMode() }) {
                     Icon(Icons.Default.Brightness4, contentDescription = "Ночной режим", tint = Color.White)
                 }
