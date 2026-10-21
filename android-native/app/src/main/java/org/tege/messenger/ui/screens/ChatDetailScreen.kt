@@ -1,5 +1,14 @@
 package org.tege.messenger.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.Message
+import org.tege.messenger.model.MessageReplyInfo
 import org.tege.messenger.model.Poll
 import org.tege.messenger.ui.components.CreatePollDialog
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -38,10 +48,57 @@ fun ChatDetailScreen(
     val chat = chats.find { it.id == chatId } ?: return
 
     var inputText by remember { mutableStateOf("") }
+    var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
-    var isVideoNoteMode by remember { mutableStateOf(true) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var recordingFile by remember { mutableStateOf<File?>(null) }
+    var recordingStartedAt by remember { mutableLongStateOf(0L) }
+    val context = LocalContext.current
+
+    val startRecording: () -> Unit = {
+        try {
+            val file = File(context.cacheDir, "tege-voice-${System.currentTimeMillis()}.m4a")
+            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            mediaRecorder.setAudioSamplingRate(44100)
+            mediaRecorder.setAudioEncodingBitRate(96000)
+            mediaRecorder.setOutputFile(file.absolutePath)
+            mediaRecorder.prepare()
+            mediaRecorder.start()
+            recorder = mediaRecorder
+            recordingFile = file
+            recordingStartedAt = System.currentTimeMillis()
+            isRecording = true
+        } catch (_: Exception) {
+            recorder?.release()
+            recorder = null
+            isRecording = false
+        }
+    }
+    val stopRecording: () -> Unit = {
+        val elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt().coerceAtLeast(1)
+        try {
+            recorder?.stop()
+            recordingFile?.takeIf { it.exists() && it.length() > 0L }?.let {
+                viewModel.sendVoiceMessage(chat.id, it.absolutePath, elapsedSeconds)
+            }
+        } catch (_: Exception) {
+            // MediaRecorder can fail if the recording is too short; don't add an invalid message.
+        } finally {
+            recorder?.release()
+            recorder = null
+            recordingFile = null
+            isRecording = false
+        }
+    }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) startRecording() }
 
     Scaffold(
         topBar = {
@@ -144,7 +201,12 @@ fun ChatDetailScreen(
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
-                        placeholder = { Text("Сообщение...") },
+                        placeholder = {
+                            Text(
+                                if (replyTo != null) "Ответ ${replyTo?.senderName}: ${replyTo?.text?.take(24)}"
+                                else "Сообщение..."
+                            )
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 4.dp),
@@ -160,8 +222,9 @@ fun ChatDetailScreen(
                     if (inputText.isNotBlank()) {
                         IconButton(
                             onClick = {
-                                viewModel.sendMessage(chat.id, inputText)
+                                viewModel.sendMessage(chat.id, inputText, replyTo)
                                 inputText = ""
+                                replyTo = null
                             }
                         ) {
                             Icon(
@@ -171,20 +234,24 @@ fun ChatDetailScreen(
                             )
                         }
                     } else {
-                        // Telegram Video Note (Кружочек) / Mic quick toggle button
+                        IconButton(onClick = { viewModel.sendVideoNote(chat.id) }) {
+                            Icon(Icons.Default.Videocam, contentDescription = "Отправить видеосообщение", tint = TelegramBlue)
+                        }
                         IconButton(
                             onClick = {
-                                if (isVideoNoteMode) {
-                                    viewModel.sendVideoNote(chat.id)
+                                if (isRecording) {
+                                    stopRecording()
+                                } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                    startRecording()
                                 } else {
-                                    viewModel.sendMessage(chat.id, "🎤 Голосовое сообщение (0:15)")
+                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 }
                             }
                         ) {
                             Icon(
-                                imageVector = if (isVideoNoteMode) Icons.Default.Videocam else Icons.Default.Mic,
-                                contentDescription = "Video Note / Mic",
-                                tint = TelegramBlue
+                                imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                contentDescription = if (isRecording) "Остановить запись и отправить" else "Записать голосовое сообщение",
+                                tint = if (isRecording) MaterialTheme.colorScheme.error else TelegramBlue
                             )
                         }
                     }
@@ -252,7 +319,15 @@ fun ChatDetailScreen(
                         message = message,
                         isChannel = chat.type == ChatType.CHANNEL,
                         onVotePoll = { optId -> viewModel.votePoll(chat.id, message.id, optId) },
-                        onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) }
+                        onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) },
+                        onReply = {
+                            replyTo = MessageReplyInfo(
+                                id = message.id,
+                                senderName = message.senderName ?: if (message.isMine) "Вы" else chat.name,
+                                text = message.text
+                            )
+                        },
+                        onPin = { viewModel.pinMessage(chat.id, message.id) }
                     )
                 }
             }
@@ -297,7 +372,9 @@ fun MessageBubble(
     message: Message,
     isChannel: Boolean = false,
     onVotePoll: (Int) -> Unit,
-    onReaction: (String) -> Unit
+    onReaction: (String) -> Unit,
+    onReply: () -> Unit = {},
+    onPin: () -> Unit = {}
 ) {
     // 1. Telegram Circular Video Note (Кружочек)
     if (message.videoNoteUri != null) {
@@ -380,6 +457,13 @@ fun MessageBubble(
                     Spacer(modifier = Modifier.height(2.dp))
                 }
 
+                if (message.isPinned) {
+                    Text("📌 Закреплено", fontSize = 11.sp, color = TelegramBlue, fontWeight = FontWeight.SemiBold)
+                }
+                if (message.replyTo != null) {
+                    Text("↪ ${message.replyTo.senderName}: ${message.replyTo.text}", fontSize = 12.sp, color = textColor.copy(alpha = 0.75f), maxLines = 2)
+                }
+
                 if (message.poll != null) {
                     PollWidget(
                         poll = message.poll,
@@ -418,11 +502,18 @@ fun MessageBubble(
             }
         }
 
-        // Reactions row
+        // Reply and pin controls plus local reactions.
         Row(
             modifier = Modifier.padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onReply, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Reply, contentDescription = "Ответить", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = onPin, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.PushPin, contentDescription = if (message.isPinned) "Открепить сообщение" else "Закрепить сообщение", tint = if (message.isPinned) TelegramBlue else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
             listOf("❤️", "🔥", "👍").forEach { emoji ->
                 val count = message.reactions[emoji] ?: 0
                 Box(
