@@ -1,6 +1,6 @@
-# Render Blueprint for Tege's existing Node.js backend and web client.
-# Existing Render environment variables (including DATABASE_URL) should be preserved
-# when this Blueprint is matched to the current service.
+# Render Blueprint for the Tege application server.
+# This deploys the app + API + WebSocket from the same Node.js process.
+# It is NOT a static-site-only deployment.
 services:
   - type: web
     name: tege-new
