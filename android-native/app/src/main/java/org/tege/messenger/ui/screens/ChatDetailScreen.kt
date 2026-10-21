@@ -54,8 +54,11 @@ fun ChatDetailScreen(
     val chats by viewModel.chats.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val currentAccount by viewModel.currentAccount.collectAsState()
-    val currentUserId = currentAccount?.id ?: 112201L
+    val messageError by viewModel.messageError.collectAsState()
+    val currentUserId = currentAccount?.id ?: 0L
     val chat = chats.find { it.id == chatId } ?: return
+    // These tools work locally only; do not present them as shared features in real chats.
+    val allowLocalTools = chat.isSavedMessages || chat.userId == null
     val chatBackground = when (settings.wallpaper) {
         WallpaperId.PATTERN -> MaterialTheme.colorScheme.background
         WallpaperId.DARK -> Color(0xFF101820)
@@ -79,6 +82,13 @@ fun ChatDetailScreen(
     var recordingFile by remember { mutableStateOf<File?>(null) }
     var recordingStartedAt by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
+
+    LaunchedEffect(messageError) {
+        messageError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearMessageError()
+        }
+    }
 
     LaunchedEffect(chatId) {
         viewModel.markChatRead(chatId)
@@ -181,8 +191,10 @@ fun ChatDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showPollDialog = true }) {
-                        Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = MaterialTheme.colorScheme.onSurface)
+                    if (allowLocalTools) {
+                        IconButton(onClick = { showPollDialog = true }) {
+                            Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                     IconButton(onClick = { showMenu = !showMenu }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurface)
@@ -260,8 +272,10 @@ fun ChatDetailScreen(
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { showPollDialog = true }) {
-                        Icon(Icons.Default.Poll, contentDescription = "Poll", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (allowLocalTools) {
+                        IconButton(onClick = { showPollDialog = true }) {
+                            Icon(Icons.Default.Poll, contentDescription = "Poll", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
 
                     OutlinedTextField(
@@ -298,14 +312,16 @@ fun ChatDetailScreen(
                         IconButton(
                             onClick = {
                                 val editingId = editingMessageId
-                                if (editingId != null) {
+                                val completed = if (editingId != null) {
                                     viewModel.editMessage(chat.id, editingId, inputText)
                                 } else {
                                     viewModel.sendMessage(chat.id, inputText, replyTo)
                                 }
-                                inputText = ""
-                                replyTo = null
-                                editingMessageId = null
+                                if (completed) {
+                                    inputText = ""
+                                    replyTo = null
+                                    editingMessageId = null
+                                }
                             }
                         ) {
                             Icon(
@@ -314,7 +330,7 @@ fun ChatDetailScreen(
                                 tint = TelegramBlue
                             )
                         }
-                    } else {
+                    } else if (allowLocalTools) {
                         IconButton(
                             onClick = {
                                 if (isRecording) {
@@ -389,6 +405,7 @@ fun ChatDetailScreen(
                         isChannel = chat.type == ChatType.CHANNEL,
                         currentUserId = currentUserId,
                         textSize = settings.textSize,
+                        allowLocalTools = allowLocalTools,
                         onVotePoll = { optId -> viewModel.votePoll(chat.id, message.id, optId) },
                         onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) },
                         onReply = {
@@ -444,12 +461,14 @@ fun ChatDetailScreen(
             text = { Text("Удалить это сообщение?") },
             confirmButton = {
                 TextButton(onClick = {
-                    deletingMessageId?.let { viewModel.deleteMessage(chat.id, it) }
-                    if (editingMessageId == deletingMessageId) {
-                        editingMessageId = null
-                        inputText = ""
+                    val removed = deletingMessageId?.let { viewModel.deleteMessage(chat.id, it) } ?: false
+                    if (removed) {
+                        if (editingMessageId == deletingMessageId) {
+                            editingMessageId = null
+                            inputText = ""
+                        }
+                        deletingMessageId = null
                     }
-                    deletingMessageId = null
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deletingMessageId = null }) { Text("Отмена") } }
@@ -472,6 +491,7 @@ fun MessageBubble(
     isChannel: Boolean = false,
     currentUserId: Long = 112201L,
     textSize: TextSize = TextSize.MEDIUM,
+    allowLocalTools: Boolean = true,
     onVotePoll: (Int) -> Unit,
     onReaction: (String) -> Unit,
     onReply: () -> Unit = {},
@@ -649,7 +669,7 @@ fun MessageBubble(
         // Keep the conversation clean like Telegram: show only existing reactions,
         // and move message actions into a compact overflow menu.
         val existingReactions = message.reactions.filterValues { it > 0 }
-        if (existingReactions.isNotEmpty() || !isChannel) {
+        if (allowLocalTools && (existingReactions.isNotEmpty() || !isChannel)) {
             Row(
                 modifier = Modifier.padding(top = 1.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -704,11 +724,13 @@ fun MessageBubble(
                             leadingIcon = { Icon(Icons.Default.Reply, contentDescription = null) },
                             onClick = { showMessageActions = false; onReply() }
                         )
-                        DropdownMenuItem(
-                            text = { Text(if (message.isPinned) "Открепить" else "Закрепить") },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                            onClick = { showMessageActions = false; onPin() }
-                        )
+                        if (allowLocalTools) {
+                            DropdownMenuItem(
+                                text = { Text(if (message.isPinned) "Открепить" else "Закрепить") },
+                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                onClick = { showMessageActions = false; onPin() }
+                            )
+                        }
                         if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
                             DropdownMenuItem(
                                 text = { Text("Редактировать") },
@@ -723,14 +745,16 @@ fun MessageBubble(
                                 onClick = { showMessageActions = false; onDelete() }
                             )
                         }
-                        listOf("❤️", "🔥", "👍", "😂", "😮", "😢").forEach { emoji ->
-                            val isSelectedByMe = message.userReactions[currentUserId] == emoji
-                            DropdownMenuItem(
-                                text = {
-                                    Text(if (isSelectedByMe) "Убрать реакцию $emoji" else "Поставить реакцию $emoji")
-                                },
-                                onClick = { showMessageActions = false; onReaction(emoji) }
-                            )
+                        if (allowLocalTools) {
+                            listOf("❤️", "🔥", "👍", "😂", "😮", "😢").forEach { emoji ->
+                                val isSelectedByMe = message.userReactions[currentUserId] == emoji
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (isSelectedByMe) "Убрать реакцию $emoji" else "Поставить реакцию $emoji")
+                                    },
+                                    onClick = { showMessageActions = false; onReaction(emoji) }
+                                )
+                            }
                         }
                     }
                 }
