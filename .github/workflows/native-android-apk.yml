@@ -41,7 +41,7 @@ jobs:
             echo "sdkmanager was not found under ANDROID_HOME=$ANDROID_HOME" >&2
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses >/dev/null
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Set up Gradle
