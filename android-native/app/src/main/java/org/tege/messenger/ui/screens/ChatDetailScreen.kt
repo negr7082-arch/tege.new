@@ -389,15 +389,6 @@ fun ChatDetailScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isDarkChatWallpaper) Color.White else MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = if (chat.isSavedMessages)
-                                    "Сохраняйте здесь важные сообщения."
-                                else
-                                    "Напишите первое сообщение.",
-                                fontSize = 13.sp,
-                                color = if (isDarkChatWallpaper) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 } else {
