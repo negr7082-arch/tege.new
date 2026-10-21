@@ -115,6 +115,36 @@ fun ChatListScreen(
                 )
             )
         },
+        bottomBar = {
+            if (!isSearchActive) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = true,
+                        onClick = { viewModel.navigateTo(ScreenRoute.ChatList) },
+                        icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                        label = { Text("Чаты") }
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
+                        icon = { Icon(Icons.Default.Contacts, contentDescription = null) },
+                        label = { Text("Контакты") }
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { viewModel.navigateTo(ScreenRoute.Settings) },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        label = { Text("Настройки") }
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { viewModel.navigateTo(ScreenRoute.Profile) },
+                        icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        label = { Text("Профиль") }
+                    )
+                }
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
