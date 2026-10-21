@@ -1,6 +1,8 @@
 package org.tege.messenger.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -64,19 +66,20 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
         ) {
             // Profile Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(vertical = 24.dp),
+                    .padding(vertical = 20.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(90.dp)
+                            .size(80.dp)
                             .clip(CircleShape)
                             .background(TelegramBlue),
                         contentAlignment = Alignment.Center
@@ -84,7 +87,7 @@ fun ProfileScreen(
                         Text(
                             text = account?.name?.take(1)?.uppercase() ?: "T",
                             color = Color.White,
-                            fontSize = 36.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -124,25 +127,25 @@ fun ProfileScreen(
 
                 ProfileInfoRow(
                     icon = Icons.Default.Phone,
-                    title = account?.phone?.ifEmpty { "+7 (999) 000-11-22" } ?: "+7 (999) 000-11-22",
+                    title = account?.phone?.takeIf { it.isNotBlank() } ?: "Не указан",
                     subtitle = "Нажмите, чтобы изменить номер"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.AlternateEmail,
-                    title = "@${account?.username ?: "user"}",
+                    title = account?.username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "Не указан",
                     subtitle = "Имя пользователя"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.Info,
-                    title = account?.bio?.ifEmpty { "О себе не указано" } ?: "О себе не указано",
+                    title = account?.bio?.takeIf { it.isNotBlank() } ?: "Не указано",
                     subtitle = "О себе"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.CalendarToday,
-                    title = account?.registrationDate?.ifEmpty { "14.08.2013" } ?: "14.08.2013",
+                    title = account?.registrationDate?.takeIf { it.isNotBlank() } ?: "Не указана",
                     subtitle = "Дата регистрации"
                 )
             }
