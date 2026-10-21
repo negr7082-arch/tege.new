@@ -23,6 +23,8 @@ import java.util.*
 class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private val chatPrefs = application.getSharedPreferences("tege_local_chats", Context.MODE_PRIVATE)
     private val persistedChatsKey = "chats_json"
+    private fun chatStorageKey(accountId: Long? = _currentAccount.value?.id): String =
+        persistedChatsKey + "_" + (accountId?.toString() ?: "device")
     private val profilePrefs = application.getSharedPreferences("tege_local_profile", Context.MODE_PRIVATE)
     private val settingsPrefs = application.getSharedPreferences("tege_local_settings", Context.MODE_PRIVATE)
 
@@ -144,15 +146,16 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 item.put("messages", messages)
                 array.put(item)
             }
-            chatPrefs.edit().putString(persistedChatsKey, array.toString()).apply()
+            chatPrefs.edit().putString(chatStorageKey(), array.toString()).apply()
         } catch (_: Exception) {
             // A storage failure must not crash the chat UI.
         }
     }
 
 
-    private fun restoreChats() {
-        val saved = chatPrefs.getString(persistedChatsKey, null) ?: return
+    private fun restoreChats(savedOverride: String? = null, useOverride: Boolean = false) {
+        val saved = if (useOverride) savedOverride else chatPrefs.getString(chatStorageKey(), null)
+        if (saved == null) return
         try {
             val array = JSONArray(saved)
             val restoredById = (0 until array.length()).associate { index ->
@@ -323,15 +326,19 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
             isOnline = true
         )
+        val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
         profilePrefs.edit()
             .putString("auth_token", token)
             .putString("api_base_url", normalizedUrl)
             .apply()
+        activeSocket?.close(1000, "New session")
         _accounts.value = listOf(account)
         _currentAccount.value = account
         persistLocalAccount(account)
+        // Each server account gets an isolated local history; never leak one account's chats into another.
+        _chats.value = SampleData.getInitialChats()
+        restoreChats(accountChats, useOverride = true)
         _connectionState.value = "Подключение…"
-        activeSocket?.close(1000, "New session")
         connectToServer(normalizedUrl, token)
         return null
     }
@@ -404,7 +411,23 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             "user_upsert" -> {
                 val user = event.optJSONObject("user") ?: return
                 val id = user.optLong("id")
-                if (id == 0L || id == _currentAccount.value?.id) return
+                if (id == 0L) return
+                if (id == _currentAccount.value?.id) {
+                    val current = _currentAccount.value ?: return
+                    val updated = current.copy(
+                        name = user.optString("name", current.name),
+                        username = user.optString("username", current.username).removePrefix("@"),
+                        bio = user.optString("bio", current.bio),
+                        phone = user.optString("phone", current.phone),
+                        country = user.optString("country", current.country),
+                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                        isOnline = user.optBoolean("online")
+                    )
+                    _currentAccount.value = updated
+                    _accounts.value = listOf(updated)
+                    persistLocalAccount(updated)
+                    return
+                }
                 val contact = ContactUser(
                     id = id, name = user.optString("name", "Пользователь"),
                     username = user.optString("username"), bio = user.optString("bio"),
@@ -423,6 +446,11 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 _chats.value = _chats.value.map { if (it.userId == id) it.copy(online = online) else it }
             }
             "message" -> handleIncomingMessage(event.optJSONObject("payload") ?: return)
+            "profile_result" -> {
+                if (!event.optBoolean("ok", true) && event.optString("error") == "username_taken") {
+                    _messageError.value = "Username занят. Сервер сохранил остальные изменения профиля, а username оставил прежним."
+                }
+            }
             "send_result" -> {
                 if (!event.optBoolean("ok", true)) {
                     val id = event.optLong("id", -1L)
@@ -685,10 +713,17 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             bio = bio.trim(),
             phone = phone.trim()
         )
-        _accounts.value = _accounts.value.map { if (it.id == current.id) updated else it }
+        if (savedToken != null) {
+            if (activeSocket == null || !BackendClientSocketOpen(activeSocket)) {
+                _messageError.value = "Нет соединения с сервером. Профиль не отправлен."
+                return
+            }
+            BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone)
+            return
+        }
+        _accounts.value = listOf(updated)
         _currentAccount.value = updated
         persistLocalAccount(updated)
-        BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone)
     }
 
     fun addAccount(name: String, username: String, phone: String) {
@@ -736,6 +771,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _contacts.value = emptyList()
         _connectionState.value = "Не подключено"
         profilePrefs.edit().clear().apply()
+        _chats.value = SampleData.getInitialChats()
+        _searchQuery.value = ""
     }
 
     fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null): Boolean {
