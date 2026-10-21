@@ -2,6 +2,14 @@ package org.tege.messenger.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +35,8 @@ fun TelegramDrawer(
     currentAccount: UserAccount?,
     onCloseDrawer: () -> Unit
 ) {
+    var showAnimeTyan by remember { mutableStateOf(false) }
+
     ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
         Column(
             modifier = Modifier
@@ -43,7 +53,12 @@ fun TelegramDrawer(
                     avatarUri = currentAccount?.avatarUri,
                     displayName = currentAccount?.name ?: "TEGE",
                     color = Color.White.copy(alpha = 0.22f),
-                    modifier = Modifier.size(58.dp)
+                    modifier = Modifier
+                        .size(58.dp)
+                        .combinedClickable(
+                            onClick = { },
+                            onLongClick = { showAnimeTyan = true }
+                        )
                 )
                 IconButton(onClick = { viewModel.toggleDarkMode() }) {
                     Icon(Icons.Default.Brightness4, contentDescription = "Ночной режим", tint = Color.White)
@@ -100,12 +115,6 @@ fun TelegramDrawer(
             onCloseDrawer()
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        var showAnimeTyan by remember { mutableStateOf(false) }
-        DrawerItem(icon = Icons.Default.Favorite, label = "Секретная тянка ✨") {
-            showAnimeTyan = true
-        }
         if (showAnimeTyan) {
             AlertDialog(
                 onDismissRequest = { showAnimeTyan = false },
@@ -116,10 +125,36 @@ fun TelegramDrawer(
                 },
                 title = { Text("TEGE-чан 💙") },
                 text = {
+                    val bounce by rememberInfiniteTransition(label = "tege-chan").animateFloat(
+                        initialValue = -7f,
+                        targetValue = 7f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "tege-chan-bounce"
+                    )
+                    val tilt by rememberInfiniteTransition(label = "tege-chan-tilt").animateFloat(
+                        initialValue = -5f,
+                        targetValue = 5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "tege-chan-tilt-angle"
+                    )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("ฅ(＾・ω・＾ฅ)", fontSize = 34.sp, color = TelegramBlue)
+                        Text(
+                            "ฅ(＾・ω・＾ฅ)",
+                            fontSize = 38.sp,
+                            color = TelegramBlue,
+                            modifier = Modifier.graphicsLayer {
+                                translationY = bounce
+                                rotationZ = tilt
+                            }
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Приветик! Я TEGE-чан — маленькая пасхалка для тех, кто долистал меню до конца ✨")
+                        Text("Приветик! Я TEGE-чан — секретная пасхалка для своих ✨")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Telegram внутри, аниме-настроение снаружи. よろしくね！", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
