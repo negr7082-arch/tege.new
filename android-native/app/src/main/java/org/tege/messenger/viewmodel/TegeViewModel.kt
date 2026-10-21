@@ -98,7 +98,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 chat.messages.forEach { message ->
                     val m = JSONObject().put("id", message.id).put("text", message.text)
                         .put("time", message.time).put("isMine", message.isMine)
-                        .put("isVoice", message.isVoice).put("isPinned", message.isPinned).put("views", message.views)
+                        .put("isVoice", message.isVoice).put("isPinned", message.isPinned)
+                        .put("isSystemBotMessage", message.isSystemBotMessage).put("views", message.views)
                     listOf(
                         "attachmentUri" to message.attachmentUri, "videoUri" to message.videoUri,
                         "videoNoteUri" to message.videoNoteUri, "audioUri" to message.audioUri,
@@ -205,6 +206,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         fileSize = m.optString("fileSize").takeIf { m.has("fileSize") },
                         senderId = if (m.has("senderId")) m.optLong("senderId") else null,
                         senderName = m.optString("senderName").takeIf { m.has("senderName") },
+                        isSystemBotMessage = m.optBoolean("isSystemBotMessage", false),
                         isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 0),
                         reactions = reactions, userReactions = userReactions, replyTo = reply, poll = poll
                     )
