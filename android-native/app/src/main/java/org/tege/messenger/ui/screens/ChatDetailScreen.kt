@@ -1,6 +1,10 @@
 package org.tege.messenger.ui.screens
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.media.MediaPlayer
@@ -200,6 +204,35 @@ fun ChatDetailScreen(
                                 onBack()
                             },
                             leadingIcon = { Icon(Icons.Default.Markunread, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Скопировать историю чата") },
+                            onClick = {
+                                val transcript = buildString {
+                                    appendLine(chat.name)
+                                    appendLine("—".repeat(chat.name.length.coerceAtLeast(8)))
+                                    chat.messages.forEach { message ->
+                                        val body = when {
+                                            message.poll != null -> "Опрос: ${message.poll.question}"
+                                            message.audioUri != null -> "Голосовое сообщение ${message.voiceDuration.orEmpty()}".trim()
+                                            message.videoNoteUri != null -> "Видеосообщение"
+                                            message.attachmentUri != null -> message.fileName ?: "Вложение"
+                                            message.text.isNotBlank() -> message.text
+                                            else -> "Сообщение"
+                                        }
+                                        appendLine("[${message.time}] ${if (message.isMine) "Вы" else message.senderName ?: chat.name}: $body")
+                                    }
+                                }
+                                if (chat.messages.isEmpty()) {
+                                    Toast.makeText(context, "История чата пуста", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("История чата: ${chat.name}", transcript))
+                                    Toast.makeText(context, "История скопирована", Toast.LENGTH_SHORT).show()
+                                }
+                                showMenu = false
+                            },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
                         )
                         DropdownMenuItem(
                             text = { Text("Очистить историю") },
