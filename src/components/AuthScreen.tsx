@@ -278,7 +278,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="example@mail.com"
-                className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-[#f1f3f5] dark:bg-[#0e1621] text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm text-gray-900 dark:text-zinc-100 rounded-xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
               />
             </div>
             <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1 px-1">
@@ -301,7 +301,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={language === 'ru' ? 'Иван Иванов' : 'Alex Rivera'}
-                    className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                    className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
                   />
                 </div>
               </div>
@@ -321,7 +321,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="@chat_razraba"
-                    className={`w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 border transition font-mono ${usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-rose-500 focus:ring-rose-500' : 'border-transparent focus:ring-sky-500'}`}
+                    className={`w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 border transition font-mono ${usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-rose-500 focus:ring-rose-500' : 'border-transparent focus:ring-sky-500'}`}
                   />
                 </div>
                 {usernameStatus === 'taken' ? (
@@ -363,7 +363,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full min-h-12 pl-12 pr-12 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                className="w-full min-h-12 pl-12 pr-12 py-3 text-base sm:text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
               />
               <button
                 type="button"
@@ -415,7 +415,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm bg-gray-100 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
+                  className="w-full min-h-12 pl-12 pr-4 py-3 text-base sm:text-sm text-gray-900 dark:text-zinc-100 rounded-2xl outline-none focus:ring-2 focus:ring-sky-500 border border-transparent transition"
                 />
               </div>
             </div>
