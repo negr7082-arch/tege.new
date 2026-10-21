@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +30,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -358,12 +361,45 @@ fun ChatDetailScreen(
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(chatBackground)
         ) {
+            if (settings.wallpaper == WallpaperId.PATTERN) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val patternColor = if (settings.isDarkMode) {
+                        Color.White.copy(alpha = 0.045f)
+                    } else {
+                        Color(0xFF7893A2).copy(alpha = 0.12f)
+                    }
+                    val stepX = 104.dp.toPx()
+                    val stepY = 86.dp.toPx()
+                    var row = 0
+                    while (row * stepY < size.height + stepY) {
+                        var column = 0
+                        while (column * stepX < size.width + stepX) {
+                            val x = column * stepX + if (row % 2 == 0) 18.dp.toPx() else 52.dp.toPx()
+                            val y = row * stepY + 18.dp.toPx()
+                            drawCircle(
+                                color = patternColor,
+                                radius = 11.dp.toPx(),
+                                center = Offset(x, y),
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                            drawLine(
+                                color = patternColor,
+                                start = Offset(x - 8.dp.toPx(), y + 16.dp.toPx()),
+                                end = Offset(x + 10.dp.toPx(), y + 23.dp.toPx()),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                            column++
+                        }
+                        row++
+                    }
+                }
+            }
 
             LazyColumn(
                 modifier = Modifier
