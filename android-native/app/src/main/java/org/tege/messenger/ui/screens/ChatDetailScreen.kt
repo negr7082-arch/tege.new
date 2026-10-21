@@ -123,12 +123,16 @@ fun ChatDetailScreen(
                                 .background(Color(android.graphics.Color.parseColor(chat.color))),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = chat.name.take(1).uppercase(),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
+                            if (chat.isSavedMessages) {
+                                Icon(Icons.Default.Bookmark, contentDescription = null, tint = Color.White)
+                            } else {
+                                Text(
+                                    text = chat.name.take(1).uppercase(),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -138,11 +142,19 @@ fun ChatDetailScreen(
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Text(
-                                text = if (chat.type == ChatType.CHANNEL) "${chat.subscribersCount} подписчиков" else if (chat.online) "в сети" else "был(а) недавно",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            val subtitle = when {
+                                chat.type == ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
+                                chat.isSavedMessages -> "личное облачное хранилище"
+                                chat.online -> "в сети"
+                                else -> ""
+                            }
+                            if (subtitle.isNotBlank()) {
+                                Text(
+                                    text = subtitle,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 },
@@ -490,6 +502,8 @@ fun MessageBubble(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
+    var showMessageActions by remember(message.id) { mutableStateOf(false) }
+
     // 1. Telegram Circular Video Note (Кружочек)
     if (message.videoNoteUri != null) {
         Column(
@@ -658,41 +672,74 @@ fun MessageBubble(
             }
         }
 
-        // Reply and pin controls plus local reactions.
-        Row(
-            modifier = Modifier.padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onReply, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Default.Reply, contentDescription = "Ответить", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            }
-            IconButton(onClick = onPin, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Default.PushPin, contentDescription = if (message.isPinned) "Открепить сообщение" else "Закрепить сообщение", tint = if (message.isPinned) TelegramBlue else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            }
-            if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
-                IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Редактировать сообщение", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        // Keep the conversation clean like Telegram: show only existing reactions,
+        // and move message actions into a compact overflow menu.
+        val existingReactions = message.reactions.filterValues { it > 0 }
+        if (existingReactions.isNotEmpty() || !isChannel) {
+            Row(
+                modifier = Modifier.padding(top = 1.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                existingReactions.forEach { (emoji, count) ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .clickable { onReaction(emoji) }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(text = "$emoji $count", fontSize = 12.sp)
+                    }
                 }
-            }
-            if (message.isMine) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить сообщение", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                }
-            }
-            listOf("❤️", "🔥", "👍").forEach { emoji ->
-                val count = message.reactions[emoji] ?: 0
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .clickable { onReaction(emoji) }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = if (count > 0) "$emoji $count" else emoji,
-                        fontSize = 12.sp
-                    )
+                Spacer(modifier = Modifier.weight(1f))
+                Box {
+                    IconButton(
+                        onClick = { showMessageActions = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreHoriz,
+                            contentDescription = "Действия с сообщением",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMessageActions,
+                        onDismissRequest = { showMessageActions = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Ответить") },
+                            leadingIcon = { Icon(Icons.Default.Reply, contentDescription = null) },
+                            onClick = { showMessageActions = false; onReply() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (message.isPinned) "Открепить" else "Закрепить") },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                            onClick = { showMessageActions = false; onPin() }
+                        )
+                        if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
+                            DropdownMenuItem(
+                                text = { Text("Редактировать") },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                onClick = { showMessageActions = false; onEdit() }
+                            )
+                        }
+                        if (message.isMine) {
+                            DropdownMenuItem(
+                                text = { Text("Удалить") },
+                                leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                                onClick = { showMessageActions = false; onDelete() }
+                            )
+                        }
+                        listOf("❤️", "🔥", "👍").filterNot { it in existingReactions }.forEach { emoji ->
+                            DropdownMenuItem(
+                                text = { Text("Поставить реакцию $emoji") },
+                                onClick = { showMessageActions = false; onReaction(emoji) }
+                            )
+                        }
+                    }
                 }
             }
         }
