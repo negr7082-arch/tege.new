@@ -84,6 +84,7 @@ class TegeChan3DView(
         private val vp = FloatArray(16)
         private val global = FloatArray(16)
         private val model = FloatArray(16)
+        private val rotated = FloatArray(16)
         private val mvp = FloatArray(16)
         private lateinit var program: ShaderProgram
         private lateinit var sphere: SphereMesh
@@ -158,12 +159,12 @@ class TegeChan3DView(
 
             // Big glossy eyes; a short scale pulse simulates blinking.
             val eyeHeight = 0.052f * blink
-            part(-0.105f, 0.82f, 0.253f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
-            part(0.105f, 0.82f, 0.253f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
-            part(-0.101f, 0.822f, 0.276f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
-            part(0.109f, 0.822f, 0.276f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
-            part(-0.114f, 0.842f, 0.287f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
-            part(0.096f, 0.842f, 0.287f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
+            part(-0.105f, 0.82f, 0.267f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
+            part(0.105f, 0.82f, 0.267f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
+            part(-0.101f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
+            part(0.109f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
+            part(-0.114f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
+            part(0.096f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
             part(0f, 0.755f, 0.269f, 0.018f, 0.022f, 0.015f, 0.88f, 0.39f, 0.43f)
             part(-0.205f, 0.745f, 0.225f, 0.045f, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
             part(0.205f, 0.745f, 0.225f, 0.045f, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
@@ -177,7 +178,6 @@ class TegeChan3DView(
             Matrix.setIdentityM(model, 0)
             Matrix.translateM(model, 0, x, y, z)
             Matrix.scaleM(model, 0, sx, sy, sz)
-            val rotated = FloatArray(16)
             Matrix.multiplyMM(rotated, 0, global, 0, model, 0)
             Matrix.multiplyMM(mvp, 0, vp, 0, rotated, 0)
             program.draw(sphere, mvp, rotated, r, g, b)
