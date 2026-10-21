@@ -210,7 +210,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         reactions = reactions, userReactions = userReactions, replyTo = replyTo, poll = poll
                     )
                 }
-                item.optLong("id") to (item to messages)
+                val restoredId = if (item.optBoolean("isSavedMessages", false)) {
+                    SampleData.SAVED_MESSAGES_CHAT_ID
+                } else {
+                    item.optLong("id")
+                }
+                restoredId to (item to messages)
             }
             // Never delete a user's local conversation based on its display name or message text.
             // The initial state contains no demo conversations; legacy user data is preserved.

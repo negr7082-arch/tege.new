@@ -3,6 +3,8 @@ package org.tege.messenger.data
 import org.tege.messenger.model.*
 
 object SampleData {
+    // Server user IDs are positive; reserve a negative ID for device-only Saved Messages.
+    const val SAVED_MESSAGES_CHAT_ID: Long = Long.MIN_VALUE
     // The user creates a local profile; no demo identity is pre-filled.
     val defaultAccounts = emptyList<UserAccount>()
 
@@ -11,7 +13,7 @@ object SampleData {
         // Real chats can be created by the user; Saved Messages remains available.
         return listOf(
             Chat(
-                id = 1L,
+                id = SAVED_MESSAGES_CHAT_ID,
                 type = ChatType.DIRECT,
                 name = "Избранное",
                 username = "saved",
