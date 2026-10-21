@@ -14,7 +14,7 @@ object SampleData {
             phone = "",
             country = "",
             registrationDate = "",
-            isOnline = true
+            isOnline = false
         )
     )
 
