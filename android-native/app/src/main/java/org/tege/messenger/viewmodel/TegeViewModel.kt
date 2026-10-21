@@ -466,6 +466,31 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         val chatId = payload.optLong("chatId")
         if (chatId == 0L) return
         val messageJson = payload.optJSONObject("message") ?: return
+        val action = payload.optString("action")
+        if (action == "edit" || action == "delete") {
+            val targetId = payload.optLong("targetId")
+            _chats.value = _chats.value.map { chat ->
+                if (chat.id != chatId) return@map chat
+                val updated = if (action == "delete") {
+                    chat.messages.filterNot { it.id == targetId }
+                } else {
+                    chat.messages.map { message ->
+                        if (message.id == targetId) message.copy(
+                            text = messageJson.optString("text"),
+                            time = messageJson.optString("time", message.time)
+                        ) else message
+                    }
+                }
+                val last = updated.lastOrNull()
+                chat.copy(
+                    messages = updated,
+                    lastMessage = last?.text.orEmpty(),
+                    time = last?.time.orEmpty()
+                )
+            }
+            BackendClient.acknowledge(activeSocket, payload.optString("deliveryId"))
+            return
+        }
         val messageId = messageJson.optLong("id", System.currentTimeMillis())
         val replyJson = messageJson.optJSONObject("replyTo")
         val incoming = Message(
@@ -750,39 +775,57 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
-    /** Edit a locally stored text message authored by the current user. */
-    fun editMessage(chatId: Long, messageId: Long, newText: String) {
+    /** Edit a message locally or send the edit event to the other account on the server. */
+    fun editMessage(chatId: Long, messageId: Long, newText: String): Boolean {
         val text = newText.trim()
-        if (text.isBlank()) return
+        if (text.isBlank()) return false
+        val chat = _chats.value.firstOrNull { it.id == chatId } ?: return false
+        val target = chat.messages.firstOrNull { it.id == messageId && it.isMine } ?: return false
         val nowTime = timeFormat.format(Date())
-        _chats.value = _chats.value.map { chat ->
-            if (chat.id != chatId) return@map chat
-            val updatedMessages = chat.messages.map { message ->
-                if (message.id == messageId && message.isMine) message.copy(text = text, time = nowTime) else message
-            }
-            val last = updatedMessages.lastOrNull()
-            chat.copy(
-                messages = updatedMessages,
-                lastMessage = if (last?.id == messageId) text else chat.lastMessage,
-                time = if (last?.id == messageId) nowTime else chat.time
-            )
+        if (!chat.isSavedMessages && chat.userId != null &&
+            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId, "edit", messageId, text, nowTime)
+        ) {
+            _messageError.value = "Нет соединения с сервером. Изменение не отправлено."
+            return false
         }
+        _chats.value = _chats.value.map { current ->
+            if (current.id != chatId) current else {
+                val updatedMessages = current.messages.map { message ->
+                    if (message.id == target.id) message.copy(text = text, time = nowTime) else message
+                }
+                val last = updatedMessages.lastOrNull()
+                current.copy(
+                    messages = updatedMessages,
+                    lastMessage = if (last?.id == messageId) text else current.lastMessage,
+                    time = if (last?.id == messageId) nowTime else current.time
+                )
+            }
+        }
+        return true
     }
 
-    /** Delete a locally stored message authored by the current user. */
-    fun deleteMessage(chatId: Long, messageId: Long) {
-        _chats.value = _chats.value.map { chat ->
-            if (chat.id != chatId) return@map chat
-            val target = chat.messages.find { it.id == messageId }
-            if (target == null || !target.isMine) return@map chat
-            val updatedMessages = chat.messages.filterNot { it.id == messageId }
+    /** Delete a message locally or notify the other participant when it is a real direct chat. */
+    fun deleteMessage(chatId: Long, messageId: Long): Boolean {
+        val chat = _chats.value.firstOrNull { it.id == chatId } ?: return false
+        val target = chat.messages.find { it.id == messageId && it.isMine } ?: return false
+        val nowTime = timeFormat.format(Date())
+        if (!chat.isSavedMessages && chat.userId != null &&
+            !BackendClient.sendDirectAction(activeSocket, chat.id, chat.userId, "delete", messageId, time = nowTime)
+        ) {
+            _messageError.value = "Нет соединения с сервером. Удаление не отправлено."
+            return false
+        }
+        _chats.value = _chats.value.map { current ->
+            if (current.id != chatId) return@map current
+            val updatedMessages = current.messages.filterNot { it.id == target.id }
             val last = updatedMessages.lastOrNull()
-            chat.copy(
+            current.copy(
                 messages = updatedMessages,
                 lastMessage = last?.let { if (it.poll != null) "📊 ${it.poll.question}" else it.text }.orEmpty(),
                 time = last?.time.orEmpty()
             )
         }
+        return true
     }
 
     fun sendPoll(chatId: Long, question: String, options: List<String>) {
