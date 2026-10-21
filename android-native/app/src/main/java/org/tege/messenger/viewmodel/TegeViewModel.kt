@@ -533,35 +533,39 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleReaction(chatId: Long, messageId: Long, emoji: String) {
         val currentUserId = _currentAccount.value?.id ?: 112201L
         _chats.value = _chats.value.map { chat ->
-            if (chat.id != chatId) return@map chat
-            chat.copy(
-                messages = chat.messages.map { msg ->
-                    if (msg.id != messageId) return@map msg
+            if (chat.id != chatId) {
+                chat
+            } else {
+                chat.copy(
+                    messages = chat.messages.map { msg ->
+                        if (msg.id != messageId) {
+                            msg
+                        } else {
+                            val reactions = msg.reactions.toMutableMap()
+                            val userReactions = msg.userReactions.toMutableMap()
+                            val previousEmoji = userReactions[currentUserId]
 
-                    val reactions = msg.reactions.toMutableMap()
-                    val userReactions = msg.userReactions.toMutableMap()
-                    val previousEmoji = userReactions[currentUserId]
+                            fun adjustCount(reactionEmoji: String, delta: Int) {
+                                val nextCount = (reactions[reactionEmoji] ?: 0) + delta
+                                if (nextCount <= 0) reactions.remove(reactionEmoji)
+                                else reactions[reactionEmoji] = nextCount
+                            }
 
-                    fun adjustCount(reactionEmoji: String, delta: Int) {
-                        val nextCount = (reactions[reactionEmoji] ?: 0) + delta
-                        if (nextCount <= 0) reactions.remove(reactionEmoji)
-                        else reactions[reactionEmoji] = nextCount
+                            if (previousEmoji == emoji) {
+                                // Tapping the selected reaction removes it.
+                                userReactions.remove(currentUserId)
+                                adjustCount(emoji, -1)
+                            } else {
+                                // Keep one reaction per user and message.
+                                if (previousEmoji != null) adjustCount(previousEmoji, -1)
+                                userReactions[currentUserId] = emoji
+                                adjustCount(emoji, 1)
+                            }
+                            msg.copy(reactions = reactions, userReactions = userReactions)
+                        }
                     }
-
-                    if (previousEmoji == emoji) {
-                        // Tapping the selected reaction removes it.
-                        userReactions.remove(currentUserId)
-                        adjustCount(emoji, -1)
-                    } else {
-                        // A user may have only one reaction per message. Move it
-                        // cleanly instead of leaving the previous count behind.
-                        if (previousEmoji != null) adjustCount(previousEmoji, -1)
-                        userReactions[currentUserId] = emoji
-                        adjustCount(emoji, 1)
-                    }
-                    msg.copy(reactions = reactions, userReactions = userReactions)
-                }
-            )
+                )
+            }
         }
     }
 
