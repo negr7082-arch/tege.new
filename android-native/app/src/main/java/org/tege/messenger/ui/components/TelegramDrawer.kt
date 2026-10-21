@@ -7,7 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,6 +98,33 @@ fun TelegramDrawer(
         DrawerItem(icon = Icons.Default.Settings, label = "Настройки") {
             viewModel.navigateTo(ScreenRoute.Settings)
             onCloseDrawer()
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        var showAnimeTyan by remember { mutableStateOf(false) }
+        DrawerItem(icon = Icons.Default.Favorite, label = "Секретная тянка ✨") {
+            showAnimeTyan = true
+        }
+        if (showAnimeTyan) {
+            AlertDialog(
+                onDismissRequest = { showAnimeTyan = false },
+                confirmButton = {
+                    TextButton(onClick = { showAnimeTyan = false }) {
+                        Text("Ня, понятно!")
+                    }
+                },
+                title = { Text("TEGE-чан 💙") },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("ฅ(＾・ω・＾ฅ)", fontSize = 34.sp, color = TelegramBlue)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Приветик! Я TEGE-чан — маленькая пасхалка для тех, кто долистал меню до конца ✨")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Telegram внутри, аниме-настроение снаружи. よろしくね！", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            )
         }
     }
 }
