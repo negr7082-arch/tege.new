@@ -252,7 +252,7 @@ fun ChatDetailScreen(
                             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Очистить историю") },
+                            text = { Text("Очистить локальную историю") },
                             onClick = {
                                 showMenu = false
                                 showClearHistoryDialog = true
