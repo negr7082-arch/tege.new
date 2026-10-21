@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.tege.messenger.ui.components.VerifiedAccountBadge
+import org.tege.messenger.ui.components.isTegeVerifiedAccount
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -73,12 +75,21 @@ fun ProfileScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = account?.name ?: "Пользователь",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = account?.name ?: "Пользователь",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isTegeVerifiedAccount(account?.email)) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            VerifiedAccountBadge(compact = false)
+                        }
+                    }
                     Text(
                         text = if (account?.isOnline == true) "в сети" else "был(а) недавно",
                         color = Color.White.copy(alpha = 0.8f),
