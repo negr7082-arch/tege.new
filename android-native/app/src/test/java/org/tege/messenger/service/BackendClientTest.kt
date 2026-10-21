@@ -25,6 +25,15 @@ class BackendClientTest {
     }
 
     @Test
+    fun rejectsLookalikeLoopbackHostsAndMalformedAddresses() {
+        assertNull(BackendClient.normalizeBaseUrl("http://localhost.attacker.example"))
+        assertNull(BackendClient.normalizeBaseUrl("http://127.0.0.1.attacker.example"))
+        assertNull(BackendClient.normalizeBaseUrl("http://localhost:abc"))
+        assertNull(BackendClient.normalizeBaseUrl("https://example.com/path"))
+        assertNull(BackendClient.normalizeBaseUrl("https://example.com?token=x"))
+    }
+
+    @Test
     fun rejectsPathsCredentialsAndInvalidPorts() {
         assertNull(BackendClient.normalizeBaseUrl("https://example.com/api"))
         assertNull(BackendClient.normalizeBaseUrl("https://user:pass@example.com"))
