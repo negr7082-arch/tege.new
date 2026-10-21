@@ -209,7 +209,8 @@ fun ChatListScreen(
                     chat = chat,
                     searchQuery = searchQuery,
                     onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) },
-                    onTogglePin = { viewModel.toggleChatPin(chat.id) }
+                    onTogglePin = { viewModel.toggleChatPin(chat.id) },
+                    onToggleMute = { viewModel.toggleChatMute(chat.id) }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 76.dp),
@@ -316,8 +317,10 @@ fun ChatRowItem(
     chat: Chat,
     searchQuery: String = "",
     onClick: () -> Unit,
-    onTogglePin: () -> Unit = {}
+    onTogglePin: () -> Unit = {},
+    onToggleMute: () -> Unit = {}
 ) {
+    var showActions by remember(chat.id) { mutableStateOf(false) }
     val matchingMessage = if (searchQuery.isBlank()) null else
         chat.messages.lastOrNull { it.text.contains(searchQuery, ignoreCase = true) }
     val previewText = matchingMessage?.text ?: chat.lastMessage.ifBlank {
@@ -331,7 +334,7 @@ fun ChatRowItem(
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onTogglePin
+                onLongClick = { showActions = true }
             )
             .padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -458,5 +461,39 @@ fun ChatRowItem(
                 }
             }
         }
+    }
+    DropdownMenu(
+        expanded = showActions,
+        onDismissRequest = { showActions = false }
+    ) {
+        DropdownMenuItem(
+            text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
+            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+            onClick = {
+                showActions = false
+                onTogglePin()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(if (chat.isMuted) "Включить уведомления" else "Отключить уведомления") },
+            leadingIcon = {
+                Icon(
+                    if (chat.isMuted) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
+                    contentDescription = null
+                )
+            },
+            onClick = {
+                showActions = false
+                onToggleMute()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Открыть чат") },
+            leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, contentDescription = null) },
+            onClick = {
+                showActions = false
+                onClick()
+            }
+        )
     }
 }
