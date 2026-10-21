@@ -155,7 +155,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Профиль, настройки и история чатов хранятся локально. Серверная авторизация и доставка сообщений другим пользователям пока не подключены.",
+                        text = "Аккаунт и сообщения хранятся на этом устройстве.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
