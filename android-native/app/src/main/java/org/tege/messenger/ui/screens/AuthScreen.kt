@@ -218,13 +218,6 @@ fun AuthScreen(
                     )
                 }
 
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Продолжая, вы входите в свой аккаунт TEGE. Избранное и настройки темы хранятся на этом устройстве.",
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    color = AuthMuted
-                )
             }
         }
     }
