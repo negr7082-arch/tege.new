@@ -29,6 +29,8 @@ object SampleData {
     )
 
     fun getInitialChats(): List<Chat> {
+        // Keep the chat list free of fabricated demo conversations.
+        // Real chats can be created by the user; Saved Messages remains available.
         return listOf(
             Chat(
                 id = 1L,
@@ -36,108 +38,14 @@ object SampleData {
                 name = "Избранное",
                 username = "saved",
                 description = "Ваше личное облачное хранилище",
-                lastMessage = "Добро пожаловать в TEGE Messenger!",
-                time = "12:00",
+                lastMessage = "",
+                time = "",
                 unread = 0,
-                online = true,
+                online = false,
                 color = "#2AABEE",
                 isSavedMessages = true,
                 isPinned = true,
-                messages = listOf(
-                    Message(
-                        id = 101L,
-                        text = "Добро пожаловать в TEGE Messenger! Здесь можно хранить заметки, ссылки и файлы.",
-                        time = "12:00",
-                        isMine = true,
-                        views = 1
-                    )
-                )
-            ),
-            Chat(
-                id = 2L,
-                type = ChatType.CHANNEL,
-                name = "Новости TEGE",
-                username = "tege_news",
-                description = "Официальные обновления, новые функции и анонсы.",
-                lastMessage = "Вышло масштабное обновление TEGE Messenger на Kotlin!",
-                time = "11:45",
-                unread = 1,
-                online = true,
-                color = "#3390EC",
-                subscribersCount = 42800,
-                isPinned = true,
-                messages = listOf(
-                    Message(
-                        id = 201L,
-                        text = "🎉 Вышло масштабное обновление TEGE Messenger на Kotlin!\n\n• Полная поддержка Kotlin и Jetpack Compose\n• Истории (Stories) и Огоньки (Chat Streaks 🔥)\n• Опросы, реакции и кружочки\n• Поддержка до 5 мульти-аккаунтов!",
-                        time = "11:45",
-                        isMine = false,
-                        views = 14200,
-                        reactions = mapOf("🔥" to 1250, "❤️" to 890, "👍" to 2100)
-                    )
-                )
-            ),
-            Chat(
-                id = 3L,
-                type = ChatType.DIRECT,
-                name = "Анна Смирнова",
-                username = "anna_design",
-                description = "UI/UX Дизайнер в TEGE",
-                lastMessage = "Отправила новые макеты тёмной темы!",
-                time = "10:30",
-                unread = 2,
-                online = true,
-                color = "#E040FB",
-                streak = ChatStreak(
-                    chatId = 3L,
-                    userId = 3344L,
-                    chatDaysCount = 12,
-                    status = StreakStatus.ACTIVE,
-                    streakCount = 7
-                ),
-                messages = listOf(
-                    Message(
-                        id = 301L,
-                        text = "Привет! Как тебе новый дизайн профиля?",
-                        time = "10:25",
-                        isMine = false
-                    ),
-                    Message(
-                        id = 302L,
-                        text = "Отправила новые макеты тёмной темы!",
-                        time = "10:30",
-                        isMine = false,
-                        reactions = mapOf("👍" to 1)
-                    )
-                )
-            ),
-            Chat(
-                id = 4L,
-                type = ChatType.GROUP,
-                name = "Разработчики TEGE Kotlin",
-                username = "tege_devs",
-                description = "Чат разработчиков Android & Kotlin",
-                lastMessage = "Алексей: Сборка успешно скомпилирована!",
-                time = "09:15",
-                unread = 0,
-                online = true,
-                color = "#4CAF50",
-                membersCount = 128,
-                messages = listOf(
-                    Message(
-                        id = 401L,
-                        text = "Коллеги, все файлы успешно переведены на чистый Kotlin (.kt) и Jetpack Compose!",
-                        time = "09:10",
-                        isMine = false,
-                        senderName = "Алексей"
-                    ),
-                    Message(
-                        id = 402L,
-                        text = "Отличная работа! Теперь приложение максимально быстрое и плавное.",
-                        time = "09:15",
-                        isMine = true
-                    )
-                )
+                messages = emptyList()
             )
         )
     }
