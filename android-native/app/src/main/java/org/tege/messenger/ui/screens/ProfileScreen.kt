@@ -108,7 +108,7 @@ fun ProfileScreen(
                         }
                     }
                     Text(
-                        text = if (account?.isOnline == true) "в сети" else "был(а) недавно",
+                        text = "Локальный профиль",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )

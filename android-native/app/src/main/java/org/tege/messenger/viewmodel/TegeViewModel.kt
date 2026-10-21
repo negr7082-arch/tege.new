@@ -19,14 +19,81 @@ import java.util.*
 class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private val chatPrefs = application.getSharedPreferences("tege_local_chats", Context.MODE_PRIVATE)
     private val persistedChatsKey = "chats_json"
+    private val profilePrefs = application.getSharedPreferences("tege_local_profile", Context.MODE_PRIVATE)
+    private val settingsPrefs = application.getSharedPreferences("tege_local_settings", Context.MODE_PRIVATE)
+
+    private fun loadLocalAccount(): UserAccount? {
+        val name = profilePrefs.getString("name", null)?.trim().orEmpty()
+        if (name.isBlank()) return null
+        return UserAccount(
+            id = profilePrefs.getLong("id", System.currentTimeMillis()),
+            email = "",
+            name = name,
+            username = profilePrefs.getString("username", "").orEmpty(),
+            bio = profilePrefs.getString("bio", "").orEmpty(),
+            phone = profilePrefs.getString("phone", "").orEmpty(),
+            country = "",
+            registrationDate = profilePrefs.getString("created_at", "").orEmpty(),
+            isOnline = false
+        )
+    }
+
+    private val savedLocalAccount: UserAccount? = loadLocalAccount()
+
+    private fun persistLocalAccount(account: UserAccount?) {
+        val editor = profilePrefs.edit()
+        if (account == null) editor.clear().apply()
+        else editor.putLong("id", account.id)
+            .putString("name", account.name)
+            .putString("username", account.username)
+            .putString("bio", account.bio)
+            .putString("phone", account.phone)
+            .putString("created_at", account.registrationDate)
+            .apply()
+    }
+
+    private fun loadAppSettings(): AppSettings {
+        val defaultWallpaper = WallpaperId.PATTERN.name
+        val wallpaper = runCatching {
+            WallpaperId.valueOf(settingsPrefs.getString("wallpaper", defaultWallpaper) ?: defaultWallpaper)
+        }.getOrDefault(WallpaperId.PATTERN)
+        val defaultTextSize = TextSize.MEDIUM.name
+        val textSize = runCatching {
+            TextSize.valueOf(settingsPrefs.getString("text_size", defaultTextSize) ?: defaultTextSize)
+        }.getOrDefault(TextSize.MEDIUM)
+        val defaultLanguage = Language.RU.name
+        val language = runCatching {
+            Language.valueOf(settingsPrefs.getString("language", defaultLanguage) ?: defaultLanguage)
+        }.getOrDefault(Language.RU)
+        return AppSettings(
+            isDarkMode = settingsPrefs.getBoolean("dark_mode", false),
+            wallpaper = wallpaper,
+            textSize = textSize,
+            language = language
+        )
+    }
+
+    private fun persistAppSettings(settings: AppSettings) {
+        settingsPrefs.edit()
+            .putBoolean("dark_mode", settings.isDarkMode)
+            .putString("wallpaper", settings.wallpaper.name)
+            .putString("text_size", settings.textSize.name)
+            .putString("language", settings.language.name)
+            .apply()
+    }
 
     private fun persistChats(chats: List<Chat>) {
         try {
             val array = JSONArray()
             chats.forEach { chat ->
-                val item = JSONObject().put("id", chat.id).put("lastMessage", chat.lastMessage)
-                    .put("time", chat.time).put("unread", chat.unread)
-                    .put("isPinned", chat.isPinned).put("isMuted", chat.isMuted)
+                val item = JSONObject().put("id", chat.id).put("type", chat.type.name)
+                    .put("name", chat.name).put("description", chat.description)
+                    .put("lastMessage", chat.lastMessage).put("time", chat.time)
+                    .put("unread", chat.unread).put("isPinned", chat.isPinned)
+                    .put("isMuted", chat.isMuted).put("online", chat.online)
+                    .put("color", chat.color).put("isSavedMessages", chat.isSavedMessages)
+                chat.username?.let { item.put("username", it) }
+                item.put("subscribersCount", chat.subscribersCount)
                 val messages = JSONArray()
                 chat.messages.forEach { message ->
                     val m = JSONObject().put("id", message.id).put("text", message.text)
@@ -111,13 +178,37 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         fileSize = m.optString("fileSize").takeIf { m.has("fileSize") },
                         senderId = if (m.has("senderId")) m.optLong("senderId") else null,
                         senderName = m.optString("senderName").takeIf { m.has("senderName") },
-                        isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 1),
+                        isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 0),
                         reactions = reactions, userReactions = userReactions, replyTo = reply, poll = poll
                     )
                 }
                 item.optLong("id") to (item to messages)
             }
-            _chats.value = _chats.value.map { chat ->
+            val existingIds = _chats.value.map { it.id }.toSet()
+            val restoredDrafts = restoredById.filterKeys { it !in existingIds }.map { (id, savedEntry) ->
+                val item = savedEntry.first
+                val restoredType = runCatching {
+                    ChatType.valueOf(item.optString("type", ChatType.DIRECT.name))
+                }.getOrDefault(ChatType.DIRECT)
+                Chat(
+                    id = id,
+                    type = restoredType,
+                    name = item.optString("name", "Локальный чат"),
+                    username = item.optString("username").takeIf { it.isNotBlank() },
+                    description = item.optString("description", "Локальный черновик"),
+                    lastMessage = item.optString("lastMessage"),
+                    time = item.optString("time"),
+                    unread = item.optInt("unread", 0),
+                    online = item.optBoolean("online", false),
+                    color = item.optString("color", "#2AABEE"),
+                    messages = savedEntry.second,
+                    isSavedMessages = item.optBoolean("isSavedMessages", false),
+                    isPinned = item.optBoolean("isPinned", false),
+                    isMuted = item.optBoolean("isMuted", false),
+                    subscribersCount = item.optInt("subscribersCount", 0)
+                )
+            }
+            val restoredInitial = _chats.value.map { chat ->
                 val savedEntry = restoredById[chat.id] ?: return@map chat
                 val item = savedEntry.first
                 chat.copy(lastMessage = item.optString("lastMessage", chat.lastMessage),
@@ -125,20 +216,21 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     isPinned = item.optBoolean("isPinned", chat.isPinned),
                     isMuted = item.optBoolean("isMuted", chat.isMuted), messages = savedEntry.second)
             }
+            _chats.value = restoredDrafts + restoredInitial
         } catch (_: Exception) {
-            // Ignore corrupted or outdated local data and keep the sample chat list.
+            // Ignore corrupted or outdated local data and keep the initial local chat list.
         }
     }
 
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
-    private val _accounts = MutableStateFlow<List<UserAccount>>(SampleData.defaultAccounts)
+    private val _accounts = MutableStateFlow(savedLocalAccount?.let { listOf(it) } ?: emptyList())
     val accounts: StateFlow<List<UserAccount>> = _accounts.asStateFlow()
 
-    private val _currentAccount = MutableStateFlow<UserAccount?>(SampleData.defaultAccounts.firstOrNull())
+    private val _currentAccount = MutableStateFlow<UserAccount?>(savedLocalAccount)
     val currentAccount: StateFlow<UserAccount?> = _currentAccount.asStateFlow()
 
-    private val _settings = MutableStateFlow(AppSettings())
+    private val _settings = MutableStateFlow(loadAppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     private val _chats = MutableStateFlow<List<Chat>>(SampleData.getInitialChats())
@@ -171,6 +263,34 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun createLocalChat(title: String): Long? {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) return null
+        val existing = _chats.value.firstOrNull {
+            !it.isSavedMessages && it.name.equals(cleanTitle, ignoreCase = true)
+        }
+        if (existing != null) {
+            _currentRoute.value = ScreenRoute.ChatDetail(existing.id)
+            return existing.id
+        }
+        val id = System.currentTimeMillis()
+        val chat = Chat(
+            id = id,
+            type = ChatType.DIRECT,
+            name = cleanTitle,
+            description = "Локальный черновик",
+            lastMessage = "",
+            time = "",
+            unread = 0,
+            online = false,
+            color = "#2AABEE",
+            messages = emptyList()
+        )
+        _chats.value = listOf(chat) + _chats.value
+        _currentRoute.value = ScreenRoute.ChatDetail(id)
+        return id
     }
 
     fun clearChatHistory(chatId: Long) {
@@ -237,6 +357,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     fun switchAccount(accountId: Long) {
         _accounts.value.find { it.id == accountId }?.let {
             _currentAccount.value = it
+            persistLocalAccount(it)
         }
     }
 
@@ -250,48 +371,51 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         )
         _accounts.value = _accounts.value.map { if (it.id == current.id) updated else it }
         _currentAccount.value = updated
+        persistLocalAccount(updated)
     }
 
     fun addAccount(name: String, username: String, phone: String) {
         val newAcc = UserAccount(
             id = System.currentTimeMillis(),
-            email = "$username@tege.org",
-            name = name,
-            username = username.removePrefix("@"),
-            phone = phone,
-            registrationDate = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
+            email = "",
+            name = name.trim(),
+            username = username.trim().removePrefix("@"),
+            phone = phone.trim(),
+            country = "",
+            registrationDate = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()),
+            isOnline = false
         )
         val updated = (_accounts.value + newAcc).take(5)
         _accounts.value = updated
         _currentAccount.value = newAcc
+        persistLocalAccount(newAcc)
     }
 
-    fun login(usernameOrEmail: String, pass: String): Boolean {
-        val found = _accounts.value.find { 
-            it.username.equals(usernameOrEmail.removePrefix("@"), ignoreCase = true) || 
-            it.email.equals(usernameOrEmail, ignoreCase = true) 
-        }
-        return if (found != null) {
-            _currentAccount.value = found
-            true
-        } else {
-            val created = UserAccount(
-                id = System.currentTimeMillis(),
-                email = if (usernameOrEmail.contains("@")) usernameOrEmail else "$usernameOrEmail@tege.org",
-                name = usernameOrEmail.replace("@", "").capitalize(Locale.getDefault()),
-                username = usernameOrEmail.removePrefix("@"),
-                registrationDate = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
-            )
-            _accounts.value = _accounts.value + created
-            _currentAccount.value = created
-            true
-        }
+    fun createLocalProfile(displayName: String): Boolean {
+        val cleanName = displayName.trim()
+        if (cleanName.isBlank()) return false
+        val account = UserAccount(
+            id = System.currentTimeMillis(),
+            email = "",
+            name = cleanName,
+            username = "",
+            bio = "",
+            phone = "",
+            country = "",
+            registrationDate = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()),
+            isOnline = false
+        )
+        _accounts.value = (_accounts.value + account).takeLast(5)
+        _currentAccount.value = account
+        persistLocalAccount(account)
+        return true
     }
 
     fun logout() {
         val remaining = _accounts.value.filter { it.id != _currentAccount.value?.id }
         _accounts.value = remaining
         _currentAccount.value = remaining.firstOrNull()
+        persistLocalAccount(_currentAccount.value)
     }
 
     fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null) {
@@ -382,62 +506,6 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun sendVideoNote(chatId: Long, noteUri: String = "https://assets.mixkit.co/videos/preview/mixkit-young-woman-talking-on-video-call-with-camera-42880-large.mp4") {
-        val nowTime = timeFormat.format(Date())
-        val message = Message(
-            id = System.currentTimeMillis(),
-            text = "⚪ Видеосообщение (кружочек)",
-            time = nowTime,
-            isMine = true,
-            videoNoteUri = noteUri,
-            senderId = _currentAccount.value?.id,
-            senderName = _currentAccount.value?.name
-        )
-        _chats.value = _chats.value.map { chat ->
-            if (chat.id == chatId) {
-                chat.copy(
-                    lastMessage = "⚪ Видеосообщение",
-                    time = nowTime,
-                    messages = chat.messages + message
-                )
-            } else chat
-        }
-    }
-
-    fun toggleGroupVideoChat(chatId: Long) {
-        val account = _currentAccount.value ?: return
-        _chats.value = _chats.value.map { chat ->
-            if (chat.id == chatId) {
-                val currentVideoChat = chat.activeVideoChat
-                if (currentVideoChat?.isActive == true) {
-                    chat.copy(activeVideoChat = null)
-                } else {
-                    chat.copy(
-                        activeVideoChat = GroupVideoChatInfo(
-                            isActive = true,
-                            title = chat.name,
-                            startedById = account.id,
-                            startedByName = account.name,
-                            participants = listOf(
-                                GroupVideoChatParticipant(
-                                    id = account.id,
-                                    name = account.name,
-                                    isHost = true
-                                ),
-                                GroupVideoChatParticipant(
-                                    id = 3344L,
-                                    name = "Анна Смирнова",
-                                    isSpeaking = true,
-                                    isVideoOn = true
-                                )
-                            )
-                        )
-                    )
-                }
-            } else chat
-        }
-    }
-
     fun votePoll(chatId: Long, messageId: Long, optionId: Int) {
         val currentUserId = _currentAccount.value?.id ?: 112201L
         _chats.value = _chats.value.map { chat ->
@@ -501,18 +569,22 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleDarkMode() {
         _settings.value = _settings.value.copy(isDarkMode = !_settings.value.isDarkMode)
+        persistAppSettings(_settings.value)
     }
 
     fun setWallpaper(wallpaper: WallpaperId) {
         _settings.value = _settings.value.copy(wallpaper = wallpaper)
+        persistAppSettings(_settings.value)
     }
 
     fun setTextSize(size: TextSize) {
         _settings.value = _settings.value.copy(textSize = size)
+        persistAppSettings(_settings.value)
     }
 
     fun setLanguage(lang: Language) {
         _settings.value = _settings.value.copy(language = lang)
+        persistAppSettings(_settings.value)
     }
 
     fun createStory(text: String, color: String = "#2AABEE") {
@@ -555,8 +627,5 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _settings.value = _settings.value.copy(blockedUsers = newBlocked)
     }
 
-    fun changePassword(newPass: String) {
-        _settings.value = _settings.value.copy(twoFactorEnabled = true, twoFactorPassword = newPass)
-        _currentAccount.value = _currentAccount.value?.copy(password = newPass)
-    }
+
 }

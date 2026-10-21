@@ -150,13 +150,6 @@ fun SettingsScreen(
                     onClick = { showBlacklistDialog = true }
                 )
 
-                SettingsClickableRow(
-                    icon = Icons.Default.Lock,
-                    title = "Двухэтапная аутентификация",
-                    subtitle = if (settings.twoFactorEnabled) "Включена" else "Выключена",
-                    onClick = { viewModel.changePassword("123456") }
-                )
-
                 HorizontalDivider()
 
                 Text(
@@ -167,12 +160,25 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
                 )
 
-                SettingsClickableRow(
-                    icon = Icons.Default.Info,
-                    title = "TEGE Messenger for Android",
-                    subtitle = "Версия 1.0.0 (Kotlin & Jetpack Compose)",
-                    onClick = {}
-                )
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "TEGE Messenger for Android",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Версия 1.0.0",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Профиль, настройки и история чатов хранятся локально. Серверная авторизация и доставка сообщений другим пользователям пока не подключены.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

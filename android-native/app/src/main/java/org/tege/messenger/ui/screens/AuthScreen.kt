@@ -3,10 +3,9 @@ package org.tege.messenger.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -16,8 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -28,9 +25,7 @@ fun AuthScreen(
     viewModel: TegeViewModel,
     onSuccess: () -> Unit
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isRegister by remember { mutableStateOf(false) }
+    var displayName by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -41,113 +36,66 @@ fun AuthScreen(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White)
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 24.dp, vertical = 28.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
                     .background(TelegramBlue),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Send,
-                    contentDescription = "TEGE Logo",
+                    contentDescription = "TEGE",
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(30.dp)
                 )
             }
-
             Spacer(modifier = Modifier.height(20.dp))
-
             Text(
-                text = if (isRegister) "Регистрация в Tege" else "Добро пожаловать в Tege",
+                text = "Профиль TEGE",
                 fontSize = 23.sp,
                 fontWeight = FontWeight.Bold,
-                color = TelegramBlue
+                color = MaterialTheme.colorScheme.onSurface
             )
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = if (isRegister) "Регистрация нового аккаунта" else "Вход в аккаунт",
+                text = "Как к вам обращаться?",
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Имя пользователя или e-mail") },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = MaterialTheme.colorScheme.surface, focusedContainerColor = MaterialTheme.colorScheme.surface),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Пароль") },
-                shape = RoundedCornerShape(18.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF1F3F5), focusedContainerColor = Color(0xFFF1F3F5)),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
-            )
-
             Spacer(modifier = Modifier.height(24.dp))
-
+            OutlinedTextField(
+                value = displayName,
+                onValueChange = { displayName = it },
+                label = { Text("Ваше имя") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Профиль и переписки сохраняются на этом устройстве. Вход по телефону и синхронизация с сервером пока не подключены.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    if (username.isNotBlank()) {
-                        viewModel.login(username, password)
-                        onSuccess()
-                    }
+                    if (viewModel.createLocalProfile(displayName)) onSuccess()
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(18.dp),
+                enabled = displayName.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TelegramBlue)
             ) {
-                Text(
-                    text = if (isRegister) "Зарегистрироваться" else "Войти",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Quick Demo button
-            OutlinedButton(
-                onClick = {
-                    viewModel.login("durov", "123456")
-                    onSuccess()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Text("Быстрый демо-вход")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(onClick = { isRegister = !isRegister }) {
-                Text(
-                    text = if (isRegister) "Уже есть аккаунт? Войти" else "Нет аккаунта? Зарегистрироваться",
-                    color = TelegramBlue
-                )
+                Text("Продолжить", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

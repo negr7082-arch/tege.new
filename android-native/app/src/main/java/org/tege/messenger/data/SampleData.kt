@@ -3,20 +3,8 @@ package org.tege.messenger.data
 import org.tege.messenger.model.*
 
 object SampleData {
-    // Neutral local profile; no impersonation or fabricated personal details.
-    val defaultAccounts = listOf(
-        UserAccount(
-            id = 112201L,
-            email = "",
-            name = "Мой аккаунт",
-            username = "",
-            bio = "",
-            phone = "",
-            country = "",
-            registrationDate = "",
-            isOnline = false
-        )
-    )
+    // The user creates a local profile; no demo identity is pre-filled.
+    val defaultAccounts = emptyList<UserAccount>()
 
     fun getInitialChats(): List<Chat> {
         // Keep the chat list free of fabricated demo conversations.
@@ -27,7 +15,7 @@ object SampleData {
                 type = ChatType.DIRECT,
                 name = "Избранное",
                 username = "saved",
-                description = "Ваше личное облачное хранилище",
+                description = "Сохранённые сообщения на этом устройстве",
                 lastMessage = "",
                 time = "",
                 unread = 0,
