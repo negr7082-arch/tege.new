@@ -29,7 +29,6 @@ fun CreateChatScreen(
     onBack: () -> Unit
 ) {
     val contacts by viewModel.contacts.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
     var query by remember { mutableStateOf("") }
     val filteredContacts = contacts.filter { user ->
         user.name.contains(query, ignoreCase = true) ||
@@ -56,8 +55,7 @@ fun CreateChatScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Поиск людей") },
-                placeholder = { Text("Имя или username") },
+                placeholder = { Text("Поиск") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier
@@ -73,20 +71,18 @@ fun CreateChatScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (query.isNotBlank()) "Ничего не найдено" else "Пока нет других пользователей",
+                        text = if (query.isNotBlank()) "Ничего не найдено" else "Нет контактов",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (query.isNotBlank()) {
-                            "Проверь имя или username."
-                        } else {
-                            "Статус сервера: $connectionState. Здесь появляются только аккаунты, зарегистрированные на этом сервере. Фейковые контакты не создаются."
-                        },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    if (query.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Измените запрос и попробуйте снова",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
