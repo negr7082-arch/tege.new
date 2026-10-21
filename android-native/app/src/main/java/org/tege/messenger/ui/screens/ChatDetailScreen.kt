@@ -40,6 +40,7 @@ fun ChatDetailScreen(
     var inputText by remember { mutableStateOf("") }
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
     var isVideoNoteMode by remember { mutableStateOf(true) }
 
     Scaffold(
@@ -108,7 +109,10 @@ fun ChatDetailScreen(
                     ) {
                         DropdownMenuItem(
                             text = { Text("Очистить историю") },
-                            onClick = { showMenu = false }
+                            onClick = {
+                                showMenu = false
+                                showClearHistoryDialog = true
+                            }
                         )
                         DropdownMenuItem(
                             text = { Text("Заблокировать") },
@@ -253,6 +257,29 @@ fun ChatDetailScreen(
                 }
             }
         }
+    }
+
+    if (showClearHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearHistoryDialog = false },
+            title = { Text("Очистить историю?") },
+            text = { Text("Все сообщения в этом чате будут удалены с этого устройства. Это действие нельзя отменить.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearChatHistory(chat.id)
+                        showClearHistoryDialog = false
+                    }
+                ) {
+                    Text("Очистить", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearHistoryDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 
     if (showPollDialog) {
