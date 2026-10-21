@@ -153,6 +153,9 @@ class TegeChan3DView(
             part(0f, 0.38f, 0.015f, 0.15f, 0.13f, 0.14f, 0.18f, 0.39f, 0.78f)
             part(-0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
             part(0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
+            // Small bright drawstrings make the hoodie read more clearly at phone size.
+            part(-0.055f, 0.23f, 0.188f, 0.012f, 0.105f, 0.012f, 0.36f, 0.72f, 0.96f)
+            part(0.055f, 0.23f, 0.188f, 0.012f, 0.105f, 0.012f, 0.36f, 0.72f, 0.96f)
             part(-0.37f, -0.27f, 0.035f, 0.105f, 0.105f, 0.105f, 0.96f, 0.75f, 0.67f)
             part(0.37f, -0.27f, 0.035f, 0.105f, 0.105f, 0.105f, 0.96f, 0.75f, 0.67f)
             part(-0.14f, -0.51f, 0f, 0.13f, 0.27f, 0.14f, 0.07f, 0.10f, 0.19f)
@@ -176,9 +179,13 @@ class TegeChan3DView(
             part(0.109f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
             part(-0.114f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
             part(0.096f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
-            part(0f, 0.755f, 0.269f, 0.018f, 0.022f, 0.015f, 0.88f, 0.39f, 0.43f)
-            part(-0.205f, 0.745f, 0.225f, 0.045f, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
-            part(0.205f, 0.745f, 0.225f, 0.045f, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
+            // Mouth changes shape/color briefly after a tap to suggest a surprised reaction.
+            val mouthOpen = 0.022f + reaction * 0.018f
+            part(0f, 0.755f, 0.269f, 0.018f, mouthOpen, 0.015f, 0.88f - reaction * 0.12f, 0.39f, 0.43f)
+            // Blush intensifies for a moment when she reacts, then fades back to idle.
+            val blush = 0.045f + reaction * 0.012f
+            part(-0.205f, 0.745f, 0.225f, blush, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
+            part(0.205f, 0.745f, 0.225f, blush, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
         }
 
         private fun part(
