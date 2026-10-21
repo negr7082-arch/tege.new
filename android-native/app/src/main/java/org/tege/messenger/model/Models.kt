@@ -216,5 +216,6 @@ sealed class ScreenRoute {
     object CreateChat : ScreenRoute()
     object Contacts : ScreenRoute()
     object Calls : ScreenRoute()
+    object Telegram : ScreenRoute()
     object Settings : ScreenRoute()
 }
