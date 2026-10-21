@@ -9,7 +9,7 @@ object SampleData {
             id = 112201L,
             email = "",
             name = "Мой аккаунт",
-            username = "user",
+            username = "",
             bio = "",
             phone = "",
             country = "",
