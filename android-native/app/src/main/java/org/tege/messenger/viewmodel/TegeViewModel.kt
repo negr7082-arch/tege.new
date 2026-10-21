@@ -20,11 +20,6 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private val chatPrefs = application.getSharedPreferences("tege_local_chats", Context.MODE_PRIVATE)
     private val persistedChatsKey = "chats_json"
 
-    init {
-        restoreChats()
-        viewModelScope.launch { _chats.collect { chats -> persistChats(chats) } }
-    }
-
     private fun persistChats(chats: List<Chat>) {
         try {
             val array = JSONArray()
@@ -160,6 +155,11 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    init {
+        restoreChats()
+        viewModelScope.launch { _chats.collect { chats -> persistChats(chats) } }
+    }
 
     fun navigateTo(route: ScreenRoute) {
         _currentRoute.value = route
