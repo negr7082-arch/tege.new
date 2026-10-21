@@ -22,6 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+fun isTegeVerifiedAccount(email: String?): Boolean =
+    email.equals("negr7082@gmail.com", ignoreCase = true)
+
 /**
  * UI badge for the designated Tege account. This is a client-side visual label,
  * not proof of email ownership or server-issued verification.
