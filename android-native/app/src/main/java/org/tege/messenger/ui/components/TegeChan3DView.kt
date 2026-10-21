@@ -30,6 +30,7 @@ class TegeChan3DView(
     init {
         setEGLContextClientVersion(2)
         setRenderer(mascotRenderer)
+        // Keep the decorative scene light on phones; the render loop is capped below.
         renderMode = RENDERMODE_CONTINUOUSLY
         setBackgroundColor(android.graphics.Color.rgb(12, 20, 42))
         contentDescription = "Интерактивная трёхмерная TEGE-тянка. Проведи пальцем, чтобы повернуть."
@@ -61,7 +62,10 @@ class TegeChan3DView(
                                 "Эй-эй, щекотно! ✨",
                                 "Хи-хи~ Я тут вообще-то живу 👀",
                                 "Ня? Поверни меня пальцем!",
-                                "Ладно, только не теряй меня 💫"
+                                "Ладно, только не теряй меня 💫",
+                                "А-а, не смотри так… я смущаюсь 🙈",
+                                "Хм! Всё, теперь я отвернусь… ну почти 💙",
+                                "Ты хотел привлечь моё внимание? Получилось ✨"
                             ).random()
                         )
                     }
@@ -122,6 +126,13 @@ class TegeChan3DView(
 
         override fun onDrawFrame(gl: GL10?) {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            // GLSurfaceView has no FPS cap; limit this lightweight mascot to ~30 FPS.
+            try {
+                Thread.sleep(33L)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            }
             val now = android.os.SystemClock.uptimeMillis()
             val idle = sin(now / 720.0).toFloat()
             val elapsed = ((now - reactionAt).coerceAtLeast(0L) / 1000f)
