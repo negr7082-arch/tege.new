@@ -130,7 +130,11 @@ fun TelegramDrawer(
                         AndroidView(
                             factory = { context ->
                                 TegeChan3DView(context) { newReaction -> reaction = newReaction }
+                                    .apply { onResume() }
                             },
+                            // Release the GL thread when the secret dialog closes so the
+                            // mascot cannot keep rendering in the background.
+                            onRelease = { view -> view.onPause() },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(270.dp)
