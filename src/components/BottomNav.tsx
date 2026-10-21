@@ -43,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       </button>
       <button type="button" onClick={onSettings} className={item('settings')}>
         <Settings className="w-6 h-6" />
-        <span className="text-[12px] font-medium">{ru ? 'Настройки' : 'Settings'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Настройки' : 'Settings'}</span>
       </button>
       <button type="button" onClick={onProfile} className={item('profile')}>
         <TelegramAvatar
@@ -53,7 +53,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           size="xs"
           className="w-6 h-6 text-[11px]"
         />
-        <span className="text-[12px] font-medium">{ru ? 'Профиль' : 'Profile'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Профиль' : 'Profile'}</span>
       </button>
     </nav>
   );
