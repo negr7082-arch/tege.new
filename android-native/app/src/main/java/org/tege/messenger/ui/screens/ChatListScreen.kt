@@ -248,8 +248,9 @@ fun StoriesBar(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Добавить ...",
+                    text = "Моя история",
                     fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -284,6 +285,7 @@ fun StoriesBar(
                 Text(
                     text = story.authorName,
                     fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -307,7 +309,7 @@ fun ChatRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
@@ -350,38 +352,29 @@ fun ChatRowItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = chat.name,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    // Streak Badge
-                    if (chat.streak != null && chat.streak.streakCount > 0) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "🔥 ${chat.streak.streakCount}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF5722)
-                        )
-                    }
-                }
+                Text(
+                    text = chat.name,
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = chat.time,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    IconButton(onClick = onTogglePin, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = if (chat.isPinned) "Открепить чат" else "Закрепить чат",
-                            tint = if (chat.isPinned) TelegramBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(15.dp)
-                        )
+                    if (chat.isPinned) {
+                        IconButton(onClick = onTogglePin, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.PushPin,
+                                contentDescription = "Открепить чат",
+                                tint = TelegramBlue,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }
