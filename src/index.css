@@ -181,3 +181,14 @@ button {
   body { background: #e7ebf0; }
   .dark body { background: #0e1621; }
 }
+
+
+/* Mobile layout safeguards: safe areas, readable form fields, and compact navigation. */
+@supports (height: 100dvh) {
+  #root { min-height: 100dvh; }
+}
+@media (max-width: 420px) {
+  input, textarea, select { font-size: 16px; }
+  nav.fixed button { overflow: hidden; }
+  nav.fixed button span { max-width: 100%; text-overflow: ellipsis; overflow: hidden; }
+}
