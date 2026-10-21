@@ -42,15 +42,18 @@ fun ChatListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
     // Telegram-style search across chat names, usernames, previews and local messages.
-    val filteredChats = chats.sortedWith(
-        compareByDescending<Chat> { it.isPinned }.thenByDescending { it.time }
-    ).filter { chat ->
-        searchQuery.isBlank() ||
-            chat.name.contains(searchQuery, ignoreCase = true) ||
-            chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
-            (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
-            chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
-    }
+    // Show Saved Messages and conversations backed by a real server user.
+    // Older device-only drafts are left in storage, but are not presented as real chats.
+    val filteredChats = chats
+        .filter { it.isSavedMessages || it.userId != null }
+        .sortedWith(compareByDescending<Chat> { it.isPinned }.thenByDescending { it.time })
+        .filter { chat ->
+            searchQuery.isBlank() ||
+                chat.name.contains(searchQuery, ignoreCase = true) ||
+                chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
+                (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
+                chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
+        }
 
     Scaffold(
         topBar = {
