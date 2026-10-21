@@ -97,6 +97,18 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    fun updateProfile(name: String, username: String, bio: String, phone: String) {
+        val current = _currentAccount.value ?: return
+        val updated = current.copy(
+            name = name.trim().ifBlank { current.name },
+            username = username.trim().removePrefix("@").ifBlank { current.username },
+            bio = bio.trim(),
+            phone = phone.trim()
+        )
+        _accounts.value = _accounts.value.map { if (it.id == current.id) updated else it }
+        _currentAccount.value = updated
+    }
+
     fun addAccount(name: String, username: String, phone: String) {
         val newAcc = UserAccount(
             id = System.currentTimeMillis(),
