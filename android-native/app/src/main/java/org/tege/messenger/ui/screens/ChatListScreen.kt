@@ -60,7 +60,7 @@ fun ChatListScreen(
                         TextField(
                             value = searchQuery,
                             onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Поиск чатов и сообщений...") },
+                            placeholder = { Text("Поиск") },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -165,9 +165,9 @@ fun ChatListScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = if (searchQuery.isBlank())
-                                "Создайте локальный черновик через кнопку ниже."
+                                "Нажмите на кнопку нового сообщения, чтобы начать общение."
                             else
-                                "Попробуйте другое имя или текст сообщения.",
+                                "Попробуйте изменить запрос.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -293,8 +293,10 @@ fun ChatRowItem(
     val matchingMessage = if (searchQuery.isBlank()) null else
         chat.messages.lastOrNull { it.text.contains(searchQuery, ignoreCase = true) }
     val previewText = matchingMessage?.text ?: chat.lastMessage.ifBlank {
-        if (chat.isSavedMessages) "Сохранённые сообщения" else "Локальный чат"
+        if (chat.isSavedMessages) "Сохранённые сообщения" else "Нет сообщений"
     }
+    val lastMessage = chat.messages.lastOrNull()
+    val timeColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         modifier = Modifier
@@ -303,14 +305,14 @@ fun ChatRowItem(
                 onClick = onClick,
                 onLongClick = onTogglePin
             )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
         Box(contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(54.dp)
                     .clip(CircleShape)
                     .background(Color(android.graphics.Color.parseColor(chat.color))),
                 contentAlignment = Alignment.Center
@@ -321,8 +323,8 @@ fun ChatRowItem(
                     Text(
                         text = chat.name.take(1).uppercase(),
                         color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -337,7 +339,7 @@ fun ChatRowItem(
             }
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         // Name and Last Message
         Column(modifier = Modifier.weight(1f)) {
@@ -349,27 +351,26 @@ fun ChatRowItem(
                 Text(
                     text = chat.name,
                     modifier = Modifier.weight(1f),
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 16.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (chat.isMuted) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsOff,
+                            contentDescription = "Уведомления отключены",
+                            tint = timeColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
                     Text(
                         text = chat.time,
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = timeColor
                     )
-                    if (chat.isPinned) {
-                        IconButton(onClick = onTogglePin, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.PushPin,
-                                contentDescription = "Открепить чат",
-                                tint = TelegramBlue,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -380,14 +381,37 @@ fun ChatRowItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = previewText,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (lastMessage?.isMine == true && matchingMessage == null) {
+                        Icon(
+                            imageVector = Icons.Default.DoneAll,
+                            contentDescription = "Отправлено",
+                            tint = TelegramBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                    }
+                    Text(
+                        text = previewText,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (chat.isPinned) {
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Закреплённый чат",
+                            tint = timeColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
                 if (chat.unread > 0) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
