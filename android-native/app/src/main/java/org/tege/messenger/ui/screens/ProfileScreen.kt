@@ -27,6 +27,11 @@ fun ProfileScreen(
     onBack: () -> Unit
 ) {
     val account by viewModel.currentAccount.collectAsState()
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editName by remember { mutableStateOf("") }
+    var editUsername by remember { mutableStateOf("") }
+    var editBio by remember { mutableStateOf("") }
+    var editPhone by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -38,6 +43,15 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        editName = account?.name.orEmpty()
+                        editUsername = account?.username.orEmpty()
+                        editBio = account?.bio.orEmpty()
+                        editPhone = account?.phone.orEmpty()
+                        showEditDialog = true
+                    }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = Color.White)
+                    }
                     IconButton(onClick = { viewModel.logout() }) {
                         Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color.White)
                     }
@@ -133,6 +147,30 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Редактировать профиль") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Имя") }, singleLine = true)
+                    OutlinedTextField(value = editUsername, onValueChange = { editUsername = it }, label = { Text("Имя пользователя") }, singleLine = true)
+                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Телефон") }, singleLine = true)
+                    OutlinedTextField(value = editBio, onValueChange = { editBio = it }, label = { Text("О себе") }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateProfile(editName, editUsername, editBio, editPhone)
+                    showEditDialog = false
+                }) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("Отмена") }
+            }
+        )
     }
 }
 
