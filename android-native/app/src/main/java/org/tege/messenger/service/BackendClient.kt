@@ -40,8 +40,21 @@ object BackendClient {
         if (!candidate.startsWith("https://", true) && !candidate.startsWith("http://", true)) {
             candidate = "https://$candidate"
         }
-        if (!Regex("^https?://[^/\\s]+$", RegexOption.IGNORE_CASE).matches(candidate)) return null
-        return candidate
+        val match = Regex(
+            "^(https?)://([^/\\s:?#]+)(?::([0-9]{1,5}))?$",
+            RegexOption.IGNORE_CASE
+        ).matchEntire(candidate) ?: return null
+        val scheme = match.groupValues[1].lowercase()
+        val host = match.groupValues[2].lowercase()
+        val port = match.groupValues[3].toIntOrNull()
+        if (port != null && port !in 1..65535) return null
+
+        // Never send credentials or session tokens to an arbitrary plaintext HTTP host.
+        // Cleartext is permitted only for local development endpoints.
+        if (scheme == "http" && host !in setOf("localhost", "127.0.0.1", "10.0.2.2")) {
+            return null
+        }
+        return "${scheme}://${host}" + if (port != null) ":$port" else ""
     }
 
     suspend fun authenticate(
