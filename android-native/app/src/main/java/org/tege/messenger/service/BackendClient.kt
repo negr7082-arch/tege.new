@@ -174,12 +174,13 @@ object BackendClient {
             .put("ids", org.json.JSONArray().put(deliveryId)).toString())
     }
 
-    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String) {
+    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String): Boolean {
+        socket ?: return false
         val user = JSONObject()
             .put("name", name)
             .put("username", username)
             .put("bio", bio)
             .put("phone", phone)
-        socket?.send(JSONObject().put("type", "profile").put("user", user).toString())
+        return socket.send(JSONObject().put("type", "profile").put("user", user).toString())
     }
 }
