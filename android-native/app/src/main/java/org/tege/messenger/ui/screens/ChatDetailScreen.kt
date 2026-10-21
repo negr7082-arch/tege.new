@@ -53,6 +53,8 @@ fun ChatDetailScreen(
 ) {
     val chats by viewModel.chats.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val currentAccount by viewModel.currentAccount.collectAsState()
+    val currentUserId = currentAccount?.id ?: 112201L
     val chat = chats.find { it.id == chatId } ?: return
     val chatBackground = when (settings.wallpaper) {
         WallpaperId.PATTERN -> MaterialTheme.colorScheme.background
@@ -382,6 +384,7 @@ fun ChatDetailScreen(
                     MessageBubble(
                         message = message,
                         isChannel = chat.type == ChatType.CHANNEL,
+                        currentUserId = currentUserId,
                         textSize = settings.textSize,
                         onVotePoll = { optId -> viewModel.votePoll(chat.id, message.id, optId) },
                         onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) },
@@ -464,6 +467,7 @@ fun ChatDetailScreen(
 fun MessageBubble(
     message: Message,
     isChannel: Boolean = false,
+    currentUserId: Long = 112201L,
     textSize: TextSize = TextSize.MEDIUM,
     onVotePoll: (Int) -> Unit,
     onReaction: (String) -> Unit,
@@ -649,14 +653,30 @@ fun MessageBubble(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 existingReactions.forEach { (emoji, count) ->
+                    val isSelectedByMe = message.userReactions[currentUserId] == emoji
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .background(
+                                if (isSelectedByMe) TelegramBlue.copy(alpha = 0.18f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
+                            .then(
+                                if (isSelectedByMe) Modifier.border(
+                                    width = 1.dp,
+                                    color = TelegramBlue.copy(alpha = 0.75f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) else Modifier
+                            )
                             .clickable { onReaction(emoji) }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
-                        Text(text = "$emoji $count", fontSize = 12.sp)
+                        Text(
+                            text = "$emoji $count",
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelectedByMe) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelectedByMe) TelegramBlue else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
@@ -700,9 +720,12 @@ fun MessageBubble(
                                 onClick = { showMessageActions = false; onDelete() }
                             )
                         }
-                        listOf("❤️", "🔥", "👍").filterNot { it in existingReactions }.forEach { emoji ->
+                        listOf("❤️", "🔥", "👍", "😂", "😮", "😢").forEach { emoji ->
+                            val isSelectedByMe = message.userReactions[currentUserId] == emoji
                             DropdownMenuItem(
-                                text = { Text("Поставить реакцию $emoji") },
+                                text = {
+                                    Text(if (isSelectedByMe) "Убрать реакцию $emoji" else "Поставить реакцию $emoji")
+                                },
                                 onClick = { showMessageActions = false; onReaction(emoji) }
                             )
                         }
