@@ -144,7 +144,7 @@ fun ChatDetailScreen(
                             )
                             val subtitle = when {
                                 chat.type == ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
-                                chat.isSavedMessages -> "личное облачное хранилище"
+                                chat.isSavedMessages -> "сохранённые сообщения"
                                 chat.online -> "в сети"
                                 else -> ""
                             }
@@ -659,15 +659,6 @@ fun MessageBubble(
                         fontSize = 11.sp,
                         color = textColor.copy(alpha = 0.7f)
                     )
-                    if (message.isMine && !isChannel) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.DoneAll,
-                            contentDescription = "Delivered",
-                            tint = TelegramBlue,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
                 }
             }
         }
