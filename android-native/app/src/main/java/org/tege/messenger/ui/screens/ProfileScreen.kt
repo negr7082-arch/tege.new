@@ -17,8 +17,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.tege.messenger.ui.components.VerifiedAccountBadge
-import org.tege.messenger.ui.components.isTegeVerifiedAccount
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -92,21 +90,12 @@ fun ProfileScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = account?.name ?: "Пользователь",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (isTegeVerifiedAccount(account?.email)) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            VerifiedAccountBadge(compact = false)
-                        }
-                    }
+                    Text(
+                        text = account?.name ?: "Пользователь",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         text = "Профиль на устройстве",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
