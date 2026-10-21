@@ -29,9 +29,10 @@ jobs:
 
       - name: Install Android SDK and native toolchains
         run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -z "$SDKMANAGER" ]; then
-            echo "Android sdkmanager was not found under $ANDROID_HOME/cmdline-tools"
+            echo "Android sdkmanager was not found under $SDK_ROOT/cmdline-tools"
             exit 1
           fi
           yes | "$SDKMANAGER" --licenses || true
