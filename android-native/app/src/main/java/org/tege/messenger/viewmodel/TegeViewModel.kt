@@ -207,7 +207,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         senderName = m.optString("senderName").takeIf { m.has("senderName") },
                         isSystemBotMessage = m.optBoolean("isSystemBotMessage", false),
                         isPinned = m.optBoolean("isPinned"), views = m.optInt("views", 0),
-                        reactions = reactions, userReactions = userReactions, replyTo = reply, poll = poll
+                        reactions = reactions, userReactions = userReactions, replyTo = replyTo, poll = poll
                     )
                 }
                 item.optLong("id") to (item to messages)
@@ -810,7 +810,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             val recipientId = chat.userId ?: return false
             val sent = BackendClient.sendDirectMessage(
                 activeSocket, chat.id, recipientId, messageId, cleanText, nowTime,
-                reply?.id, reply?.senderName, reply?.text
+                replyTo?.id, replyTo?.senderName, replyTo?.text
             )
             if (!sent) {
                 _messageError.value = "Нет соединения с сервером. Сообщение не отправлено."
