@@ -1,0 +1,18 @@
+# Render Blueprint for Tege's existing Node.js backend and web client.
+# Existing Render environment variables (including DATABASE_URL) should be preserved
+# when this Blueprint is matched to the current service.
+services:
+  - type: web
+    name: tege-new
+    runtime: node
+    plan: free
+    branch: feat/native-android-build
+    buildCommand: npm install && npm run build:web
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
