@@ -19,9 +19,9 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
   return (
     <div
       onClick={onClick}
-      className={`group flex items-center px-3 py-2.5 cursor-pointer select-none transition-colors relative ${
+      className={`group flex items-center px-4 py-2.5 cursor-pointer select-none transition-colors relative border-b border-gray-100/80 dark:border-white/[0.04] ${
         isActive
-          ? 'bg-sky-50 dark:bg-zinc-800'
+          ? 'bg-sky-50 dark:bg-sky-950/30'
           : 'active:bg-gray-100 dark:active:bg-zinc-800'
       }`}
     >
@@ -42,7 +42,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({ chat, onClick, isActive }) => 
       )}
 
       {/* Content */}
-      <div className="ml-3.5 flex-1 min-w-0">
+      <div className="ml-3 flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5">
           <div className="flex items-center gap-1.5 min-w-0">
             {chat.type === 'channel' && (
