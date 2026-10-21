@@ -112,7 +112,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     .put("name", chat.name).put("description", chat.description)
                     .put("lastMessage", chat.lastMessage).put("time", chat.time)
                     .put("unread", chat.unread).put("isPinned", chat.isPinned)
-                    .put("isMuted", chat.isMuted).put("online", chat.online)
+                    .put("isMuted", chat.isMuted).put("isArchived", chat.isArchived).put("online", chat.online)
                     .put("color", chat.color).put("isSavedMessages", chat.isSavedMessages)
                 chat.userId?.let { item.put("userId", it) }
                 chat.avatarUri?.let { item.put("avatarUri", it) }
@@ -244,6 +244,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     isSavedMessages = item.optBoolean("isSavedMessages", false),
                     isPinned = item.optBoolean("isPinned", false),
                     isMuted = item.optBoolean("isMuted", false),
+                    isArchived = item.optBoolean("isArchived", false),
                     subscribersCount = item.optInt("subscribersCount", 0)
                 )
             }
@@ -253,7 +254,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 chat.copy(lastMessage = item.optString("lastMessage", chat.lastMessage),
                     time = item.optString("time", chat.time), unread = item.optInt("unread", chat.unread),
                     isPinned = item.optBoolean("isPinned", chat.isPinned),
-                    isMuted = item.optBoolean("isMuted", chat.isMuted), messages = savedEntry.second)
+                    isMuted = item.optBoolean("isMuted", chat.isMuted),
+                    isArchived = item.optBoolean("isArchived", chat.isArchived),
+                    messages = savedEntry.second)
             }
             _chats.value = restoredDrafts + restoredInitial
         } catch (_: Exception) {
@@ -677,6 +680,13 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleChatMute(chatId: Long) {
         _chats.value = _chats.value.map { chat ->
             if (chat.id == chatId) chat.copy(isMuted = !chat.isMuted) else chat
+        }
+    }
+
+    /** Move a chat into or out of the local archive. The state survives app restarts. */
+    fun toggleChatArchived(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(isArchived = !chat.isArchived) else chat
         }
     }
 
