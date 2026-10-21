@@ -109,6 +109,37 @@ fun ChatListScreen(
                 )
             )
         },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp
+            ) {
+                NavigationBarItem(
+                    selected = true,
+                    onClick = {},
+                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
+                    label = { Text("Чаты", maxLines = 1) }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { viewModel.navigateTo(ScreenRoute.Channels) },
+                    icon = { Icon(Icons.Default.Campaign, contentDescription = null) },
+                    label = { Text("Каналы", maxLines = 1) }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { viewModel.navigateTo(ScreenRoute.Settings) },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Настройки", maxLines = 1) }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { viewModel.navigateTo(ScreenRoute.Profile) },
+                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                    label = { Text("Профиль", maxLines = 1) }
+                )
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
