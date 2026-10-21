@@ -104,18 +104,18 @@ fun ChatListScreen(
                         }
                     } else {
                         IconButton(onClick = onOpenDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
                         }
                     }
                 },
                 actions = {
                     if (!isSearchActive) {
                         IconButton(onClick = { isSearchActive = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White)
                         }
                     } else if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.White)
                         }
                     }
                 },
