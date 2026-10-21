@@ -158,9 +158,12 @@ fun ChatDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             val subtitle = when {
-                                chat.type == ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
-                                chat.isSavedMessages -> "сохранённые сообщения"
-                                else -> "локальный чат"
+                                chat.isSavedMessages -> "Избранное"
+                                chat.type == ChatType.CHANNEL -> if (chat.subscribersCount > 0) "${chat.subscribersCount} подписчиков" else "канал"
+                                chat.type == ChatType.GROUP -> if (chat.membersCount > 0) "${chat.membersCount} участников" else "группа"
+                                chat.online -> "в сети"
+                                !chat.username.isNullOrBlank() -> "@${chat.username}"
+                                else -> "профиль"
                             }
                             if (subtitle.isNotBlank()) {
                                 Text(
@@ -363,7 +366,7 @@ fun ChatDetailScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = if (chat.isSavedMessages) "Сохранённые сообщения" else "Пока нет сообщений",
+                                text = if (chat.isSavedMessages) "Избранное" else "Пока нет сообщений",
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isDarkChatWallpaper) Color.White else MaterialTheme.colorScheme.onSurface
@@ -371,9 +374,9 @@ fun ChatDetailScreen(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = if (chat.isSavedMessages)
-                                    "Сообщения здесь сохраняются на этом устройстве."
+                                    "Сохраняйте здесь важные сообщения."
                                 else
-                                    "Это локальный черновик. Сообщения не доставляются другим пользователям без подключения сервера.",
+                                    "Напишите первое сообщение.",
                                 fontSize = 13.sp,
                                 color = if (isDarkChatWallpaper) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -438,7 +441,7 @@ fun ChatDetailScreen(
         AlertDialog(
             onDismissRequest = { deletingMessageId = null },
             title = { Text("Удалить сообщение?") },
-            text = { Text("Сообщение будет удалено из локальной истории этого чата.") },
+            text = { Text("Удалить это сообщение?") },
             confirmButton = {
                 TextButton(onClick = {
                     deletingMessageId?.let { viewModel.deleteMessage(chat.id, it) }
