@@ -61,6 +61,36 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    fun toggleChatPin(chatId: Long) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(isPinned = !chat.isPinned) else chat
+        }
+    }
+
+    /** Adds a locally recorded voice note. It is not uploaded or synced to a server. */
+    fun sendVoiceMessage(chatId: Long, localPath: String, durationSeconds: Int) {
+        val nowTime = timeFormat.format(Date())
+        val duration = "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
+        val message = Message(
+            id = System.currentTimeMillis(),
+            text = "Голосовое сообщение ($duration)",
+            time = nowTime,
+            isMine = true,
+            audioUri = localPath,
+            isVoice = true,
+            voiceDuration = duration,
+            senderId = _currentAccount.value?.id,
+            senderName = _currentAccount.value?.name
+        )
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(
+                lastMessage = "🎤 Голосовое сообщение ($duration)",
+                time = nowTime,
+                messages = chat.messages + message
+            ) else chat
+        }
+    }
+
     fun switchAccount(accountId: Long) {
         _accounts.value.find { it.id == accountId }?.let {
             _currentAccount.value = it
