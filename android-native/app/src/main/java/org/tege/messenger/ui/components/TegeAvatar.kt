@@ -26,7 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.net.URL
 
 /**
@@ -43,9 +45,12 @@ fun TegeAvatar(
     savedMessages: Boolean = false
 ) {
     val context = LocalContext.current
-    val bitmapState = produceState<Bitmap?>(initialValue = null, avatarUri) {
-        value = if (avatarUri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
-            runCatching { loadAvatarBitmap(context, avatarUri) }.getOrNull()
+    val source = avatarUri?.takeIf { it.isNotBlank() }
+    val bitmapState = produceState<Bitmap?>(initialValue = null, source) {
+        value = source?.let { imageSource ->
+            withContext(Dispatchers.IO) {
+                runCatching { loadAvatarBitmap(context, imageSource) }.getOrNull()
+            }
         }
     }
     Box(
@@ -82,16 +87,30 @@ private fun loadAvatarBitmap(context: android.content.Context, source: String): 
             Base64.decode(encoded, Base64.DEFAULT)
         }
         source.startsWith("content://", ignoreCase = true) ->
-            context.contentResolver.openInputStream(Uri.parse(source))?.use { it.readBytes() }
+            context.contentResolver.openInputStream(Uri.parse(source))?.use { readLimited(it) }
         source.startsWith("file://", ignoreCase = true) ->
-            File(Uri.parse(source).path ?: return null).takeIf { it.isFile }?.readBytes()
+            File(Uri.parse(source).path ?: return null).takeIf { it.isFile }?.inputStream()?.use { readLimited(it) }
         source.startsWith("https://", ignoreCase = true) ->
             (URL(source).openConnection().apply {
                 connectTimeout = 5_000
                 readTimeout = 5_000
-            }).getInputStream().use { it.readBytes() }
+            }).getInputStream().use { readLimited(it) }
         else -> null
     } ?: return null
     if (bytes.isEmpty() || bytes.size > 10_000_000) return null
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+}
+
+private fun readLimited(input: InputStream): ByteArray? {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(8 * 1024)
+    var total = 0
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > 10_000_000) return null
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
 }
