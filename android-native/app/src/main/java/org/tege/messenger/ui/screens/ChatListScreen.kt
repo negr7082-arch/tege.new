@@ -42,6 +42,7 @@ fun ChatListScreen(
     val stories by viewModel.stories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
+    var showArchived by remember { mutableStateOf(false) }
     var selectedFolder by remember { mutableIntStateOf(0) }
     val folderLabels = listOf("Все", "Личные", "Группы", "Каналы")
     // Telegram-style search across chat names, usernames, previews and local messages.
@@ -58,13 +59,18 @@ fun ChatListScreen(
                 chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
         }
     val visibleChats = filteredChats.filter { chat ->
-        when (selectedFolder) {
-            1 -> chat.type == ChatType.DIRECT
-            2 -> chat.type == ChatType.GROUP
-            3 -> chat.type == ChatType.CHANNEL
-            else -> true
+        if (showArchived) {
+            chat.isArchived
+        } else {
+            !chat.isArchived && when (selectedFolder) {
+                1 -> chat.type == ChatType.DIRECT
+                2 -> chat.type == ChatType.GROUP
+                3 -> chat.type == ChatType.CHANNEL
+                else -> true
+            }
         }
     }
+    val archivedCount = filteredChats.count { it.isArchived }
 
     Scaffold(
         topBar = {
@@ -87,7 +93,7 @@ fun ChatListScreen(
                         )
                     } else {
                         Text(
-                            text = "TEGE",
+                            text = if (showArchived) "Архив" else "TEGE",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 20.sp,
                             color = Color.White
@@ -101,6 +107,10 @@ fun ChatListScreen(
                             viewModel.setSearchQuery("")
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                    } else if (showArchived) {
+                        IconButton(onClick = { showArchived = false }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Color.White)
                         }
                     } else {
                         IconButton(onClick = onOpenDrawer) {
@@ -126,7 +136,7 @@ fun ChatListScreen(
                     actionIconContentColor = Color.White
                 )
             )
-            if (!isSearchActive) {
+            if (!isSearchActive && !showArchived) {
                 TabRow(
                     selectedTabIndex = selectedFolder,
                     containerColor = Color(0xFF287FC7),
@@ -169,8 +179,38 @@ fun ChatListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Telegram-style archive entry is shown above the conversation list.
+            if (!showArchived && !isSearchActive && searchQuery.isBlank() && selectedFolder == 0 && archivedCount > 0) {
+                item(key = "archive-row") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showArchived = true }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(44.dp).clip(CircleShape).background(TelegramBlue.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Archive, contentDescription = null, tint = TelegramBlue)
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Архив", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text("$archivedCount чатов", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Открыть архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 76.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                    )
+                }
+            }
+
             // Stories are shown only when the user has actual stories to display.
-            if (stories.isNotEmpty()) {
+            if (stories.isNotEmpty() && !showArchived) {
                 item {
                     StoriesBar(
                         stories = stories,
@@ -191,7 +231,7 @@ fun ChatListScreen(
                             .padding(horizontal = 32.dp, vertical = 48.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (searchQuery.isNotBlank() || selectedFolder != 0) {
+                        if (searchQuery.isNotBlank() || selectedFolder != 0 || showArchived) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = null,
@@ -200,7 +240,11 @@ fun ChatListScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = if (searchQuery.isNotBlank()) "Ничего не найдено" else "В этой папке пока нет чатов",
+                                text = when {
+                                    searchQuery.isNotBlank() -> "Ничего не найдено"
+                                    showArchived -> "Архив пуст"
+                                    else -> "В этой папке пока нет чатов"
+                                },
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -216,7 +260,12 @@ fun ChatListScreen(
                     searchQuery = searchQuery,
                     onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) },
                     onTogglePin = { viewModel.toggleChatPin(chat.id) },
-                    onToggleMute = { viewModel.toggleChatMute(chat.id) }
+                    onToggleMute = { viewModel.toggleChatMute(chat.id) },
+                    onToggleArchive = { viewModel.toggleChatArchived(chat.id) },
+                    onToggleUnread = {
+                        if (chat.unread > 0) viewModel.markChatRead(chat.id)
+                        else viewModel.markChatUnread(chat.id)
+                    }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 76.dp),
@@ -324,7 +373,9 @@ fun ChatRowItem(
     searchQuery: String = "",
     onClick: () -> Unit,
     onTogglePin: () -> Unit = {},
-    onToggleMute: () -> Unit = {}
+    onToggleMute: () -> Unit = {},
+    onToggleArchive: () -> Unit = {},
+    onToggleUnread: () -> Unit = {}
 ) {
     var showActions by remember(chat.id) { mutableStateOf(false) }
     val matchingMessage = if (searchQuery.isBlank()) null else
@@ -491,6 +542,24 @@ fun ChatRowItem(
             onClick = {
                 showActions = false
                 onToggleMute()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(if (chat.unread > 0) "Отметить прочитанным" else "Отметить непрочитанным") },
+            leadingIcon = {
+                Icon(if (chat.unread > 0) Icons.Default.MarkChatRead else Icons.Default.MarkChatUnread, contentDescription = null)
+            },
+            onClick = {
+                showActions = false
+                onToggleUnread()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(if (chat.isArchived) "Вернуть из архива" else "В архив") },
+            leadingIcon = { Icon(if (chat.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) },
+            onClick = {
+                showActions = false
+                onToggleArchive()
             }
         )
         DropdownMenuItem(
