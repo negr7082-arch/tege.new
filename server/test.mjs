@@ -208,14 +208,18 @@ try {
   assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
 
   const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
-  const ordinaryVolunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
-  // Existing test environment has volunteer@x.io allowlisted; senior is added by this test's env below.
+  const ordinaryVolunteer = volunteer;
   const deniedUnmute = await post('/api/security/moderation/action', { token: ordinaryVolunteer.token, targetUserId: spammer.id, action: 'unmute' });
   assert.equal(deniedUnmute.error, 'senior_volunteer_required');
   const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
   assert.equal(queue.ok, true);
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
-  console.log('✓ volunteer moderation queue and server-side senior-only unmute enforcement');
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
+  assert.equal(senior.role, 'senior_volunteer');
+  const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(allowedUnmute.ok, true);
+  assert.equal((await post('/api/security/moderation/list', { token: senior.token })).mutedUsers.some((u) => u.id === spammer.id), false);
+  console.log('✓ volunteer moderation queue and senior-only unmute enforcement');
 
   // Immediate account deletion verifies the password and invalidates the bearer token.
   assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' })).error, 'bad_credentials');
