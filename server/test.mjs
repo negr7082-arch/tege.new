@@ -60,6 +60,24 @@ try {
   const a3 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
   assert.equal((await post('/api/sessions/revoke-others', { token: a.token })).ok, true);
   assert.equal((await post('/api/sessions', { token: a3.token })).error, 'bad_token');
+
+  // Inactivity auto-delete preferences are server-side and support custom periods.
+  const inactivity = await post('/api/account/inactivity/status', { token: a.token });
+  assert.equal(inactivity.ok, true);
+  assert.equal(inactivity.months, null, 'default must be Never');
+  const chosenPeriod = await post('/api/account/inactivity', { token: a.token, months: 8 });
+  assert.equal(chosenPeriod.ok, true);
+  assert.equal(chosenPeriod.months, 8);
+  assert.ok(chosenPeriod.deletionAt > chosenPeriod.lastActiveAt);
+  assert.equal((await post('/api/account/inactivity', { token: a.token, months: 7 })).error, 'bad_inactivity_period');
+  const neverAgain = await post('/api/account/inactivity', { token: a.token, months: null });
+  assert.equal(neverAgain.ok, true);
+  assert.equal(neverAgain.deletionAt, null);
+  const security = await post('/api/security/events', { token: a.token });
+  assert.equal(security.ok, true);
+  assert.equal(security.bot.name, 'Security');
+  console.log('✓ server inactivity settings and Security history API');
+
   console.log('✓ register / login / active session revoke');
 
   // bad token
