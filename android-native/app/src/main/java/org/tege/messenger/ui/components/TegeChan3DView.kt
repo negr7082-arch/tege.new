@@ -138,6 +138,9 @@ class TegeChan3DView(
             val elapsed = ((now - reactionAt).coerceAtLeast(0L) / 1000f)
             val reaction = if (reactionAt == 0L) 0f else (1f - elapsed / 0.7f).coerceIn(0f, 1f)
             val blink = if (now % 4300L in 0L..145L) 0.28f else 1f
+            // Tiny gaze drift keeps the mascot from looking like a static figurine.
+            val gazeX = sin(now / 1250.0).toFloat() * 0.009f
+            val bodySway = sin(now / 880.0).toFloat() * 0.008f
             Matrix.setIdentityM(global, 0)
             Matrix.rotateM(global, 0, userPitch + idle * 1.2f, 1f, 0f, 0f)
             Matrix.rotateM(global, 0, userYaw + idle * 2.1f + reactionYaw * reaction, 0f, 1f, 0f)
@@ -151,7 +154,7 @@ class TegeChan3DView(
             part(0.285f, 0.69f, 0.045f, 0.025f, 0.25f, 0.018f, 0.12f, 0.25f, 0.43f)
 
             // Hoodie torso, collar and relaxed arms.
-            part(0f, 0.02f + idle * 0.012f, 0f, 0.32f, 0.43f, 0.20f, 0.12f, 0.36f, 0.72f)
+            part(bodySway, 0.02f + idle * 0.012f, 0f, 0.32f, 0.43f, 0.20f, 0.12f, 0.36f, 0.72f)
             part(0f, 0.38f, 0.015f, 0.15f, 0.13f, 0.14f, 0.18f, 0.39f, 0.78f)
             part(-0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
             part(0.36f, 0.00f, 0f, 0.115f, 0.32f, 0.12f, 0.10f, 0.29f, 0.61f)
@@ -228,10 +231,10 @@ class TegeChan3DView(
             val eyeHeight = 0.052f * blink
             part(-0.105f, 0.82f, 0.267f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
             part(0.105f, 0.82f, 0.267f, 0.040f, eyeHeight, 0.024f, 0.12f, 0.16f, 0.25f)
-            part(-0.101f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
-            part(0.109f, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
-            part(-0.114f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
-            part(0.096f, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
+            part(-0.101f + gazeX, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
+            part(0.109f + gazeX, 0.822f, 0.293f, 0.018f, eyeHeight * 0.65f, 0.012f, 0.22f, 0.72f, 0.98f)
+            part(-0.114f + gazeX, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
+            part(0.096f + gazeX, 0.842f, 0.305f, 0.009f, 0.012f, 0.008f, 1f, 1f, 1f)
             // A tiny nose and subtle lower-eye highlights give the face more depth.
             part(0f, 0.785f, 0.284f, 0.010f, 0.009f, 0.009f, 0.88f, 0.56f, 0.52f)
             part(-0.075f, 0.775f, 0.274f, 0.012f, 0.006f, 0.006f, 0.98f, 0.80f, 0.77f)
