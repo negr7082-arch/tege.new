@@ -2,7 +2,6 @@ package org.tege.messenger.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -127,19 +126,31 @@ fun TelegramDrawer(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        AndroidView(
-                            factory = { context ->
-                                TegeChan3DView(context) { newReaction -> reaction = newReaction }
-                                    .apply { onResume() }
-                            },
-                            // Release the GL thread when the secret dialog closes so the
-                            // mascot cannot keep rendering in the background.
-                            onRelease = { view -> view.onPause() },
+                        // Keep the Easter egg inside Compose for now. Embedding a
+                        // GLSurfaceView in a dialog can create a separate Android surface
+                        // that obscures the rest of the app on some devices.
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(270.dp)
                                 .clip(RoundedCornerShape(18.dp))
-                        )
+                                .background(Color(12, 20, 42))
+                                .clickable {
+                                    reaction = listOf(
+                                        "Ой! Ты меня заметил 💙",
+                                        "Хи-хи~ Я тут вообще-то живу 👀",
+                                        "А-а, не смотри так… я смущаюсь 🙈",
+                                        "Ты хотел привлечь моё внимание? Получилось ✨"
+                                    ).random()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🩵", fontSize = 42.sp)
+                                Text("TEGE-чан", color = Color(0xFF63C8FF), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Text("коснись меня 💫", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             "Привет! Я TEGE-чан 💙",
