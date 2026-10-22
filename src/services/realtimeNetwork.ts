@@ -175,6 +175,16 @@ class RealtimeNetworkService {
     return { ok: Boolean(r.ok), activeMute: r.activeMute || null, events: Array.isArray(r.events) ? r.events : [] };
   }
 
+  public async getModerationQueue(token: string): Promise<{ ok: boolean; error?: string; role?: string; mutedUsers: Array<{ id: number; name: string; username: string; permanent: boolean; until: number | null; reason: string; events: Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }> }> }> {
+    const r = await this.api('/api/security/moderation/list', { token });
+    return { ok: Boolean(r.ok), error: r.error, role: r.role, mutedUsers: Array.isArray(r.mutedUsers) ? r.mutedUsers : [] };
+  }
+
+  public async moderateSecurity(token: string, targetUserId: number, action: 'unmute' | 'extend' | 'reason', options: { hours?: number; reason?: string } = {}): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/moderation/action', { token, targetUserId, action, ...options });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
   public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
     const r = await this.api('/api/sessions', { token });
     return { ok: Boolean(r.ok), sessions: Array.isArray(r.sessions) ? r.sessions : [] };
