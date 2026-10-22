@@ -939,6 +939,15 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
               onDeleteMessage={handleDeleteMessage}
               onEditMessage={onEditMessageSync ? handleStartEdit : undefined}
               onForwardMessage={onForwardMessageSync ? (m) => setForwardingMessage(m) : undefined}
+              onReportMessage={async (msg) => {
+                if (!currentAccount.token) return;
+                const category = window.prompt('Причина жалобы: spam, adult, harassment, violence, scam, other', 'spam');
+                if (!category) return;
+                const allowed = ['spam', 'adult', 'harassment', 'violence', 'scam', 'other'];
+                if (!allowed.includes(category)) { window.alert('Неизвестная категория жалобы.'); return; }
+                const result = await realtimeNetwork.createSecurityReport(currentAccount.token, { targetUserId: msg.senderId || chat.userId || chat.id, messageId: msg.id, messageText: msg.text || '', category: category as 'spam' | 'adult' | 'harassment' | 'violence' | 'scam' | 'other' });
+                window.alert(result.ok ? 'Жалоба отправлена в Security.' : 'Не удалось отправить жалобу: ' + (result.error || 'ошибка'));
+              }}
             />
           </div>
         ))}
