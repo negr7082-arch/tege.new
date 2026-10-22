@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io' }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io', TEGE_SENIOR_VOLUNTEER_EMAILS: 'senior@x.io' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -206,7 +206,16 @@ try {
   assert.equal(spamSecurity.ok, true);
   assert.ok(spamSecurity.activeMute && !spamSecurity.activeMute.permanent);
   assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
-  console.log('✓ server-side spam mute and Security explanation');
+
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
+  const ordinaryVolunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
+  // Existing test environment has volunteer@x.io allowlisted; senior is added by this test's env below.
+  const deniedUnmute = await post('/api/security/moderation/action', { token: ordinaryVolunteer.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(deniedUnmute.error, 'senior_volunteer_required');
+  const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
+  assert.equal(queue.ok, true);
+  assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
+  console.log('✓ volunteer moderation queue and server-side senior-only unmute enforcement');
 
   // Immediate account deletion verifies the password and invalidates the bearer token.
   assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' })).error, 'bad_credentials');
