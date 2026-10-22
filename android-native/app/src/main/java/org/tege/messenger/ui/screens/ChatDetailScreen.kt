@@ -26,6 +26,7 @@ import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.Message
 import org.tege.messenger.model.Poll
+import org.tege.messenger.model.presenceLabel
 import org.tege.messenger.ui.components.CreatePollDialog
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
@@ -74,7 +75,11 @@ fun ChatDetailScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = if (chat.type == ChatType.CHANNEL) "${chat.subscribersCount} подписчиков" else if (chat.online) "в сети" else "был(а) недавно",
+                                text = when (chat.type) {
+                                ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
+                                ChatType.GROUP -> "${chat.membersCount} участников"
+                                else -> presenceLabel(chat.online, chat.lastSeenAt)
+                            },
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
