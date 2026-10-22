@@ -177,8 +177,13 @@ class TegeChan3DView(
             // Small cyan hair clips catch the light and make the silhouette more distinctive.
             part(-0.245f, 0.955f, 0.235f, 0.055f, 0.018f, 0.012f, 0.20f, 0.72f, 0.98f)
             part(-0.235f, 0.935f, 0.242f, 0.040f, 0.010f, 0.010f, 0.70f, 0.91f, 1f)
-            // Tiny collar badge, kept simple to avoid a heavy texture/material pipeline.
+            // Matching clip on the opposite side keeps the hair silhouette balanced.
+            part(0.245f, 0.955f, 0.235f, 0.055f, 0.018f, 0.012f, 0.20f, 0.72f, 0.98f)
+            part(0.235f, 0.935f, 0.242f, 0.040f, 0.010f, 0.010f, 0.70f, 0.91f, 1f)
+            // Tiny collar badge, with a bright center and a soft lower glint.
             part(0f, 0.31f, 0.153f, 0.040f, 0.035f, 0.018f, 0.20f, 0.72f, 0.98f)
+            part(0f, 0.313f, 0.174f, 0.014f, 0.014f, 0.008f, 0.78f, 0.94f, 1f)
+            part(0f, 0.294f, 0.171f, 0.010f, 0.004f, 0.006f, 0.62f, 0.84f, 1f)
 
             // Brows, layered irises and eye glints add readable expression at phone size.
             part(-0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
