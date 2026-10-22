@@ -97,15 +97,14 @@ class TegeChanActivity : Activity() {
         setContentView(root)
 
         try {
-            lateinit var sceneView: TegeChan3DView
-            sceneView = TegeChan3DView(
+            val sceneView = TegeChan3DView(
                 context = this,
                 onReaction = { message ->
                     runOnUiThread { reactionLabel?.text = message }
                 },
                 onFirstFrame = {
                     runOnUiThread {
-                        if (mascot !== sceneView) return@runOnUiThread
+                        if (mascot == null) return@runOnUiThread
                         rendererReady = true
                         mainHandler.removeCallbacks(renderWatchdog)
                     }
