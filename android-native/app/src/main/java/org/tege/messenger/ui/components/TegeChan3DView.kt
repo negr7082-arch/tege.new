@@ -28,7 +28,11 @@ class TegeChan3DView(
     private var dragged = false
 
     init {
+        // Explicit RGBA/depth config avoids devices choosing an incompatible default
+        // EGL surface for GLSurfaceView embedded in a Compose AlertDialog.
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
         setEGLContextClientVersion(2)
+        preserveEGLContextOnPause = true
         setRenderer(mascotRenderer)
         // Keep the decorative scene light on phones; the render loop is capped below.
         renderMode = RENDERMODE_CONTINUOUSLY
@@ -110,6 +114,7 @@ class TegeChan3DView(
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             GLES20.glClearColor(0.047f, 0.078f, 0.16f, 1f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
