@@ -27,23 +27,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const ru = language === 'ru';
   const item = (tab: BottomNavTab) =>
-    `flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-3xl transition ${
+    `flex basis-0 flex-1 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1.5 rounded-xl transition ${
       active === tab ? 'bg-sky-500/15 text-sky-500' : 'text-gray-500 dark:text-zinc-300'
     }`;
 
   return (
-    <nav style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }} className="fixed inset-x-3 z-50 mx-auto h-16 max-w-md rounded-[32px] bg-white/90 dark:bg-zinc-800/95 backdrop-blur-xl border border-gray-200/70 dark:border-white/10 shadow-lg shadow-black/25 flex items-center justify-around gap-0 px-1 select-none">
+    <nav style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }} className="fixed left-0 right-0 z-50 mx-auto h-[68px] w-full max-w-none rounded-none bg-white/95 dark:bg-[#17212b] backdrop-blur-xl border-t border-gray-200 dark:border-white/10 shadow-none flex items-center justify-around gap-0 px-2 select-none">
       <button type="button" onClick={onChats} className={item('chats')}>
         <MessageCircle className="w-6 h-6" />
-        <span className="whitespace-nowrap text-[11px] sm:text-xs font-medium">{ru ? 'Чаты' : 'Chats'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Чаты' : 'Chats'}</span>
       </button>
       <button type="button" onClick={onContacts} className={item('contacts')}>
         <Users className="w-6 h-6" />
-        <span className="text-[12px] font-medium">{ru ? 'Контакты' : 'Contacts'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Контакты' : 'Contacts'}</span>
       </button>
       <button type="button" onClick={onSettings} className={item('settings')}>
         <Settings className="w-6 h-6" />
-        <span className="text-[12px] font-medium">{ru ? 'Настройки' : 'Settings'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Настройки' : 'Settings'}</span>
       </button>
       <button type="button" onClick={onProfile} className={item('profile')}>
         <TelegramAvatar
@@ -53,7 +53,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           size="xs"
           className="w-6 h-6 text-[11px]"
         />
-        <span className="text-[12px] font-medium">{ru ? 'Профиль' : 'Profile'}</span>
+        <span className="block max-w-full truncate whitespace-nowrap text-[10px] leading-tight sm:text-xs font-medium">{ru ? 'Профиль' : 'Profile'}</span>
       </button>
     </nav>
   );

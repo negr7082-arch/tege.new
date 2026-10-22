@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.TextSize
 import org.tege.messenger.model.WallpaperId
-import org.tege.messenger.ui.components.BlacklistDialog
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -30,18 +29,18 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
-    var showBlacklistDialog by remember { mutableStateOf(false) }
+    val connectionState by viewModel.connectionState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки", fontWeight = FontWeight.Bold, color = Color.White) },
+                title = { Text("Настройки", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TelegramBlue)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { paddingValues ->
@@ -94,12 +93,12 @@ fun SettingsScreen(
                             Pair(WallpaperId.DARK, "#0B0F19"),
                             Pair(WallpaperId.EMERALD, "#0D2818"),
                             Pair(WallpaperId.SUNSET, "#FCE7F3"),
-                            Pair(WallpaperId.OCEAN, "#E0F2FE")
+                            Pair(WallpaperId.OCEAN, "#E0F2FE"), Pair(WallpaperId.MINIMAL, "#F8FAFC")
                         ).forEach { (id, colorHex) ->
                             val color = Color(android.graphics.Color.parseColor(colorHex))
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
                                     .background(color)
                                     .clickable { viewModel.setWallpaper(id) },
@@ -136,7 +135,64 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Конфиденциальность",
+                    text = "Уведомления и приватность",
+                    color = TelegramBlue,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.Notifications,
+                    title = "Уведомления",
+                    subtitle = "Push-уведомления не подключены",
+                    checked = settings.notificationsEnabled,
+                    onCheckedChange = viewModel::setNotificationsEnabled
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.VolumeUp,
+                    title = "Звуки интерфейса",
+                    subtitle = "Звуки действий в приложении",
+                    checked = settings.soundEnabled,
+                    onCheckedChange = viewModel::setSoundEnabled
+                )
+
+                SettingsToggleRow(
+                    icon = Icons.Default.Animation,
+                    title = "Анимации",
+                    subtitle = "Анимации переходов и элементов",
+                    checked = settings.animationsEnabled,
+                    onCheckedChange = viewModel::setAnimationsEnabled
+                )
+
+                SettingsChoiceRow(
+                    icon = Icons.Default.Visibility,
+                    title = "Кто видит время последнего посещения",
+                    value = settings.lastSeenPrivacy,
+                    options = listOf("everyone" to "Все", "contacts" to "Контакты", "nobody" to "Никто"),
+                    onSelected = viewModel::setLastSeenPrivacy
+                )
+
+                SettingsChoiceRow(
+                    icon = Icons.Default.AccountCircle,
+                    title = "Кто видит фото профиля",
+                    value = settings.photoPrivacy,
+                    options = listOf("everyone" to "Все", "contacts" to "Контакты", "nobody" to "Никто"),
+                    onSelected = viewModel::setPhotoPrivacy
+                )
+
+                Text(
+                    text = "Настройки приватности пока не применяются на сервере.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Подключение и данные",
                     color = TelegramBlue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
@@ -144,17 +200,17 @@ fun SettingsScreen(
                 )
 
                 SettingsClickableRow(
-                    icon = Icons.Default.Block,
-                    title = "Чёрный список",
-                    subtitle = "${settings.blockedUsers.size} пользователей",
-                    onClick = { showBlacklistDialog = true }
+                    icon = Icons.Default.Wifi,
+                    title = "Соединение с сервером",
+                    subtitle = connectionState,
+                    onClick = { viewModel.reconnect() }
                 )
 
-                SettingsClickableRow(
-                    icon = Icons.Default.Lock,
-                    title = "Двухэтапная аутентификация",
-                    subtitle = if (settings.twoFactorEnabled) "Включена" else "Выключена",
-                    onClick = { viewModel.changePassword("123456") }
+                Text(
+                    text = "Нажмите, чтобы переподключиться. Push-уведомления и синхронизация медиа не подключены.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
                 HorizontalDivider()
@@ -167,22 +223,87 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
                 )
 
-                SettingsClickableRow(
-                    icon = Icons.Default.Info,
-                    title = "TEGE Messenger for Android",
-                    subtitle = "Версия 1.0.0 (Kotlin & Jetpack Compose)",
-                    onClick = {}
-                )
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "TEGE Messenger for Android",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Версия 1.0.0",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Аккаунт и сообщения хранятся на этом устройстве.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
+}
 
-    if (showBlacklistDialog) {
-        BlacklistDialog(
-            blockedUsers = settings.blockedUsers,
-            onUnblock = { viewModel.unblockUser(it) },
-            onDismiss = { showBlacklistDialog = false }
-        )
+@Composable
+private fun SettingsToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TelegramBlue, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun SettingsChoiceRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    options: List<Pair<String, String>>,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == value }?.second ?: options.first().second
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TelegramBlue, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp)
+            Text(selectedLabel, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Box {
+            Icon(Icons.Default.ExpandMore, contentDescription = "Выбрать")
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (optionValue, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onSelected(optionValue)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 

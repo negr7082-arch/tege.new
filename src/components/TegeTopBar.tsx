@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Phone, Video, MoreVertical, Search } from 'lucide-react';
+import { ArrowLeft, Phone, Video, MoreVertical, Search, Menu } from 'lucide-react';
 import { UserAccount } from '../types';
 import { TelegramAvatar } from './TelegramAvatar';
 
@@ -37,7 +37,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
     : [];
 
   return (
-    <header className="h-[58px] px-2.5 sm:px-4 flex items-center justify-between bg-white dark:bg-[#17212b] border-b border-slate-200/70 dark:border-white/5 sticky top-0 z-30 shrink-0 select-none transition-colors">
+    <header className="h-[60px] px-3 sm:px-4 flex items-center justify-between bg-white/95 dark:bg-[#17212b]/95 backdrop-blur-md border-b border-slate-200/70 dark:border-white/5 sticky top-0 z-30 shrink-0 select-none transition-colors shadow-[0_1px_2px_rgba(15,23,42,0.025)]">
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         {onBack ? (
           <button
@@ -137,7 +137,7 @@ export const TegeTopBar: React.FC<TegeTopBarProps> = ({
             aria-label="Menu"
             title="Меню"
           >
-            <MoreVertical className="w-6 h-6" />
+            <Menu className="w-5 h-5 stroke-[2.3]" />
           </button>
         )}
 

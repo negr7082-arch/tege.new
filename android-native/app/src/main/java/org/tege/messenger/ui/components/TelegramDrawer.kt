@@ -1,7 +1,11 @@
 package org.tege.messenger.ui.components
 
+import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,171 +26,136 @@ import org.tege.messenger.model.UserAccount
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TelegramDrawer(
     viewModel: TegeViewModel,
-    accounts: List<UserAccount>,
     currentAccount: UserAccount?,
-    onCloseDrawer: () -> Unit,
-    onOpenAddAccount: () -> Unit
+    onCloseDrawer: () -> Unit
 ) {
-    var accountsExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    ModalDrawerSheet(
-        modifier = Modifier.width(300.dp)
-    ) {
-        // Drawer Header with Account Info
-        Box(
+    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(TelegramBlue)
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = currentAccount?.name?.take(1)?.uppercase() ?: "T",
-                            color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    IconButton(onClick = { viewModel.toggleDarkMode() }) {
-                        Icon(
-                            imageVector = Icons.Default.Brightness4,
-                            contentDescription = "Night Mode",
-                            tint = Color.White
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TegeAvatar(
+                    avatarUri = currentAccount?.avatarUri,
+                    displayName = currentAccount?.name ?: "TEGE",
+                    color = Color.White.copy(alpha = 0.22f),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { accountsExpanded = !accountsExpanded },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = currentAccount?.name ?: "TEGE User",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
+                        .size(58.dp)
+                        .combinedClickable(
+                            onClick = { },
+                            onLongClick = { context.startActivity(Intent(context, org.tege.messenger.TegeChanActivity::class.java)) }
                         )
-                        Text(
-                            text = currentAccount?.phone ?: "@${currentAccount?.username ?: "user"}",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = if (accountsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Switch accounts",
-                        tint = Color.White
-                    )
+                )
+                IconButton(onClick = { viewModel.toggleDarkMode() }) {
+                    Icon(Icons.Default.Brightness4, contentDescription = "Ночной режим", tint = Color.White)
                 }
             }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = currentAccount?.name ?: "TEGE",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                text = currentAccount?.username?.takeIf { it.isNotBlank() }?.let {
+                    if (it.startsWith("@")) it else "@$it"
+                } ?: currentAccount?.email.orEmpty(),
+                color = Color.White.copy(alpha = 0.82f),
+                fontSize = 13.sp
+            )
         }
 
-        // Multi-Account Switcher Section (if expanded)
-        if (accountsExpanded) {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                accounts.forEach { acc ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.switchAccount(acc.id)
-                                accountsExpanded = false
-                            }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(TelegramBlue.copy(alpha = 0.8f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = acc.name.take(1).uppercase(),
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = acc.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                            Text(text = "@${acc.username}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (acc.id == currentAccount?.id) {
-                            Icon(Icons.Default.Check, contentDescription = "Active", tint = TelegramBlue, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-
-                if (accounts.size < 5) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onOpenAddAccount()
-                                accountsExpanded = false
-                            }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add account", tint = TelegramBlue, modifier = Modifier.size(36.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = "Добавить аккаунт", color = TelegramBlue, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-            HorizontalDivider()
-        }
-
-        // Drawer Menu Items
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            "TEGE MESSENGER",
+            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 6.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        )
         DrawerItem(icon = Icons.Default.Person, label = "Мой профиль") {
             viewModel.navigateTo(ScreenRoute.Profile)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.Bookmark, label = "Избранное (Saved Messages)") {
+        DrawerItem(icon = Icons.Default.Bookmark, label = "Избранное") {
             val savedChat = viewModel.chats.value.find { it.isSavedMessages }
-            if (savedChat != null) {
-                viewModel.navigateTo(ScreenRoute.ChatDetail(savedChat.id))
-            }
+            if (savedChat != null) viewModel.navigateTo(ScreenRoute.ChatDetail(savedChat.id))
             onCloseDrawer()
         }
+        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
+            viewModel.navigateTo(ScreenRoute.Contacts)
+            onCloseDrawer()
+        }
+        DrawerItem(icon = Icons.Default.PersonAdd, label = "Создать группу / чат") {
+            viewModel.navigateTo(ScreenRoute.CreateChat)
+            onCloseDrawer()
+        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Text(
+            "TEGE",
+            modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 6.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        )
         DrawerItem(icon = Icons.Default.Campaign, label = "Каналы") {
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.GroupAdd, label = "Создать чат / группу") {
-            viewModel.navigateTo(ScreenRoute.CreateChat)
+        DrawerItem(icon = Icons.Default.Call, label = "Звонки") {
+            viewModel.navigateTo(ScreenRoute.Calls)
             onCloseDrawer()
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        DrawerItem(icon = Icons.Default.Send, label = "Telegram") {
+            viewModel.navigateTo(ScreenRoute.Telegram)
+            onCloseDrawer()
+        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         DrawerItem(icon = Icons.Default.Settings, label = "Настройки") {
             viewModel.navigateTo(ScreenRoute.Settings)
             onCloseDrawer()
         }
+        DrawerItem(icon = Icons.Default.Brightness4, label = "Оформление") {
+            viewModel.toggleDarkMode()
+            onCloseDrawer()
+        }
+        Spacer(modifier = Modifier.weight(1f, fill = false))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Favorite,
+                contentDescription = null,
+                tint = TelegramBlue,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("TEGE Messenger", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Связь без границ 💙", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+        }
+
+
     }
 }
 
@@ -209,10 +179,6 @@ private fun DrawerItem(
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Normal
-        )
+        Text(label, style = MaterialTheme.typography.bodyLarge)
     }
 }

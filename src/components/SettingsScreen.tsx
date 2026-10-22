@@ -195,9 +195,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'privacy') {
     return (
-      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
+      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
         {/* Telegram Header */}
-        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -216,7 +216,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {settings.language === 'ru' ? 'Конфиденциальность' : 'Privacy'}
             </span>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+            <div className="bg-white dark:bg-[#17212b] rounded-2xl shadow-xs border border-gray-100 dark:border-white/[0.05] divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
               {/* Чёрный список */}
               <div
                 onClick={() => setShowBlacklistModal(true)}
@@ -415,7 +415,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {t.security}
             </span>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+            <div className="bg-white dark:bg-[#17212b] rounded-2xl shadow-xs border border-gray-100 dark:border-white/[0.05] divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
               {/* Облачный пароль / Двухэтапная аутентификация */}
               <div
                 onClick={() => { setTwoFaError(null); setTwoFaPasswordInput(''); setTwoFaCurrentPassword(''); setShow2FaModal(true); }}
@@ -685,8 +685,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'chat_settings') {
     return (
-      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
-        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
+        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -700,7 +700,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
           {/* Live Message Bubble Preview */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05]">
             <span className="text-[11px] font-semibold text-gray-400 block mb-3 uppercase tracking-wider">
               {settings.language === 'ru' ? 'Предпросмотр' : 'Preview'}
             </span>
@@ -730,7 +730,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Text Size Selector */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] space-y-3">
             <label className="text-sm font-semibold text-gray-900 dark:text-zinc-100 block">
               {t.textSize}
             </label>
@@ -755,7 +755,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Chat Wallpapers */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] space-y-3">
             <label className="text-sm font-semibold text-gray-900 dark:text-zinc-100 block">
               {t.wallpaper}
             </label>
@@ -787,7 +787,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Dark Mode Switch */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] flex items-center justify-between">
             <div className="flex items-center gap-3">
               {settings.isDarkMode ? <Moon className="w-5 h-5 text-sky-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
               <div>
@@ -818,8 +818,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'data_storage') {
     return (
-      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
-        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
+        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -832,7 +832,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">
                 {t.clearCache}
@@ -864,7 +864,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Danger Zone: Clear all chats */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800">
+          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05]">
             {showClearConfirm ? (
               <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900/60">
                 <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2.5">
@@ -912,8 +912,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'notifications') {
     return (
-      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
-        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
+        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -1008,7 +1008,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* MAIN TELEGRAM ANDROID SETTINGS SCREEN (ROOT)                  */
   /* ------------------------------------------------------------- */
   return (
-    <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
+    <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
       {/* Top Bar */}
       <div className="h-16 px-4 flex items-center justify-between bg-white dark:bg-zinc-800 sticky top-0 z-20">
         <div className="flex items-center gap-3">

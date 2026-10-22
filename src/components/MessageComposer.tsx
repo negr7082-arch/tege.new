@@ -717,7 +717,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           <button
             type="button"
             onClick={stopAndSendVoice}
-            className="w-10 h-10 rounded-full bg-[#2AABEE] hover:bg-[#229ED9] text-white flex items-center justify-center shadow-md shadow-sky-500/30 transition active:scale-90 cursor-pointer"
+            className="w-10 h-10 rounded-full bg-[#3390ec] hover:bg-[#2b7bd0] text-white flex items-center justify-center shadow-sm transition active:scale-90 cursor-pointer"
             title="Отправить голосовое сообщение"
           >
             <Send className="w-5 h-5 ml-0.5 fill-white text-white" />
@@ -727,7 +727,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
         /* STANDARD TELEGRAM INPUT BAR */
         <div className="flex items-end gap-2">
           {/* Rounded Input Capsule containing Emoji + Textarea + Paperclip */}
-          <div className="flex-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-[26px] flex items-end px-1.5 py-1 shadow-md shadow-black/10 transition-all">
+          <div className="flex-1 min-w-0 bg-white dark:bg-[#17212b] border border-gray-200 dark:border-white/10 rounded-[26px] flex items-end px-1.5 py-1 shadow-none transition-all">
             {/* Emoji button on the left inside the capsule */}
             <button
               type="button"
@@ -789,7 +789,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               type="button"
               onClick={handleSend}
               disabled={cooldownRemaining > 0 && !isAdmin}
-              className={`w-14 h-14 rounded-full font-bold flex items-center justify-center transition active:scale-90 shrink-0 shadow-lg cursor-pointer ${
+              className={`w-12 h-12 rounded-full font-bold flex items-center justify-center transition active:scale-90 shrink-0 shadow-sm cursor-pointer ${
                 cooldownRemaining > 0 && !isAdmin
                   ? 'bg-amber-500 text-white text-xs'
                   : 'bg-[#3390ec] text-white shadow-black/20'
@@ -819,7 +819,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
                     setShowVideoNoteModal(true);
                   }
                 }}
-                className="w-14 h-14 rounded-full bg-[#3390ec] active:scale-90 text-white flex items-center justify-center shadow-lg shadow-black/20 transition shrink-0 cursor-pointer"
+                className="w-12 h-12 rounded-full bg-[#3390ec] active:scale-90 text-white flex items-center justify-center shadow-sm shadow-black/10 transition shrink-0 cursor-pointer"
                 title={mediaRecordMode === 'voice' ? "Записать голосовое сообщение" : "Записать кружочек (Видеосообщение)"}
               >
                 {mediaRecordMode === 'voice' ? (

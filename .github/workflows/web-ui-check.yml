@@ -1,0 +1,49 @@
+name: Web UI checks
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - ".github/workflows/web-ui-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - ".github/workflows/web-ui-check.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ui-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    name: Type check and build Tege web UI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript and production build
+        run: npm run build
+
+      - name: Verify production compatibility CSS
+        run: node scripts/compat-css.mjs dist

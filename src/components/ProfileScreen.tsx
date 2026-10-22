@@ -133,8 +133,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-zinc-950 overflow-y-auto select-none">
-      <div className="h-16 px-3 flex items-center shrink-0">
+    <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none">
+      <div className="h-[60px] px-3 flex items-center gap-2 shrink-0 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-white/5 sticky top-0 z-20">
         <button
           type="button"
           onClick={onBack}
@@ -143,6 +143,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{language === 'ru' ? 'Профиль' : 'Profile'}</h1>
       </div>
 
       {/* Hidden file input for channel photo updates */}
@@ -178,7 +179,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <img
                     src={profile.avatarUri}
                     alt={profile.name}
-                    className="w-30 h-30 rounded-full object-cover"
+                    className="w-28 h-28 sm:w-30 sm:h-30 rounded-full object-cover"
                   />
                   <button
                     onClick={(e) => {
@@ -353,7 +354,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* Telegram Stories in Profile section */}
-        <div className="bg-white dark:bg-zinc-900 rounded-[22px] p-4 space-y-3">
+        <div className="bg-white dark:bg-[#17212b] rounded-2xl border border-gray-100 dark:border-white/[0.05] p-4 space-y-3">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-pink-500" />
