@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.Story
+import org.tege.messenger.model.presenceLabel
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -266,12 +267,12 @@ fun ChatRowItem(
                     )
                 }
             }
-            if (chat.online && !chat.isSavedMessages) {
+            if (!chat.isSavedMessages && chat.type == org.tege.messenger.model.ChatType.DIRECT) {
                 Box(
                     modifier = Modifier
                         .size(14.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF4CAF50))
+                        .background(if (chat.online) Color(0xFF4CAF50) else Color(0xFF9E9E9E))
                         .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                 )
             }
@@ -309,6 +310,15 @@ fun ChatRowItem(
                     text = chat.time,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (chat.type == org.tege.messenger.model.ChatType.DIRECT && !chat.isSavedMessages) {
+                Text(
+                    text = presenceLabel(chat.online, chat.lastSeenAt),
+                    fontSize = 11.sp,
+                    color = if (chat.online) Color(0xFF2E9D59) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
 

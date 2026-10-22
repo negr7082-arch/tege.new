@@ -10,6 +10,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import org.tege.messenger.ui.components.TelegramAttachmentSheet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +26,7 @@ import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.Message
 import org.tege.messenger.model.Poll
+import org.tege.messenger.model.presenceLabel
 import org.tege.messenger.ui.components.CreatePollDialog
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
@@ -41,6 +45,7 @@ fun ChatDetailScreen(
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var isVideoNoteMode by remember { mutableStateOf(true) }
+    var showAttachmentSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -70,7 +75,11 @@ fun ChatDetailScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = if (chat.type == ChatType.CHANNEL) "${chat.subscribersCount} подписчиков" else if (chat.online) "в сети" else "был(а) недавно",
+                                text = when (chat.type) {
+                                ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
+                                ChatType.GROUP -> "${chat.membersCount} участников"
+                                else -> presenceLabel(chat.online, chat.lastSeenAt)
+                            },
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
@@ -133,8 +142,8 @@ fun ChatDetailScreen(
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { showPollDialog = true }) {
-                        Icon(Icons.Default.Poll, contentDescription = "Poll", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { showAttachmentSheet = true }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Прикрепить файл", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
                     OutlinedTextField(
@@ -255,6 +264,15 @@ fun ChatDetailScreen(
         }
     }
 
+    if (showAttachmentSheet) {
+        TelegramAttachmentSheet(
+            onDismiss = { showAttachmentSheet = false },
+            onPicked = { media ->
+                viewModel.sendAttachment(chat.id, media.uri.toString(), media.displayName, media.sizeBytes)
+            }
+        )
+    }
+
     if (showPollDialog) {
         CreatePollDialog(
             onDismiss = { showPollDialog = false },
@@ -272,7 +290,9 @@ fun MessageBubble(
     onVotePoll: (Int) -> Unit,
     onReaction: (String) -> Unit
 ) {
-    // 1. Telegram Circular Video Note (Кружочек)
+    val context = LocalContext.current
+
+    // Telegram-style video note stays a circular message, never a rectangular video attachment.
     if (message.videoNoteUri != null) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -353,7 +373,54 @@ fun MessageBubble(
                     Spacer(modifier = Modifier.height(2.dp))
                 }
 
-                if (message.poll != null) {
+                if (message.attachmentUri != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .clickable {
+                                val uri = android.net.Uri.parse(message.attachmentUri)
+                                val mime = context.contentResolver.getType(uri) ?: when {
+                                    message.fileName?.endsWith(".pdf", ignoreCase = true) == true -> "application/pdf"
+                                    message.fileName?.endsWith(".jpg", ignoreCase = true) == true ||
+                                        message.fileName?.endsWith(".jpeg", ignoreCase = true) == true -> "image/jpeg"
+                                    message.fileName?.endsWith(".png", ignoreCase = true) == true -> "image/png"
+                                    message.fileName?.endsWith(".mp4", ignoreCase = true) == true -> "video/mp4"
+                                    message.fileName?.endsWith(".mp3", ignoreCase = true) == true -> "audio/mpeg"
+                                    else -> "*/*"
+                                }
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, mime)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                runCatching { context.startActivity(intent) }
+                            }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                message.fileName?.endsWith(".jpg", true) == true ||
+                                    message.fileName?.endsWith(".png", true) == true -> Icons.Default.Image
+                                message.fileName?.endsWith(".mp3", true) == true ||
+                                    message.fileName?.endsWith(".wav", true) == true -> Icons.Default.AudioFile
+                                else -> Icons.Default.AttachFile
+                            },
+                            contentDescription = "Файл",
+                            tint = TelegramBlue
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(message.fileName ?: "Файл", fontWeight = FontWeight.SemiBold, color = textColor)
+                            Text(
+                                message.fileSize ?: "Нажмите, чтобы открыть",
+                                fontSize = 11.sp,
+                                color = textColor.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                } else if (message.poll != null) {
                     PollWidget(
                         poll = message.poll,
                         isMine = message.isMine,
@@ -365,6 +432,10 @@ fun MessageBubble(
                         color = textColor,
                         fontSize = 15.sp
                     )
+                    if (message.text.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        org.tege.messenger.ui.components.MessageTranslation(text = message.text)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))

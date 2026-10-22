@@ -1172,6 +1172,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       <CommentsModal
         isOpen={Boolean(activeCommentsPost)}
         post={activeCommentsPost}
+        channelId={chat.id}
         channelName={chat.name}
         currentAccount={currentAccount}
         language={language}

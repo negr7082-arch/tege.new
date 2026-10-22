@@ -96,6 +96,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [activeSessions, setActiveSessions] = useState<Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }>>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [accountDeleteMonths, setAccountDeleteMonths] = useState<string>('never');
+  const [accountDeleteAt, setAccountDeleteAt] = useState<number | null>(null);
+  const [accountDeleteBusy, setAccountDeleteBusy] = useState(false);
+  const [accountDeleteNotice, setAccountDeleteNotice] = useState<string | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [securityEvents, setSecurityEvents] = useState<Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }>>([]);
+  const [securityMute, setSecurityMute] = useState<{ permanent: boolean; until: number | null } | null>(null);
   const [revokingSession, setRevokingSession] = useState<string | null>(null);
 
   const refreshSessions = async () => {
@@ -111,6 +120,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   useEffect(() => {
     if (activeSection === 'privacy' && currentUser?.token) {
       void refreshSessions();
+      void realtimeNetwork.getInactivitySettings(currentUser.token).then((r) => {
+        if (r.ok) {
+          setAccountDeleteMonths(r.months === null ? 'never' : String(r.months));
+          setAccountDeleteAt(r.deletionAt);
+        }
+      });
+      void realtimeNetwork.getSecurityEvents(currentUser.token).then((r) => {
+        if (r.ok) { setSecurityEvents(r.events); setSecurityMute(r.activeMute); }
+      });
       void realtimeNetwork.getCloudPasswordStatus(currentUser.token).then((result) => {
         if (result.ok) {
           setCloudPasswordEnabled(result.enabled);
@@ -210,7 +228,99 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
-          {/* Section: КОНФИДЕНЦИАЛЬНОСТЬ (PRIVACY) */}
+          {/* Account lifecycle and Security bot */}
+          <div>
+            <span className="px-3 mb-2 block text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+              {settings.language === 'ru' ? 'Аккаунт и безопасность' : 'Account & security'}
+            </span>
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4 text-sky-500" />
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                    {settings.language === 'ru' ? 'Удалять аккаунт при неактивности' : 'Delete account if inactive'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">
+                  {settings.language === 'ru' ? 'Срок считается по активности на сервере. Новый вход сбрасывает отсчёт.' : 'The server tracks inactivity. Signing in resets the timer.'}
+                </p>
+                <select
+                  value={accountDeleteMonths}
+                  onChange={(e) => setAccountDeleteMonths(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 text-sm text-gray-900 dark:text-zinc-100"
+                >
+                  <option value="never">{settings.language === 'ru' ? 'Никогда' : 'Never'}</option>
+                  <option value="1">{settings.language === 'ru' ? '1 месяц' : '1 month'}</option>
+                  <option value="3">{settings.language === 'ru' ? '3 месяца' : '3 months'}</option>
+                  <option value="6">{settings.language === 'ru' ? '6 месяцев' : '6 months'}</option>
+                  <option value="8">{settings.language === 'ru' ? '8 месяцев' : '8 months'}</option>
+                  <option value="12">{settings.language === 'ru' ? '12 месяцев' : '12 months'}</option>
+                  <option value="16">{settings.language === 'ru' ? '16 месяцев' : '16 months'}</option>
+                  <option value="24">{settings.language === 'ru' ? '24 месяца' : '24 months'}</option>
+                </select>
+                <button
+                  disabled={!currentUser?.token || accountDeleteBusy}
+                  onClick={async () => {
+                    if (!currentUser?.token) return;
+                    setAccountDeleteBusy(true); setAccountDeleteNotice(null);
+                    const result = await realtimeNetwork.setInactivitySettings(currentUser.token, accountDeleteMonths === 'never' ? null : Number(accountDeleteMonths));
+                    setAccountDeleteBusy(false);
+                    if (result.ok) {
+                      setAccountDeleteAt(result.deletionAt || null);
+                      setAccountDeleteNotice(settings.language === 'ru' ? 'Настройка сохранена на сервере.' : 'Preference saved on the server.');
+                    } else setAccountDeleteNotice(settings.language === 'ru' ? 'Не удалось сохранить настройку. Попробуй позже.' : 'Could not save preference. Try again later.');
+                  }}
+                  className="mt-3 w-full rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5"
+                >
+                  {accountDeleteBusy ? (settings.language === 'ru' ? 'Сохраняю…' : 'Saving…') : (settings.language === 'ru' ? 'Сохранить срок' : 'Save period')}
+                </button>
+                {accountDeleteAt && <p className="mt-2 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Ориентировочная дата удаления: ' : 'Estimated deletion date: '}{new Date(accountDeleteAt).toLocaleDateString()}</p>}
+                {accountDeleteNotice && <p role="status" className="mt-2 text-xs text-sky-600 dark:text-sky-400">{accountDeleteNotice}</p>}
+              </div>
+              <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldCheck className="w-4 h-4 text-sky-500" />
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Security</p>
+                  <span className="text-[10px] rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.5">BOT</span>
+                </div>
+                {securityMute && <p className="text-xs font-medium text-rose-500 mb-2">{securityMute.permanent ? (settings.language === 'ru' ? 'Активен постоянный системный спам-мут.' : 'Permanent system spam mute is active.') : (settings.language === 'ru' ? 'Активен системный спам-мут до ' : 'System spam mute until ')+new Date(securityMute.until || 0).toLocaleString()}</p>}
+                <p className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{settings.language === 'ru' ? 'История системных предупреждений и наказаний' : 'System warnings and punishment history'}</p>
+                {securityEvents.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Наказаний пока нет.' : 'No punishments yet.'}</p> : <div className="space-y-2">{securityEvents.slice(0, 10).map((event) => <div key={event.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3"><p className="text-xs font-semibold text-gray-800 dark:text-zinc-100">{event.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'Системный спам-мут' : 'System spam mute')}</p><p className="text-xs text-gray-500 dark:text-zinc-400">{event.reason || 'Spam detection'} · {new Date(event.createdAt).toLocaleString()}</p>{event.until && <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'До: ' : 'Until: '}{new Date(event.until).toLocaleString()}</p>}</div>)}</div>}
+              </div>
+              <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{settings.language === 'ru' ? 'Удалить аккаунт сейчас' : 'Delete account now'}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Будут отозваны все сеансы и удалены данные профиля. Это действие нельзя отменить.' : 'All sessions will be revoked and account data removed. This cannot be undone.'}</p>
+                {!showDeleteAccount ? (
+                  <button onClick={() => { setShowDeleteAccount(true); setDeleteAccountError(null); }} className="mt-3 w-full rounded-xl border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm font-semibold py-2.5">
+                    {settings.language === 'ru' ? 'Продолжить удаление' : 'Continue to deletion'}
+                  </button>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <label className="block text-xs text-gray-600 dark:text-zinc-300" htmlFor="delete-account-password">{settings.language === 'ru' ? 'Подтверди текущим паролем аккаунта' : 'Confirm with your account password'}</label>
+                    <input id="delete-account-password" type="password" autoComplete="current-password" value={deleteAccountPassword} onChange={(e) => setDeleteAccountPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 text-sm" />
+                    {deleteAccountError && <p role="alert" className="text-xs text-rose-500">{deleteAccountError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => { setShowDeleteAccount(false); setDeleteAccountPassword(''); setDeleteAccountError(null); }} className="flex-1 rounded-xl border border-gray-200 dark:border-zinc-700 py-2.5 text-sm">{settings.language === 'ru' ? 'Отмена' : 'Cancel'}</button>
+                      <button disabled={!currentUser?.token || !deleteAccountPassword || accountDeleteBusy} onClick={async () => {
+                        if (!currentUser?.token || !deleteAccountPassword || accountDeleteBusy) return;
+                        const confirmed = window.confirm(settings.language === 'ru' ? 'Точно удалить аккаунт навсегда? Восстановить его будет нельзя.' : 'Permanently delete this account? This cannot be undone.');
+                        if (!confirmed) return;
+                        setAccountDeleteBusy(true); setDeleteAccountError(null);
+                        const result = await realtimeNetwork.deleteAccount(currentUser.token, deleteAccountPassword);
+                        setAccountDeleteBusy(false);
+                        if (result.ok) { onLogout?.(); return; }
+                        setDeleteAccountError(result.error === 'bad_credentials' ? (settings.language === 'ru' ? 'Неверный пароль.' : 'Incorrect password.') : (settings.language === 'ru' ? 'Не удалось удалить аккаунт. Попробуй ещё раз.' : 'Could not delete account. Try again.'));
+                      }} className="flex-1 rounded-xl bg-rose-600 disabled:opacity-50 text-white py-2.5 text-sm font-semibold">
+                        {accountDeleteBusy ? (settings.language === 'ru' ? 'Удаляю…' : 'Deleting…') : (settings.language === 'ru' ? 'Удалить навсегда' : 'Delete permanently')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+                    {/* Section: КОНФИДЕНЦИАЛЬНОСТЬ (PRIVACY) */}
           <div>
             <span className="px-3 mb-2 block text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
               {settings.language === 'ru' ? 'Конфиденциальность' : 'Privacy'}
