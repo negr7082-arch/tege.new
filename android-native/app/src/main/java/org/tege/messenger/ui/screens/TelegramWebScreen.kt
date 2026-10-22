@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -102,7 +103,9 @@ fun TelegramWebScreen(onBack: () -> Unit) {
             )
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        // The WebView must consume only the remaining height below the toolbar.
+        // fillMaxSize() inside a Column can over-measure a native AndroidView on phones.
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
