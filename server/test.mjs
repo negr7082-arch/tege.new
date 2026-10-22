@@ -219,7 +219,7 @@ try {
     token: volunteer.token, targetUserId: b.id, messageId: 'reported-message-1',
     messageText: 'sample spam message', category: 'spam', details: 'Repeated unsolicited ads'
   });
-  assert.equal(submittedReport.ok, true);
+  assert.equal(submittedReport.ok, true, JSON.stringify(submittedReport));
   assert.equal(submittedReport.report.status, 'open');
   const volunteerReports = await post('/api/security/reports/list', { token: volunteer.token });
   assert.ok(volunteerReports.reports.some((r) => r.id === submittedReport.report.id));
