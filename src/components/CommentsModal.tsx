@@ -179,7 +179,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 </div>
               );
             })
-          )}
+          ) : null}
         </div>
 
         {/* New Comment Input */}
