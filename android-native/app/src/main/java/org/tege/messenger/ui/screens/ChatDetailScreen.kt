@@ -298,15 +298,7 @@ fun MessageBubble(
                     .size(200.dp)
                     .border(2.5.dp, TelegramBlue, CircleShape)
                     .clip(CircleShape)
-                    .background(Color.Black)
-                    .clickable {
-                        val uri = android.net.Uri.parse(message.videoNoteUri)
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, "video/*")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        runCatching { context.startActivity(intent) }
-                    },
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
