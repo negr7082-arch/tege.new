@@ -26,6 +26,7 @@ class TegeChan3DView(
     private var downX = 0f
     private var downY = 0f
     private var dragged = false
+    private var lastMoveAt = 0L
 
     init {
         // Explicit RGBA/depth config avoids devices choosing an incompatible default
@@ -49,11 +50,19 @@ class TegeChan3DView(
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.x - downX
                     val dy = event.y - downY
-                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 8f) dragged = true
+                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 4f) dragged = true
                     if (dragged) {
-                        mascotRenderer.drag(dx * 0.55f, dy * 0.18f)
+                        // Map finger movement to the full horizontal turn range.
+                        // Use view width/height so the same gesture feels consistent on phones/tablets.
+                        val width = this.width.coerceAtLeast(1).toFloat()
+                        val height = this.height.coerceAtLeast(1).toFloat()
+                        mascotRenderer.drag(
+                            dx / width * 180f,
+                            dy / height * 70f
+                        )
                         downX = event.x
                         downY = event.y
+                        lastMoveAt = event.eventTime
                     }
                     true
                 }
@@ -103,8 +112,9 @@ class TegeChan3DView(
         @Volatile private var reactionYaw = 0f
 
         fun drag(dx: Float, dy: Float) {
-            userYaw = (userYaw + dx).coerceIn(-70f, 70f)
-            userPitch = (userPitch + dy).coerceIn(-12f, 12f)
+            // Horizontal dragging can make a full 360° turn; vertical movement is gentler.
+            userYaw = (userYaw + dx) % 360f
+            userPitch = (userPitch + dy).coerceIn(-24f, 24f)
         }
 
         fun react() {
