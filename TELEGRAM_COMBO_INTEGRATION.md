@@ -82,3 +82,21 @@ The following are planned targets, not claims of completed implementation. Port 
 2. For network features, define request/response and error states, then test against the actual TEGE backend or Telegram client stack.
 3. Keep local file URIs local-only; never pretend a selected attachment has been uploaded or delivered until the server confirms it.
 4. Run a clean Android build and add tests for the affected behavior before calling a feature complete.
+
+
+## On-device message translation slice (implemented on this branch)
+
+- Added an ML Kit language-identification and translation component for text messages in the native Compose chat.
+- A user can choose a target language and translate a message on demand. The source language is detected automatically; the required language model is downloaded when needed, then translation runs on-device.
+- The component reports model-download, language-detection, and translation errors instead of pretending a translation succeeded.
+- Added the ML Kit Translate and Language ID dependencies to the native Android module.
+
+**Current limitations:** this is tap-to-translate, not automatic translation of every incoming message or a per-chat auto-translate preference. The feature has not been compiled or device-tested here. ML Kit supports a defined set of language pairs; language models may require an initial network connection and storage. Verify Gradle dependency resolution, supported-language behavior, model lifecycle/resource cleanup, and offline operation before release.
+
+### Next translation features
+
+- Per-chat “always translate” setting with a visible original/translated toggle.
+- “Show original” and copy translated text.
+- Remember preferred target language and optionally follow app language.
+- Translation for captions and channel posts; do not translate attachments without OCR/transcription consent.
+- Explicit privacy disclosure and a clear way to disable translation.
