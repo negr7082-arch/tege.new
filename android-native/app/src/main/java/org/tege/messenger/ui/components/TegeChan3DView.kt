@@ -185,6 +185,13 @@ class TegeChan3DView(
             part(0f, 0.313f, 0.174f, 0.014f, 0.014f, 0.008f, 0.78f, 0.94f, 1f)
             part(0f, 0.294f, 0.171f, 0.010f, 0.004f, 0.006f, 0.62f, 0.84f, 1f)
 
+            // Tiny floating cyan motes make the secret scene feel alive without textures or assets.
+            val sparklePulse = 0.5f + 0.5f * sin(now / 260.0).toFloat()
+            val sparkleSide = sin(now / 510.0).toFloat() * 0.018f
+            part(-0.39f + sparkleSide, 1.10f, 0.08f, 0.018f, 0.018f, 0.018f, 0.20f, 0.72f, 0.98f)
+            part(0.39f - sparkleSide, 0.99f, 0.10f, 0.012f + sparklePulse * 0.006f, 0.012f + sparklePulse * 0.006f, 0.012f, 0.48f, 0.83f, 1f)
+            part(-0.34f, 0.56f + sparkleSide, 0.12f, 0.010f, 0.010f, 0.010f, 0.38f, 0.78f, 1f)
+
             // Brows, layered irises and eye glints add readable expression at phone size.
             part(-0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
             part(0.105f, 0.895f, 0.258f, 0.047f, 0.009f, 0.012f, 0.16f, 0.09f, 0.13f)
