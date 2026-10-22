@@ -19,9 +19,10 @@ import javax.microedition.khronos.opengles.GL10
  */
 class TegeChan3DView(
     context: Context,
-    private val onReaction: (String) -> Unit
+    private val onReaction: (String) -> Unit,
+    private val onFirstFrame: () -> Unit = {}
 ) : GLSurfaceView(context) {
-    private val mascotRenderer = MascotRenderer()
+    private val mascotRenderer = MascotRenderer { post { onFirstFrame() } }
 
     private var downX = 0f
     private var downY = 0f
@@ -95,7 +96,8 @@ class TegeChan3DView(
         return true
     }
 
-    private class MascotRenderer : Renderer {
+    private class MascotRenderer(private val onFirstFrame: () -> Unit) : Renderer {
+        private var firstFrameReported = false
         private val projection = FloatArray(16)
         private val view = FloatArray(16)
         private val vp = FloatArray(16)
@@ -259,6 +261,13 @@ class TegeChan3DView(
             val blush = 0.045f + reaction * 0.012f
             part(-0.205f, 0.745f, 0.225f, blush, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
             part(0.205f, 0.745f, 0.225f, blush, 0.018f, 0.012f, 0.98f, 0.49f, 0.55f)
+
+            // Report readiness only after the complete first frame was submitted.
+            // The Activity uses this to avoid leaving users on a blank screen if EGL fails.
+            if (!firstFrameReported) {
+                firstFrameReported = true
+                onFirstFrame()
+            }
         }
 
         private fun part(
