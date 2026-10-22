@@ -18,7 +18,8 @@ import {
   Copy,
   Trash2,
   Pencil,
-  Forward
+  Forward,
+  ShieldAlert
 } from 'lucide-react';
 
 interface MessageBubbleProps {
