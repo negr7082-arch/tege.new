@@ -29,7 +29,8 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
-  vapid: null // {publicKey, privateKey}
+  vapid: null, // {publicKey, privateKey}
+  securityEvents: {} // userId -> [{id,type,createdAt,until,reason}]
 };
 try {
   Object.assign(db, JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
@@ -144,10 +145,65 @@ async function sendPush(userId, p) {
 const online = new Map(); // userId -> Set<Conn>
 const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
-const activeVideo = new Map(); // chatId -> info
+const activeVideo = new Map();
+const spamWindows = new Map(); // userId -> message timestamps in rolling 19-minute window
+const SPAM_WINDOW_MS = 19 * 60_000;
+const SPAM_MUTE_MS = 3 * 24 * 60 * 60_000;
+const SECURITY_BOT_ID = -700000001;
+const securityEventsFor = (userId) => (db.securityEvents[userId] ||= []);
+function recordSecurityEvent(userId, event) {
+  const list = securityEventsFor(userId);
+  list.unshift({ id: crypto.randomUUID(), createdAt: Date.now(), ...event });
+  if (list.length > 100) list.length = 100;
+  save();
+  sendToUser(userId, { type: 'security_event', event: list[0] });
+}
+function applySpamMute(user, durationMs, reason) {
+  const until = durationMs === Infinity ? null : Date.now() + durationMs;
+  user.spamMuteUntil = until;
+  user.spamMutedPermanently = durationMs === Infinity;
+  recordSecurityEvent(user.id, { type: 'spam_mute', reason, until, permanent: durationMs === Infinity, botId: SECURITY_BOT_ID });
+  sendToUser(user.id, { type: 'security_bot_notice', botId: SECURITY_BOT_ID, text: durationMs === Infinity ? 'Системный Security: за массовый спам установлен постоянный мут.' : 'Системный Security: обнаружен массовый спам. Мут на 3 дня.' });
+}
+function deleteAccountData(userId) {
+  const user = db.users[userId];
+  if (!user) return false;
+  for (const [token, id] of Object.entries(db.tokens)) if (id === userId) {
+    delete db.tokens[token]; delete db.sessions[token];
+    const sockets = sessionConnections.get(token);
+    if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+    sessionConnections.delete(token);
+  }
+  delete db.pushSubs[userId]; delete db.inbox[userId]; delete db.blocks[userId]; delete db.securityEvents[userId];
+  for (const list of Object.values(db.blocks)) for (let i=list.length-1;i>=0;i--) if (list[i].id === userId) list.splice(i,1);
+  for (const [chatId, members] of Object.entries(db.members)) db.members[chatId] = members.filter(id => id !== userId);
+  for (const [id, group] of Object.entries(db.groups)) if (group.ownerId === userId) { delete db.groups[id]; delete db.members[id]; }
+  for (const [id, channel] of Object.entries(db.channels)) if (channel.ownerId === userId) { delete db.channels[id]; delete db.members[id]; }
+  delete db.users[userId];
+  const sockets = online.get(userId);
+  if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+  online.delete(userId); spamWindows.delete(userId);
+  broadcast({ type: 'user_remove', userId });
+  save();
+  return true;
+}
+function enforceInactivityDeletion() {
+  const now = Date.now();
+  for (const user of Object.values(db.users)) {
+    const months = user.deleteAfterMonths;
+    if (![1,3,6,8,12,16,24].includes(months)) continue;
+    const last = Number(user.lastActiveAt || user.createdAt || now);
+    if (now - last >= months * 30 * 24 * 60 * 60_000) deleteAccountData(user.id);
+  }
+}
+setInterval(enforceInactivityDeletion, 60 * 60_000).unref();
+enforceInactivityDeletion(); // chatId -> info
 
+const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const volunteerIds = new Set();
 const publicUser = (u) => ({
   id: u.id,
+  role: volunteerEmails.has(String(u.email || '').toLowerCase()) || volunteerIds.has(u.id) ? 'volunteer' : 'user',
   name: u.name,
   username: u.username,
   bio: u.bio || '',
@@ -168,7 +224,8 @@ const selfUser = (u, token) => ({
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
-  token
+  token,
+  role: volunteerEmails.has(String(u.email || '').toLowerCase()) || volunteerIds.has(u.id) ? 'volunteer' : 'user'
 });
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -317,6 +374,42 @@ const server = http.createServer(async (req, res) => {
     if (rateLimited(ip)) return fail(429, 'too_many_requests');
     const body = await readJson(req);
 
+    if (url.pathname === '/api/account/inactivity/status') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const months = [1,3,6,8,12,16,24].includes(user.deleteAfterMonths) ? user.deleteAfterMonths : null;
+      const lastActiveAt = Number(user.lastActiveAt || user.createdAt || Date.now());
+      return reply(200, { ok: true, months, lastActiveAt, deletionAt: months ? lastActiveAt + months * 30 * 24 * 60 * 60_000 : null });
+    }
+
+    if (url.pathname === '/api/account/inactivity') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const months = body.months === null ? null : Number(body.months);
+      if (months !== null && ![1,3,6,8,12,16,24].includes(months)) return fail(400, 'bad_inactivity_period');
+      user.deleteAfterMonths = months;
+      user.lastActiveAt = Date.now();
+      save();
+      return reply(200, { ok: true, months, lastActiveAt: user.lastActiveAt, deletionAt: months ? user.lastActiveAt + months * 30 * 24 * 60 * 60_000 : null });
+    }
+
+    if (url.pathname === '/api/account/delete') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      if (!checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      deleteAccountData(user.id);
+      return reply(200, { ok: true });
+    }
+
+    if (url.pathname === '/api/security/events') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const now = Date.now();
+      const muteUntil = user.spamMutedPermanently ? null : Number(user.spamMuteUntil || 0);
+      const activeMute = Boolean(user.spamMutedPermanently || muteUntil > now);
+      return reply(200, { ok: true, bot: { id: SECURITY_BOT_ID, name: 'Security' }, activeMute: activeMute ? { permanent: Boolean(user.spamMutedPermanently), until: muteUntil || null } : null, events: securityEventsFor(user.id) });
+    }
+
     if (url.pathname === '/api/push-key') {
       return reply(200, { ok: Boolean(webpush && db.vapid), key: db.vapid ? db.vapid.publicKey : null });
     }
@@ -367,7 +460,8 @@ const server = http.createServer(async (req, res) => {
         bio: String(body.bio || 'Online on Tege Messenger').slice(0, 300),
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
-        registrationDate: new Date().toLocaleDateString('ru-RU')
+        registrationDate: new Date().toLocaleDateString('ru-RU'),
+        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
@@ -386,6 +480,7 @@ const server = http.createServer(async (req, res) => {
         twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
         return reply(200, { ok: true, requiresTwoFactor: true, challenge });
       }
+      user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
@@ -411,6 +506,7 @@ const server = http.createServer(async (req, res) => {
         return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
       }
       twoFactorChallenges.delete(challenge);
+      user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
@@ -522,6 +618,28 @@ function joinChats(userId, chatIds) {
 }
 
 function handleSend(user, conn, payload) {
+  const now = Date.now();
+  user.lastActiveAt = now;
+  if (user.spamMutedPermanently || Number(user.spamMuteUntil || 0) > now) {
+    conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMutedPermanently ? null : user.spamMuteUntil, permanent: Boolean(user.spamMutedPermanently) });
+    return;
+  }
+  if (user.spamMuteUntil && Number(user.spamMuteUntil) <= now) { delete user.spamMuteUntil; delete user.spamMutedPermanently; }
+  if (payload?.message && !payload.action) {
+    const window = (spamWindows.get(user.id) || []).filter(t => now - t < SPAM_WINDOW_MS);
+    window.push(now);
+    spamWindows.set(user.id, window);
+    if (window.length >= 200) {
+      applySpamMute(user, Infinity, '200+ сообщений за 19 минут');
+      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', permanent: true });
+      return;
+    }
+    if (window.length >= 100) {
+      applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
+      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
+      return;
+    }
+  }
   const ok = (extra) => conn.send({ type: 'send_result', id: payload?.id, ok: true, ...extra });
   const no = (reason) => conn.send({ type: 'send_result', id: payload?.id, ok: false, reason });
   if (!payload || !payload.message) return no('bad_payload');
@@ -586,6 +704,7 @@ attachWebSocket(server, (conn, url) => {
   const wasOffline = !set;
   if (!set) online.set(user.id, (set = new Set()));
   set.add(conn);
+  user.lastActiveAt = Date.now();
   if (wasOffline) broadcast({ type: 'presence', userId: user.id, online: true, lastSeenAt: user.lastSeenAt || null }, conn);
 
   conn.send({
@@ -615,6 +734,7 @@ attachWebSocket(server, (conn, url) => {
     if (set.size === 0) {
       online.delete(user.id);
       user.lastSeenAt = Date.now();
+      user.lastActiveAt = Date.now();
       save();
       broadcast({ type: 'presence', userId: user.id, online: false, lastSeenAt: user.lastSeenAt });
     }
