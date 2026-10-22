@@ -20,9 +20,13 @@ import javax.microedition.khronos.opengles.GL10
 class TegeChan3DView(
     context: Context,
     private val onReaction: (String) -> Unit,
-    private val onFirstFrame: () -> Unit = {}
+    private val onFirstFrame: () -> Unit = {},
+    private val onRenderFailure: (Throwable) -> Unit = {}
 ) : GLSurfaceView(context) {
-    private val mascotRenderer = MascotRenderer { post { onFirstFrame() } }
+    private val mascotRenderer = MascotRenderer(
+        onFirstFrame = { post { onFirstFrame() } },
+        onRenderFailure = { error -> post { onRenderFailure(error) } }
+    )
 
     private var downX = 0f
     private var downY = 0f
@@ -96,7 +100,11 @@ class TegeChan3DView(
         return true
     }
 
-    private class MascotRenderer(private val onFirstFrame: () -> Unit) : Renderer {
+    private class MascotRenderer(
+        private val onFirstFrame: () -> Unit,
+        private val onRenderFailure: (Throwable) -> Unit
+    ) : Renderer {
+        @Volatile private var renderFailed = false
         private var firstFrameReported = false
         private val projection = FloatArray(16)
         private val view = FloatArray(16)
@@ -125,14 +133,19 @@ class TegeChan3DView(
         }
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-            GLES20.glClearColor(0.047f, 0.078f, 0.16f, 1f)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-            GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-            GLES20.glEnable(GLES20.GL_BLEND)
-            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-            program = ShaderProgram()
-            sphere = SphereMesh()
-            Matrix.setLookAtM(view, 0, 0f, 0.15f, 4.1f, 0f, 0.15f, 0f, 0f, 1f, 0f)
+            try {
+                GLES20.glClearColor(0.047f, 0.078f, 0.16f, 1f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+                GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+                GLES20.glEnable(GLES20.GL_BLEND)
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                program = ShaderProgram()
+                sphere = SphereMesh()
+                Matrix.setLookAtM(view, 0, 0f, 0.15f, 4.1f, 0f, 0.15f, 0f, 0f, 1f, 0f)
+            } catch (error: RuntimeException) {
+                renderFailed = true
+                onRenderFailure(error)
+            }
         }
 
         override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -142,6 +155,8 @@ class TegeChan3DView(
         }
 
         override fun onDrawFrame(gl: GL10?) {
+            if (renderFailed) return
+            try {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
             // Do not sleep on the GL thread: some device drivers stall surface
             // creation when the renderer blocks. GLSurfaceView owns frame pacing.
@@ -267,6 +282,10 @@ class TegeChan3DView(
             if (!firstFrameReported) {
                 firstFrameReported = true
                 onFirstFrame()
+            }
+            } catch (error: RuntimeException) {
+                renderFailed = true
+                onRenderFailure(error)
             }
         }
 
