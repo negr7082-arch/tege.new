@@ -1,6 +1,5 @@
 package org.tege.messenger.ui.components
 
-import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -14,13 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -85,7 +80,6 @@ fun TelegramAttachmentSheet(
     onPicked: (PickedTelegramMedia) -> Unit
 ) {
     val context = LocalContext.current
-    var pendingType by remember { mutableStateOf("*/*") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
@@ -105,16 +99,16 @@ fun TelegramAttachmentSheet(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AttachmentRow(Icons.Default.Image, "Фото", "Выбрать изображения") {
-                    pendingType = "image/*"; picker.launch(arrayOf("image/*"))
+                    picker.launch(arrayOf("image/*"))
                 }
                 AttachmentRow(Icons.Default.VideoLibrary, "Видео", "Выбрать видеофайл") {
-                    pendingType = "video/*"; picker.launch(arrayOf("video/*"))
+                    picker.launch(arrayOf("video/*"))
                 }
                 AttachmentRow(Icons.Default.AudioFile, "Музыка и аудио", "Аудио и голосовые файлы") {
-                    pendingType = "audio/*"; picker.launch(arrayOf("audio/*"))
+                    picker.launch(arrayOf("audio/*"))
                 }
                 AttachmentRow(Icons.Default.Description, "Файл", "PDF, документы и другие файлы") {
-                    pendingType = "*/*"; picker.launch(arrayOf("*/*"))
+                    picker.launch(arrayOf("*/*"))
                 }
             }
         },
