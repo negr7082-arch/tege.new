@@ -7,6 +7,8 @@ on:
       - feat/telegram-tege-integration
     paths:
       - "third_party/Telegram/**"
+      - "android-native/**"
+      - "TELEGRAM_NATIVE_INTEGRATION.md"
       - ".github/workflows/telegram-native-apk.yml"
 
 permissions:
