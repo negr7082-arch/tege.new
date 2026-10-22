@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.Story
-import org.tege.messenger.ui.components.AddAccountDialog
 import org.tege.messenger.ui.components.CreateStoryDialog
 import org.tege.messenger.ui.components.StoryViewerDialog
 import org.tege.messenger.ui.components.TelegramDrawer
@@ -31,10 +30,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by viewModel.settings.collectAsState()
             val currentAccount by viewModel.currentAccount.collectAsState()
-            val accounts by viewModel.accounts.collectAsState()
             val currentRoute by viewModel.currentRoute.collectAsState()
 
-            var showAddAccountDialog by remember { mutableStateOf(false) }
             var showCreateStoryDialog by remember { mutableStateOf(false) }
             var viewingStory by remember { mutableStateOf<Story?>(null) }
 
@@ -57,10 +54,8 @@ class MainActivity : ComponentActivity() {
                             drawerContent = {
                                 TelegramDrawer(
                                     viewModel = viewModel,
-                                    accounts = accounts,
                                     currentAccount = currentAccount,
-                                    onCloseDrawer = { scope.launch { drawerState.close() } },
-                                    onOpenAddAccount = { showAddAccountDialog = true }
+                                    onCloseDrawer = { scope.launch { drawerState.close() } }
                                 )
                             }
                         ) {
@@ -105,6 +100,24 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
+                                is ScreenRoute.Calls -> {
+                                    CallsScreen(
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.navigateBack() }
+                                    )
+                                }
+                                is ScreenRoute.Contacts -> {
+                                    ContactsScreen(
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.navigateBack() }
+                                    )
+                                }
+                                is ScreenRoute.CreateChat -> {
+                                    CreateChatScreen(
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.navigateBack() }
+                                    )
+                                }
                                 else -> {
                                     ChatListScreen(
                                         viewModel = viewModel,
@@ -118,15 +131,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Dialogs
-                    if (showAddAccountDialog) {
-                        AddAccountDialog(
-                            onDismiss = { showAddAccountDialog = false },
-                            onAdd = { name, username, phone ->
-                                viewModel.addAccount(name, username, phone)
-                            }
-                        )
-                    }
-
                     if (showCreateStoryDialog) {
                         CreateStoryDialog(
                             onDismiss = { showCreateStoryDialog = false },

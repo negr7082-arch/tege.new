@@ -1,0 +1,18 @@
+# Render Blueprint for the Tege application server.
+# This deploys the app + API + WebSocket from the same Node.js process.
+# It is NOT a static-site-only deployment.
+services:
+  - type: web
+    name: tege-new
+    runtime: node
+    plan: free
+    branch: feat/native-android-build
+    buildCommand: npm install && npm run build:web
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production

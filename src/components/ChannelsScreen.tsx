@@ -54,13 +54,13 @@ export const ChannelsScreen: React.FC<ChannelsScreenProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-zinc-950 overflow-y-auto select-none">
+    <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none">
       <TegeTopBar
         title={t.channels}
         onBack={onBack}
       />
 
-      <div className="max-w-xl mx-auto w-full p-4 space-y-4">
+      <div className="max-w-xl mx-auto w-full px-3 py-4 sm:p-4 space-y-4">
         {/* Banner with Create Channel CTA */}
         <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/40 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3 min-w-0">

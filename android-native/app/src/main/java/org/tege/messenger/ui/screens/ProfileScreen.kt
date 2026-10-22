@@ -1,6 +1,8 @@
 package org.tege.messenger.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -25,22 +28,36 @@ fun ProfileScreen(
     onBack: () -> Unit
 ) {
     val account by viewModel.currentAccount.collectAsState()
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editName by remember { mutableStateOf("") }
+    var editUsername by remember { mutableStateOf("") }
+    var editBio by remember { mutableStateOf("") }
+    var editPhone by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Профиль", fontWeight = FontWeight.Bold, color = Color.White) },
+                title = { Text("Профиль", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        editName = account?.name.orEmpty()
+                        editUsername = account?.username.orEmpty()
+                        editBio = account?.bio.orEmpty()
+                        editPhone = account?.phone.orEmpty()
+                        showEditDialog = true
+                    }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = MaterialTheme.colorScheme.onSurface)
+                    }
                     IconButton(onClick = { viewModel.logout() }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color.White)
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TelegramBlue)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { paddingValues ->
@@ -48,42 +65,37 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
         ) {
             // Profile Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(TelegramBlue)
-                    .padding(bottom = 24.dp),
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(vertical = 20.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = account?.name?.take(1)?.uppercase() ?: "T",
-                            color = Color.White,
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    TegeAvatar(
+                        avatarUri = account?.avatarUri,
+                        displayName = account?.name ?: "TEGE",
+                        color = TelegramBlue,
+                        modifier = Modifier.size(80.dp)
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = account?.name ?: "Пользователь",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = if (account?.isOnline == true) "в сети" else "был(а) недавно",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp
-                    )
+                    account?.username?.takeIf { it.isNotBlank() }?.let { username ->
+                        Text(
+                            text = if (username.startsWith("@")) username else "@$username",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
 
@@ -99,29 +111,53 @@ fun ProfileScreen(
 
                 ProfileInfoRow(
                     icon = Icons.Default.Phone,
-                    title = account?.phone?.ifEmpty { "+7 (999) 000-11-22" } ?: "+7 (999) 000-11-22",
-                    subtitle = "Нажмите, чтобы изменить номер"
+                    title = account?.phone?.takeIf { it.isNotBlank() } ?: "Не указан",
+                    subtitle = "Номер телефона"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.AlternateEmail,
-                    title = "@${account?.username ?: "user"}",
+                    title = account?.username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "Не указан",
                     subtitle = "Имя пользователя"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.Info,
-                    title = account?.bio?.ifEmpty { "О себе не указано" } ?: "О себе не указано",
+                    title = account?.bio?.takeIf { it.isNotBlank() } ?: "Не указано",
                     subtitle = "О себе"
                 )
 
                 ProfileInfoRow(
                     icon = Icons.Default.CalendarToday,
-                    title = account?.registrationDate?.ifEmpty { "14.08.2013" } ?: "14.08.2013",
-                    subtitle = "Дата регистрации"
+                    title = account?.registrationDate?.takeIf { it.isNotBlank() } ?: "Не указана",
+                    subtitle = "Профиль создан"
                 )
             }
         }
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Редактировать профиль") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Имя") }, singleLine = true)
+                    OutlinedTextField(value = editUsername, onValueChange = { editUsername = it }, label = { Text("Имя пользователя") }, singleLine = true)
+                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Телефон") }, singleLine = true)
+                    OutlinedTextField(value = editBio, onValueChange = { editBio = it }, label = { Text("О себе") }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateProfile(editName, editUsername, editBio, editPhone)
+                    showEditDialog = false
+                }) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("Отмена") }
+            }
+        )
     }
 }
 

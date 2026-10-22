@@ -1,8 +1,14 @@
 package org.tege.messenger.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,8 +28,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.Chat
+import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.Story
+import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -39,26 +47,46 @@ fun ChatListScreen(
     val stories by viewModel.stories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
-
-    val filteredChats = if (searchQuery.isBlank()) {
-        chats
-    } else {
-        chats.filter {
-            it.name.contains(searchQuery, ignoreCase = true) ||
-            it.lastMessage.contains(searchQuery, ignoreCase = true) ||
-            (it.username?.contains(searchQuery, ignoreCase = true) == true)
+    var showArchived by remember { mutableStateOf(false) }
+    var selectedFolder by remember { mutableIntStateOf(0) }
+    val folderLabels = listOf("Все", "Личные", "Группы", "Каналы")
+    // Telegram-style search across chat names, usernames, previews and local messages.
+    // Show Saved Messages and conversations backed by a real server user.
+    // Older device-only drafts are left in storage, but are not presented as real chats.
+    val filteredChats = chats
+        .filter { it.isSavedMessages || it.userId != null }
+        .sortedWith(compareByDescending<Chat> { it.isPinned }.thenByDescending { it.time })
+        .filter { chat ->
+            searchQuery.isBlank() ||
+                chat.name.contains(searchQuery, ignoreCase = true) ||
+                chat.lastMessage.contains(searchQuery, ignoreCase = true) ||
+                (chat.username?.contains(searchQuery, ignoreCase = true) == true) ||
+                chat.messages.any { it.text.contains(searchQuery, ignoreCase = true) }
+        }
+    val visibleChats = filteredChats.filter { chat ->
+        if (showArchived) {
+            chat.isArchived
+        } else {
+            !chat.isArchived && when (selectedFolder) {
+                1 -> chat.type == ChatType.DIRECT
+                2 -> chat.type == ChatType.GROUP
+                3 -> chat.type == ChatType.CHANNEL
+                else -> true
+            }
         }
     }
+    val archivedCount = filteredChats.count { it.isArchived }
 
     Scaffold(
         topBar = {
+            Column {
             TopAppBar(
                 title = {
                     if (isSearchActive) {
                         TextField(
                             value = searchQuery,
                             onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Поиск чатов и сообщений...") },
+                            placeholder = { Text("Поиск") },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -70,8 +98,9 @@ fun ChatListScreen(
                         )
                     } else {
                         Text(
-                            text = "TEGE Messenger",
-                            fontWeight = FontWeight.Bold,
+                            text = if (showArchived) "Архив" else "TEGE",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 20.sp,
                             color = Color.White
                         )
                     }
@@ -83,6 +112,10 @@ fun ChatListScreen(
                             viewModel.setSearchQuery("")
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                    } else if (showArchived) {
+                        IconButton(onClick = { showArchived = false }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Color.White)
                         }
                     } else {
                         IconButton(onClick = onOpenDrawer) {
@@ -102,17 +135,47 @@ fun ChatListScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = TelegramBlue
+                    containerColor = TelegramBlue,
+                    navigationIconContentColor = Color.White,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
+            if (!isSearchActive && !showArchived) {
+                TabRow(
+                    selectedTabIndex = selectedFolder,
+                    containerColor = Color(0xFF287FC7),
+                    contentColor = Color.White
+                ) {
+                    folderLabels.forEachIndexed { index, label ->
+                        Tab(
+                            selected = selectedFolder == index,
+                            onClick = { selectedFolder = index },
+                            text = {
+                                Text(
+                                    text = label,
+                                    fontWeight = if (selectedFolder == index) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1
+                                )
+                            },
+                            selectedContentColor = Color.White,
+                            unselectedContentColor = Color.White.copy(alpha = 0.78f)
+                        )
+                    }
+                }
+            }
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
-                containerColor = TelegramBlue,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = "New Chat")
+            if (!isSearchActive) {
+                FloatingActionButton(
+                    onClick = { viewModel.navigateTo(ScreenRoute.CreateChat) },
+                    containerColor = TelegramBlue,
+                    contentColor = Color.White,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Новое сообщение")
+                }
             }
         }
     ) { paddingValues ->
@@ -121,21 +184,93 @@ fun ChatListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Stories Row at the top
-            item {
-                StoriesBar(
-                    stories = stories,
-                    onAddStory = onOpenCreateStory,
-                    onViewStory = onViewStory
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            // Telegram-style archive entry is shown above the conversation list.
+            if (!showArchived && !isSearchActive && searchQuery.isBlank() && selectedFolder == 0 && archivedCount > 0) {
+                item(key = "archive-row") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showArchived = true }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(44.dp).clip(CircleShape).background(TelegramBlue.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Archive, contentDescription = null, tint = TelegramBlue)
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Архив", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text("$archivedCount чатов", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Открыть архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 76.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                    )
+                }
+            }
+
+            // Stories are shown only when the user has actual stories to display.
+            if (stories.isNotEmpty() && !showArchived) {
+                item {
+                    StoriesBar(
+                        stories = stories,
+                        onAddStory = onOpenCreateStory,
+                        onViewStory = onViewStory
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
+                }
+            }
+
+            if (visibleChats.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (searchQuery.isNotBlank() || selectedFolder != 0 || showArchived) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = when {
+                                    searchQuery.isNotBlank() -> "Ничего не найдено"
+                                    showArchived -> "Архив пуст"
+                                    else -> "В этой папке пока нет чатов"
+                                },
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
 
             // Chats list
-            items(filteredChats, key = { it.id }) { chat ->
+            items(visibleChats, key = { it.id }) { chat ->
                 ChatRowItem(
                     chat = chat,
-                    onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) }
+                    searchQuery = searchQuery,
+                    onClick = { viewModel.navigateTo(ScreenRoute.ChatDetail(chat.id)) },
+                    onTogglePin = { viewModel.toggleChatPin(chat.id) },
+                    onToggleMute = { viewModel.toggleChatMute(chat.id) },
+                    onToggleArchive = { viewModel.toggleChatArchived(chat.id) },
+                    onToggleUnread = {
+                        if (chat.unread > 0) viewModel.markChatRead(chat.id)
+                        else viewModel.markChatUnread(chat.id)
+                    }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 76.dp),
@@ -155,22 +290,22 @@ fun StoriesBar(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .padding(vertical = 8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // "My Story" item
         item {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .width(64.dp)
+                    .width(60.dp)
                     .clickable(onClick = onAddStory)
             ) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
                             .background(TelegramBlue.copy(alpha = 0.15f))
                             .border(1.5.dp, TelegramBlue, CircleShape),
@@ -190,8 +325,9 @@ fun StoriesBar(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "История",
+                    text = "Моя история",
                     fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -209,7 +345,7 @@ fun StoriesBar(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .border(2.5.dp, TelegramBlue, CircleShape)
+                        .border(1.5.dp, TelegramBlue, CircleShape)
                         .padding(3.dp)
                         .clip(CircleShape)
                         .background(Color(android.graphics.Color.parseColor(story.backgroundColor))),
@@ -226,6 +362,7 @@ fun StoriesBar(
                 Text(
                     text = story.authorName,
                     fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -234,116 +371,207 @@ fun StoriesBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatRowItem(
     chat: Chat,
-    onClick: () -> Unit
+    searchQuery: String = "",
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit = {},
+    onToggleMute: () -> Unit = {},
+    onToggleArchive: () -> Unit = {},
+    onToggleUnread: () -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Avatar
-        Box(contentAlignment = Alignment.BottomEnd) {
-            Box(
+    var showActions by remember(chat.id) { mutableStateOf(false) }
+    var swipeOffset by remember(chat.id) { mutableFloatStateOf(0f) }
+    val matchingMessage = if (searchQuery.isBlank()) null else
+        chat.messages.lastOrNull { it.text.contains(searchQuery, ignoreCase = true) }
+    val previewText = matchingMessage?.text ?: chat.lastMessage.ifBlank {
+        if (chat.isSavedMessages) "Сохранённые сообщения" else "Нет сообщений"
+    }
+    val lastMessage = chat.messages.lastOrNull()
+    val timeColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Revealed actions follow Telegram's swipe-to-archive / swipe-to-pin pattern.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color(android.graphics.Color.parseColor(chat.color))),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(TelegramBlue)
+                    .clickable {
+                        swipeOffset = 0f
+                        onTogglePin()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (chat.isSavedMessages) {
-                    Icon(Icons.Default.Bookmark, contentDescription = "Saved Messages", tint = Color.White)
-                } else {
-                    Text(
-                        text = chat.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Icon(Icons.Default.PushPin, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Text(if (chat.isPinned) "Открепить" else "Закрепить", color = Color.White, fontSize = 10.sp)
             }
-            if (chat.online && !chat.isSavedMessages) {
-                Box(
-                    modifier = Modifier
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF4CAF50))
-                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                )
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFD9534F))
+                    .clickable {
+                        swipeOffset = 0f
+                        onToggleArchive()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(if (chat.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Text(if (chat.isArchived) "Вернуть" else "Архив", color = Color.White, fontSize = 10.sp)
             }
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Row(
+            modifier = Modifier
+                .offset { IntOffset(swipeOffset.roundToInt(), 0) }
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .pointerInput(chat.id) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            swipeOffset = (swipeOffset + dragAmount).coerceIn(-176f, 176f)
+                        },
+                        onDragEnd = {
+                            when {
+                                swipeOffset <= -72f -> onToggleArchive()
+                                swipeOffset >= 72f -> onTogglePin()
+                            }
+                            swipeOffset = 0f
+                        }
+                    )
+                }
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = { showActions = true }
+                )
+                .padding(horizontal = 16.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                TegeAvatar(
+                    avatarUri = chat.avatarUri,
+                    displayName = chat.name,
+                    color = Color(android.graphics.Color.parseColor(chat.color)),
+                    modifier = Modifier.size(54.dp),
+                    savedMessages = chat.isSavedMessages
+                )
+                if (chat.online && !chat.isSavedMessages) {
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    )
+                }
+            }
 
-        // Name and Last Message
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = chat.name,
-                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                        fontWeight = if (chat.unread > 0) FontWeight.SemiBold else FontWeight.Medium,
                         fontSize = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    // Streak Badge
-                    if (chat.streak != null && chat.streak.streakCount > 0) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "🔥 ${chat.streak.streakCount}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF5722)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (chat.isMuted) {
+                            Icon(Icons.Default.NotificationsOff, contentDescription = "Уведомления отключены", tint = timeColor, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        if (chat.isPinned) {
+                            Icon(Icons.Default.PushPin, contentDescription = "Закреплённый чат", tint = timeColor, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(text = chat.time, fontSize = 12.sp, color = if (chat.unread > 0) TelegramBlue else timeColor)
                     }
                 }
-                Text(
-                    text = chat.time,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = chat.lastMessage,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (chat.unread > 0) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(TelegramBlue)
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                    ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        if (lastMessage?.isMine == true && matchingMessage == null) {
+                            Icon(Icons.Default.DoneAll, contentDescription = "Отправлено", tint = TelegramBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                        }
                         Text(
-                            text = chat.unread.toString(),
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            text = previewText,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (chat.unread > 0) FontWeight.Medium else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
+                    }
+                    if (chat.unread > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (chat.isMuted) MaterialTheme.colorScheme.outline else TelegramBlue)
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(chat.unread.toString(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
+        }
+
+        DropdownMenu(
+            expanded = showActions,
+            onDismissRequest = { showActions = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                onClick = { showActions = false; onTogglePin() }
+            )
+            DropdownMenuItem(
+                text = { Text(if (chat.isMuted) "Включить уведомления" else "Отключить уведомления") },
+                leadingIcon = { Icon(if (chat.isMuted) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff, contentDescription = null) },
+                onClick = { showActions = false; onToggleMute() }
+            )
+            DropdownMenuItem(
+                text = { Text(if (chat.unread > 0) "Отметить прочитанным" else "Отметить непрочитанным") },
+                leadingIcon = { Icon(if (chat.unread > 0) Icons.Default.MarkChatRead else Icons.Default.MarkChatUnread, contentDescription = null) },
+                onClick = { showActions = false; onToggleUnread() }
+            )
+            DropdownMenuItem(
+                text = { Text(if (chat.isArchived) "Вернуть из архива" else "В архив") },
+                leadingIcon = { Icon(if (chat.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) },
+                onClick = { showActions = false; onToggleArchive() }
+            )
+            DropdownMenuItem(
+                text = { Text("Открыть чат") },
+                leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, contentDescription = null) },
+                onClick = { showActions = false; onClick() }
+            )
         }
     }
 }

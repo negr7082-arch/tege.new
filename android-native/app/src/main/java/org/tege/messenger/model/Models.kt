@@ -156,6 +156,7 @@ data class Chat(
     val isSavedMessages: Boolean = false,
     val isPinned: Boolean = false,
     val isMuted: Boolean = false,
+    val isArchived: Boolean = false,
     val streak: ChatStreak? = null,
     val subscribersCount: Int = 0,
     val membersCount: Int = 0,
@@ -213,5 +214,7 @@ sealed class ScreenRoute {
     object Profile : ScreenRoute()
     object Channels : ScreenRoute()
     object CreateChat : ScreenRoute()
+    object Contacts : ScreenRoute()
+    object Calls : ScreenRoute()
     object Settings : ScreenRoute()
 }
