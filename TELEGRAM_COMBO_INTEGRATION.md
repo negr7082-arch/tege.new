@@ -39,3 +39,12 @@ The initial implementation must not claim that Telegram X or Monogram features a
 ## Current status
 
 This document records the integration approach only. It is not evidence that a merged APK has been produced or that Telegram X/Monogram features have already been ported.
+
+## Native Android attachment UX slice (implemented on this branch)
+
+- Added `TelegramAttachmentSheet.kt`: a Compose attachment sheet for image, video, audio, and arbitrary files, using Android's Storage Access Framework rather than requesting broad storage access.
+- Wired the paperclip action in `ChatDetailScreen.kt` to the picker and added an attachment message card that opens the selected content with its detected MIME type and read-URI grant.
+- Added `TegeViewModel.sendAttachment(...)` so picked files appear in the current chat's in-memory message list with a filename and formatted size.
+- Video-note messages remain rendered as circular bubbles; they are deliberately not handed off to the system's rectangular video player.
+
+**Current limitation:** this is the native UI/data-flow slice, not Telegram server upload/sync. Attachment messages currently live in the in-memory Compose prototype; real upload, remote delivery, durable cache, and Telegram-compatible circular video-note playback still need implementation and device/build testing. No APK build has been verified in this environment.
