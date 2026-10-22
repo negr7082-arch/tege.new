@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: telegram-native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   telegram-native-apk:
     name: Compile native Telegram Android client
