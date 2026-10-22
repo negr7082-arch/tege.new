@@ -1,5 +1,6 @@
 package org.tege.messenger.ui.components
 
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +33,7 @@ fun TelegramDrawer(
     currentAccount: UserAccount?,
     onCloseDrawer: () -> Unit
 ) {
-    var showAnimeTyan by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
         Column(
@@ -53,7 +55,7 @@ fun TelegramDrawer(
                         .size(58.dp)
                         .combinedClickable(
                             onClick = { },
-                            onLongClick = { showAnimeTyan = true }
+                            onLongClick = { context.startActivity(Intent(context, org.tege.messenger.TegeChanActivity::class.java)) }
                         )
                 )
                 IconButton(onClick = { viewModel.toggleDarkMode() }) {
@@ -153,64 +155,7 @@ fun TelegramDrawer(
             }
         }
 
-        if (showAnimeTyan) {
-            AlertDialog(
-                onDismissRequest = { showAnimeTyan = false },
-                confirmButton = {
-                    TextButton(onClick = { showAnimeTyan = false }) {
-                        Text("Ня, понятно!")
-                    }
-                },
-                title = { Text("TEGE-чан 💙") },
-                text = {
-                    var reaction by remember { mutableStateOf("Проведи пальцем, чтобы повернуть меня, или коснись — я отвечу 💙") }
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // Keep the Easter egg inside Compose for now. Embedding a
-                        // GLSurfaceView in a dialog can create a separate Android surface
-                        // that obscures the rest of the app on some devices.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(270.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(Color(12, 20, 42))
-                                .clickable {
-                                    reaction = listOf(
-                                        "Ой! Ты меня заметил 💙",
-                                        "Хи-хи~ Я тут вообще-то живу 👀",
-                                        "А-а, не смотри так… я смущаюсь 🙈",
-                                        "Ты хотел привлечь моё внимание? Получилось ✨"
-                                    ).random()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("🩵", fontSize = 42.sp)
-                                Text("TEGE-чан", color = Color(0xFF63C8FF), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                Text("коснись меня 💫", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "Привет! Я TEGE-чан 💙",
-                            fontWeight = FontWeight.SemiBold,
-                            color = TelegramBlue
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(reaction)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Проведи пальцем по сцене, чтобы поворачивать меня",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            )
-        }
+
     }
 }
 
