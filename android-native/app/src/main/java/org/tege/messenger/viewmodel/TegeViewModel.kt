@@ -125,6 +125,35 @@ class TegeViewModel : ViewModel() {
         }
     }
 
+    fun sendAttachment(chatId: Long, uri: String, fileName: String, sizeBytes: Long?) {
+        val nowTime = timeFormat.format(Date())
+        val sizeLabel = sizeBytes?.let { bytes ->
+            when {
+                bytes >= 1024L * 1024L -> String.format(Locale.getDefault(), "%.1f МБ", bytes / (1024.0 * 1024.0))
+                bytes >= 1024L -> String.format(Locale.getDefault(), "%.1f КБ", bytes / 1024.0)
+                else -> "$bytes Б"
+            }
+        }
+        val message = Message(
+            id = System.currentTimeMillis(),
+            text = "",
+            time = nowTime,
+            isMine = true,
+            attachmentUri = uri,
+            fileName = fileName,
+            fileSize = sizeLabel,
+            senderId = _currentAccount.value?.id,
+            senderName = _currentAccount.value?.name
+        )
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) chat.copy(
+                lastMessage = "📎 $fileName",
+                time = nowTime,
+                messages = chat.messages + message
+            ) else chat
+        }
+    }
+
     fun sendPoll(chatId: Long, question: String, options: List<String>) {
         if (question.isBlank() || options.size < 2) return
         val nowTime = timeFormat.format(Date())
