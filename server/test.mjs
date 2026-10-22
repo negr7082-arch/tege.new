@@ -148,6 +148,19 @@ try {
   await cb3.waitFor((m) => m.type === 'message' && m.payload.message.text === 'breaking');
   console.log('✓ channel posting restricted to owner/admins');
 
+  // Channel comments are persisted server-side and scoped to an individual post.
+  const addedComment = await post('/api/channels/comments/add', { token: b.token, channelId: C, postId: 7, text: 'Great update!' });
+  assert.equal(addedComment.ok, true);
+  assert.equal(addedComment.comment.authorId, b.id);
+  assert.equal(addedComment.comment.text, 'Great update!');
+  const listedComments = await post('/api/channels/comments/list', { token: a.token, channelId: C, postId: 7 });
+  assert.equal(listedComments.ok, true);
+  assert.equal(listedComments.comments.length, 1);
+  assert.equal(listedComments.comments[0].id, addedComment.comment.id);
+  assert.equal((await post('/api/channels/comments/add', { token: b.token, channelId: C, postId: 7, text: '   ' })).error, 'bad_comment');
+  console.log('✓ channel comments persist and load per post');
+
+
   // delete / edit of an already sent message is relayed (author comes from the token, push stays silent)
   ca.send({ type: 'send', payload: { id: 8, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 8001, text: 'to edit', time: '12:07' } } });
   await cb3.waitFor((m) => m.type === 'message' && m.payload.message.id === 8001);
