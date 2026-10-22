@@ -131,13 +131,8 @@ class TegeChan3DView(
 
         override fun onDrawFrame(gl: GL10?) {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-            // GLSurfaceView has no FPS cap; limit this lightweight mascot to ~30 FPS.
-            try {
-                Thread.sleep(33L)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return
-            }
+            // Do not sleep on the GL thread: some device drivers stall surface
+            // creation when the renderer blocks. GLSurfaceView owns frame pacing.
             val now = android.os.SystemClock.uptimeMillis()
             val idle = sin(now / 720.0).toFloat()
             val elapsed = ((now - reactionAt).coerceAtLeast(0L) / 1000f)
@@ -179,6 +174,13 @@ class TegeChan3DView(
             part(-0.18f, 0.91f, 0.205f, 0.10f, 0.20f, 0.08f, 0.045f, 0.075f, 0.17f)
             part(0.03f, 0.965f, 0.245f, 0.13f, 0.10f, 0.06f, 0.045f, 0.075f, 0.17f)
             part(0.17f, 0.91f, 0.205f, 0.095f, 0.18f, 0.075f, 0.045f, 0.075f, 0.17f)
+            // Swept fringe locks frame the face and give the silhouette a clearer anime style.
+            part(-0.105f, 1.015f, 0.245f, 0.13f, 0.105f, 0.07f, 0.055f, 0.085f, 0.19f)
+            part(0.075f, 1.045f, 0.248f, 0.12f, 0.09f, 0.065f, 0.055f, 0.085f, 0.19f)
+            part(0.015f, 0.965f, 0.292f, 0.045f, 0.105f, 0.025f, 0.075f, 0.12f, 0.23f)
+            // Small ears peek out from under the hair.
+            part(-0.285f, 0.79f, 0.035f, 0.045f, 0.075f, 0.045f, 0.92f, 0.63f, 0.58f)
+            part(0.285f, 0.79f, 0.035f, 0.045f, 0.075f, 0.045f, 0.92f, 0.63f, 0.58f)
             // Small cyan hair clips catch the light and make the silhouette more distinctive.
             part(-0.245f, 0.955f, 0.235f, 0.055f, 0.018f, 0.012f, 0.20f, 0.72f, 0.98f)
             part(-0.235f, 0.935f, 0.242f, 0.040f, 0.010f, 0.010f, 0.70f, 0.91f, 1f)
