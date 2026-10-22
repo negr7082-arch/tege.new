@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -168,6 +168,17 @@ try {
   ca.ws.close();
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
+
+  // Volunteer assignment uses a private server allowlist; public directory profiles never expose email.
+  const volunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
+  assert.equal(volunteer.role, 'volunteer');
+  const cv = new Client(volunteer.token); await cv.ready;
+  const volunteerSnapshot = await cv.waitFor((m) => m.type === 'snapshot');
+  const publicVolunteer = volunteerSnapshot.users.find((u) => u.id === volunteer.id);
+  assert.equal(publicVolunteer.role, 'volunteer');
+  assert.equal(Object.hasOwn(publicVolunteer, 'email'), false, 'public directory must not expose email');
+  cv.ws.close();
+  console.log('✓ volunteer role is assigned privately and public email is hidden');
 
   // Server-side anti-spam: 100 message attempts inside the rolling window trigger a 3-day mute and a Security event.
   const spammer = (await post('/api/register', { email: 'spammer@x.io', password: 'password3', name: 'Spammer', username: '@spammer' })).user;
