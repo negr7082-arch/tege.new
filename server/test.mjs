@@ -223,9 +223,10 @@ try {
   console.log('✓ volunteer moderation queue and senior-only unmute enforcement');
 
   // Immediate account deletion verifies the password and invalidates the bearer token.
-  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' })).error, 'bad_credentials');
-  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' })).ok, true);
-  assert.equal((await post('/api/security/events', { token: spammer.token })).error, 'bad_token');
+  // Keep these requests off the shared test IP: earlier spam-rate-limit coverage may exhaust its budget.
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' }, '198.51.100.21')).error, 'bad_credentials');
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' }, '198.51.100.22')).ok, true);
+  assert.equal((await post('/api/security/events', { token: spammer.token }, '198.51.100.23')).error, 'bad_token');
   cs.ws.close();
   console.log('✓ immediate account deletion and token revocation');
 
