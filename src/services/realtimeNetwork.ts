@@ -1,4 +1,4 @@
-import { Message, UserAccount, ContactUser, Channel, Chat, BlockedUser, GroupVideoChatInfo } from '../types';
+import { Message, UserAccount, ContactUser, Channel, Chat, BlockedUser, GroupVideoChatInfo, Comment } from '../types';
 
 export interface NetworkMessagePayload {
   id: number;
@@ -658,6 +658,17 @@ class RealtimeNetworkService {
     const token = Math.random().toString(36).substring(2, 8);
     const link = `https://tege.im/+join_${type}_${id}_${token}`;
     return { link, createdAt, expiresAt };
+  }
+
+  // ================= CHANNEL DISCUSSIONS =================
+  public async getChannelComments(token: string, channelId: number, postId: number): Promise<{ ok: boolean; comments: Comment[]; error?: string }> {
+    const r = await this.api('/api/channels/comments/list', { token, channelId, postId });
+    return { ok: Boolean(r.ok), comments: Array.isArray(r.comments) ? r.comments : [], error: r.error };
+  }
+
+  public async addChannelComment(token: string, channelId: number, postId: number, text: string): Promise<{ ok: boolean; comment?: Comment; comments: Comment[]; error?: string }> {
+    const r = await this.api('/api/channels/comments/add', { token, channelId, postId, text });
+    return { ok: Boolean(r.ok), comment: r.comment, comments: Array.isArray(r.comments) ? r.comments : [], error: r.error };
   }
 
   // ================= MESSAGES =================
