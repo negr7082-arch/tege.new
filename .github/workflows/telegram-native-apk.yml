@@ -46,6 +46,10 @@ jobs:
           yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
+      - name: Initialize Telegram nested submodules explicitly
+        working-directory: third_party/Telegram
+        run: git submodule update --init --recursive
+
       - name: Make Gradle wrapper executable
         working-directory: third_party/Telegram
         run: chmod +x gradlew
