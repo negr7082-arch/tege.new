@@ -76,6 +76,15 @@ fun TelegramDrawer(
             )
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            "TEGE MESSENGER",
+            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 6.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        )
         DrawerItem(icon = Icons.Default.Person, label = "Мой профиль") {
             viewModel.navigateTo(ScreenRoute.Profile)
             onCloseDrawer()
@@ -85,6 +94,23 @@ fun TelegramDrawer(
             if (savedChat != null) viewModel.navigateTo(ScreenRoute.ChatDetail(savedChat.id))
             onCloseDrawer()
         }
+        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
+            viewModel.navigateTo(ScreenRoute.Contacts)
+            onCloseDrawer()
+        }
+        DrawerItem(icon = Icons.Default.PersonAdd, label = "Создать группу / чат") {
+            viewModel.navigateTo(ScreenRoute.CreateChat)
+            onCloseDrawer()
+        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Text(
+            "TEGE",
+            modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 6.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        )
         DrawerItem(icon = Icons.Default.Campaign, label = "Каналы") {
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
@@ -97,18 +123,34 @@ fun TelegramDrawer(
             viewModel.navigateTo(ScreenRoute.Telegram)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
-            viewModel.navigateTo(ScreenRoute.Contacts)
-            onCloseDrawer()
-        }
-        DrawerItem(icon = Icons.Default.PersonAdd, label = "Новое сообщение") {
-            viewModel.navigateTo(ScreenRoute.CreateChat)
-            onCloseDrawer()
-        }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         DrawerItem(icon = Icons.Default.Settings, label = "Настройки") {
             viewModel.navigateTo(ScreenRoute.Settings)
             onCloseDrawer()
+        }
+        DrawerItem(icon = Icons.Default.Brightness4, label = "Оформление") {
+            viewModel.toggleDarkMode()
+            onCloseDrawer()
+        }
+        Spacer(modifier = Modifier.weight(1f, fill = false))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Favorite,
+                contentDescription = null,
+                tint = TelegramBlue,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("TEGE Messenger", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Связь без границ 💙", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
         }
 
         if (showAnimeTyan) {
