@@ -635,8 +635,14 @@ function handleSend(user, conn, payload) {
       return;
     }
     if (window.length >= 100) {
-      applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
-      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
+      const previousStrike = securityEventsFor(user.id).some((event) => event.type === 'spam_mute');
+      if (previousStrike) {
+        applySpamMute(user, Infinity, 'Повторный массовый спам после предыдущего наказания');
+        conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', permanent: true });
+      } else {
+        applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
+        conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
+      }
       return;
     }
   }
