@@ -49,7 +49,7 @@ fun ChatListScreen(
     var isSearchActive by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
     var selectedFolder by remember { mutableIntStateOf(0) }
-    val folderLabels = listOf("Все", "Личные", "Группы", "Каналы")
+    val folderLabels = listOf("Все", "Личные", "Группы", "Каналы", "Непрочитанные", "Важные")
     // Telegram-style search across chat names, usernames, previews and local messages.
     // Show Saved Messages and conversations backed by a real server user.
     // Older device-only drafts are left in storage, but are not presented as real chats.
@@ -71,6 +71,8 @@ fun ChatListScreen(
                 1 -> chat.type == ChatType.DIRECT
                 2 -> chat.type == ChatType.GROUP
                 3 -> chat.type == ChatType.CHANNEL
+                4 -> chat.unread > 0
+                5 -> chat.isPinned
                 else -> true
             }
         }
@@ -142,10 +144,11 @@ fun ChatListScreen(
                 )
             )
             if (!isSearchActive && !showArchived) {
-                TabRow(
+                ScrollableTabRow(
                     selectedTabIndex = selectedFolder,
                     containerColor = Color(0xFF287FC7),
-                    contentColor = Color.White
+                    contentColor = Color.White,
+                    edgePadding = 8.dp
                 ) {
                     folderLabels.forEachIndexed { index, label ->
                         Tab(
