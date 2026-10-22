@@ -167,6 +167,14 @@ class TegeChan3DView(
             part(-0.14f, -0.75f, 0.045f, 0.14f, 0.09f, 0.21f, 0.12f, 0.15f, 0.25f)
             part(0.14f, -0.75f, 0.045f, 0.14f, 0.09f, 0.21f, 0.12f, 0.15f, 0.25f)
 
+            // Twin side ribbons and rounded hair ties make her silhouette read clearly in 3D.
+            part(-0.345f, 0.83f, -0.045f, 0.105f, 0.13f, 0.11f, 0.045f, 0.075f, 0.17f)
+            part(0.345f, 0.83f, -0.045f, 0.105f, 0.13f, 0.11f, 0.045f, 0.075f, 0.17f)
+            part(-0.345f, 0.77f, 0.015f, 0.065f, 0.09f, 0.065f, 0.20f, 0.72f, 0.98f)
+            part(0.345f, 0.77f, 0.015f, 0.065f, 0.09f, 0.065f, 0.20f, 0.72f, 0.98f)
+            // Soft inner ears and little ear highlights.
+            part(-0.292f, 0.79f, 0.075f, 0.018f, 0.038f, 0.012f, 0.98f, 0.48f, 0.57f)
+            part(0.292f, 0.79f, 0.075f, 0.018f, 0.038f, 0.012f, 0.98f, 0.48f, 0.57f)
             // Neck, face and hair cap.
             part(0f, 0.48f, 0.02f, 0.09f, 0.13f, 0.09f, 0.96f, 0.75f, 0.67f)
             part(0f, 0.80f, 0.02f, 0.29f, 0.34f, 0.25f, 0.98f, 0.79f, 0.72f)
@@ -187,11 +195,25 @@ class TegeChan3DView(
             // Matching clip on the opposite side keeps the hair silhouette balanced.
             part(0.245f, 0.955f, 0.235f, 0.055f, 0.018f, 0.012f, 0.20f, 0.72f, 0.98f)
             part(0.235f, 0.935f, 0.242f, 0.040f, 0.010f, 0.010f, 0.70f, 0.91f, 1f)
+            // Hoodie pocket, seam piping and cuff accents add readable clothing details.
+            part(0f, -0.105f, 0.188f, 0.145f, 0.075f, 0.018f, 0.075f, 0.27f, 0.55f)
+            part(-0.125f, -0.075f, 0.196f, 0.010f, 0.035f, 0.009f, 0.22f, 0.49f, 0.76f)
+            part(0.125f, -0.075f, 0.196f, 0.010f, 0.035f, 0.009f, 0.22f, 0.49f, 0.76f)
+            part(-0.36f, -0.19f, 0.06f, 0.12f, 0.045f, 0.13f, 0.22f, 0.49f, 0.76f)
+            part(0.36f, -0.19f, 0.06f, 0.12f, 0.045f, 0.13f, 0.22f, 0.49f, 0.76f)
+            // White-blue sneaker soles and lace marks.
+            part(-0.14f, -0.81f, 0.075f, 0.145f, 0.028f, 0.22f, 0.55f, 0.82f, 1f)
+            part(0.14f, -0.81f, 0.075f, 0.145f, 0.028f, 0.22f, 0.55f, 0.82f, 1f)
+            part(-0.14f, -0.75f, 0.245f, 0.052f, 0.009f, 0.009f, 0.83f, 0.93f, 1f)
+            part(0.14f, -0.75f, 0.245f, 0.052f, 0.009f, 0.009f, 0.83f, 0.93f, 1f)
             // Tiny collar badge, with a bright center and a soft lower glint.
             part(0f, 0.31f, 0.153f, 0.040f, 0.035f, 0.018f, 0.20f, 0.72f, 0.98f)
             part(0f, 0.313f, 0.174f, 0.014f, 0.014f, 0.008f, 0.78f, 0.94f, 1f)
             part(0f, 0.294f, 0.171f, 0.010f, 0.004f, 0.006f, 0.62f, 0.84f, 1f)
 
+            // A tiny star charm on the hoodie pocket catches the ambient cyan light.
+            part(0.055f, -0.10f, 0.215f, 0.022f, 0.022f, 0.010f, 0.72f, 0.91f, 1f)
+            part(0.055f, -0.10f, 0.227f, 0.009f, 0.009f, 0.006f, 1f, 1f, 1f)
             // Tiny floating cyan motes make the secret scene feel alive without textures or assets.
             val sparklePulse = 0.5f + 0.5f * sin(now / 260.0).toFloat()
             val sparkleSide = sin(now / 510.0).toFloat() * 0.018f
