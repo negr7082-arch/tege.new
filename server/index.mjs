@@ -203,9 +203,11 @@ enforceInactivityDeletion(); // chatId -> info
 
 const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const seniorVolunteerEmails = new Set(String(process.env.TEGE_SENIOR_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const headVolunteerEmails = new Set(String(process.env.TEGE_HEAD_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const volunteerIds = new Set();
 const staffRole = (u) => {
   const email = String(u.email || '').toLowerCase();
+  if (headVolunteerEmails.has(email)) return 'head_volunteer';
   if (seniorVolunteerEmails.has(email)) return 'senior_volunteer';
   if (volunteerEmails.has(email) || volunteerIds.has(u.id)) return 'volunteer';
   return 'user';
@@ -471,10 +473,64 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Staff moderation is enforced on the server. Volunteer role comes from private env allowlists.
+    if (url.pathname === '/api/security/reports/create') {
+      const reporter = userFromToken(body.token);
+      if (!reporter) return fail(401, 'bad_token');
+      const target = db.users[Number(body.targetUserId)];
+      if (!target) return fail(404, 'user_not_found');
+      if (target.id === reporter.id) return fail(400, 'cannot_report_self');
+      const categories = ['spam', 'adult', 'harassment', 'violence', 'scam', 'other'];
+      const category = String(body.category || '');
+      if (!categories.includes(category)) return fail(400, 'bad_report_category');
+      const reports = db.securityReports ||= [];
+      const messageId = String(body.messageId || '').slice(0, 100);
+      const duplicate = reports.find((r) => r.reporterId === reporter.id && r.targetUserId === target.id && r.messageId === messageId && r.status === 'open');
+      if (duplicate) return reply(200, { ok: true, report: duplicate, duplicate: true });
+      const report = { id: crypto.randomUUID(), reporterId: reporter.id, targetUserId: target.id, messageId, messageText: String(body.messageText || '').slice(0, 2000), category, details: String(body.details || '').trim().slice(0, 500), status: 'open', assignedTo: null, createdAt: Date.now(), history: [] };
+      reports.unshift(report);
+      if (reports.length > 5000) reports.length = 5000;
+      save();
+      for (const u of Object.values(db.users)) if (['volunteer', 'senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_new', reportId: report.id, category });
+      return reply(201, { ok: true, report });
+    }
+    if (url.pathname === '/api/security/reports/list') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const reports = (db.securityReports || []).filter((r) => role === 'volunteer' ? ['open', 'reviewing'].includes(r.status) : true);
+      return reply(200, { ok: true, role, reports: reports.slice(0, 500) });
+    }
+    if (url.pathname === '/api/security/reports/action') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const reports = db.securityReports ||= [];
+      const report = reports.find((r) => r.id === String(body.reportId || ''));
+      if (!report) return fail(404, 'report_not_found');
+      const action = String(body.action || '');
+      if (action === 'review') {
+        if (role !== 'volunteer' || report.status !== 'open') return fail(403, 'junior_review_only');
+        report.status = 'reviewing'; report.assignedTo = actor.id;
+      } else if (action === 'forward') {
+        if (role !== 'volunteer') return fail(403, 'junior_volunteer_only');
+        report.status = 'forwarded'; report.assignedTo = 'senior_volunteers';
+      } else if (action === 'resolve') {
+        if (!['senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'senior_volunteer_required');
+        report.status = 'resolved';
+      } else return fail(400, 'bad_action');
+      report.history ||= [];
+      report.history.unshift({ actorId: actor.id, actorRole: role, action, createdAt: Date.now(), note: String(body.note || '').slice(0, 300) });
+      save();
+      if (action === 'forward') for (const u of Object.values(db.users)) if (['senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_forwarded', reportId: report.id });
+      return reply(200, { ok: true, report });
+    }
+
     if (url.pathname === '/api/security/moderation/list') {
       const actor = userFromToken(body.token);
       if (!actor) return fail(401, 'bad_token');
-      if (!['volunteer', 'senior_volunteer'].includes(staffRole(actor))) return fail(403, 'staff_only');
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(staffRole(actor))) return fail(403, 'staff_only');
       const now = Date.now();
       const mutedUsers = Object.values(db.users)
         .filter((u) => Boolean(u.spamMutedPermanently || Number(u.spamMuteUntil || 0) > now))
@@ -492,7 +548,7 @@ const server = http.createServer(async (req, res) => {
       const actor = userFromToken(body.token);
       if (!actor) return fail(401, 'bad_token');
       const role = staffRole(actor);
-      if (!['volunteer', 'senior_volunteer'].includes(role)) return fail(403, 'staff_only');
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
       const targetId = Number(body.targetUserId);
       const target = Number.isSafeInteger(targetId) ? db.users[targetId] : null;
       if (!target) return fail(404, 'user_not_found');
@@ -501,7 +557,7 @@ const server = http.createServer(async (req, res) => {
       const isMuted = Boolean(target.spamMutedPermanently || Number(target.spamMuteUntil || 0) > now);
       if (!isMuted) return fail(409, 'not_muted');
       if (action === 'unmute') {
-        if (role !== 'senior_volunteer') return fail(403, 'senior_volunteer_required');
+        if (!['senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'senior_volunteer_required');
         delete target.spamMuteUntil;
         delete target.spamMutedPermanently;
         delete target.spamMuteReason;
