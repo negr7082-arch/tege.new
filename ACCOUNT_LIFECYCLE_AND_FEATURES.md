@@ -49,6 +49,14 @@ Prioritize features that can be connected to real server actions rather than dec
 7. **Backup and export:** export account data and request account deletion without hiding either option.
 8. **Accessibility:** dynamic text size, screen-reader labels, RTL layouts, and keyboard support.
 
-## Implementation status
+## Implemented on the feature branch (not yet build/test verified)
 
-Not yet implemented by this specification alone. Do not mark automatic deletion as complete until server routes, persistent settings, activity tracking, scheduled cleanup, client settings UI, and automated tests are all present and verified.
+- Added server routes to read/save the inactivity period and estimate the deletion date. Supported choices are 1, 3, 6, 8, 12, 16, 24 months and Never. Existing accounts default to Never.
+- Added server-side `lastActiveAt` updates on login, WebSocket connection and message send, plus an hourly cleanup that re-checks due accounts.
+- Added immediate account deletion requiring the current password; it revokes sessions and removes account-owned push subscriptions, inbox, blocks, memberships, groups and channels, then broadcasts a directory removal event.
+- Added a Settings → Privacy & Security selector and a Security punishment-history panel.
+- Added server-side rolling-window spam enforcement: 100 message attempts in 19 minutes triggers a 3-day mute; 200 attempts in that window escalates to permanent mute. A repeat 100-message violation after a previous system spam punishment also escalates to permanent mute. The client cannot bypass the server's send check.
+- Added a private deployment allowlist mechanism for volunteer role labels. Configure `TEGE_VOLUNTEER_EMAILS` in hosting environment settings; do not commit email addresses to the repository. The role label itself grants no moderation powers.
+- Added end-to-end test cases for inactivity preference endpoints and Security history.
+
+**Important:** These changes have been committed to the feature branch but have not been built or run through the test suite in this conversation. Account deletion and spam enforcement must be tested before deploying. The Security history currently appears as a Security panel in Settings, not yet as a separate Telegram-style conversation thread. Volunteer allowlist values must be configured privately in the deployment environment.
