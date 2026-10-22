@@ -30,7 +30,8 @@ const db = {
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
   vapid: null, // {publicKey, privateKey}
-  securityEvents: {} // userId -> [{id,type,createdAt,until,reason}]
+  securityEvents: {}, // userId -> [{id,type,createdAt,until,reason}]
+  channelComments: {} // `${channelId}:${postId}` -> Comment[]
 };
 try {
   Object.assign(db, JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
@@ -373,6 +374,57 @@ const server = http.createServer(async (req, res) => {
 
     if (rateLimited(ip)) return fail(429, 'too_many_requests');
     const body = await readJson(req);
+
+    // Channel post discussions: comments are stored by channel + post, never only in UI memory.
+    if (url.pathname === '/api/channels/comments/list') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const channelId = Number(body.channelId);
+      const postId = Number(body.postId);
+      if (!Number.isSafeInteger(channelId) || !Number.isSafeInteger(postId)) return fail(400, 'bad_post');
+      const channel = db.channels[channelId];
+      if (!channel) return fail(404, 'channel_not_found');
+      const canView = channel.isPublic !== false || channel.ownerId === user.id ||
+        (channel.admins || []).some((a) => a.id === user.id) ||
+        (db.members[channelId] || []).includes(user.id);
+      if (!canView) return fail(403, 'forbidden');
+      return reply(200, { ok: true, comments: db.channelComments[`${channelId}:${postId}`] || [] });
+    }
+
+    if (url.pathname === '/api/channels/comments/add') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const channelId = Number(body.channelId);
+      const postId = Number(body.postId);
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      if (!Number.isSafeInteger(channelId) || !Number.isSafeInteger(postId) || !text || text.length > 2000) return fail(400, 'bad_comment');
+      const channel = db.channels[channelId];
+      if (!channel) return fail(404, 'channel_not_found');
+      const canView = channel.isPublic !== false || channel.ownerId === user.id ||
+        (channel.admins || []).some((a) => a.id === user.id) ||
+        (db.members[channelId] || []).includes(user.id);
+      if (!canView) return fail(403, 'forbidden');
+      const key = `${channelId}:${postId}`;
+      const comments = (db.channelComments[key] ||= []);
+      if (comments.length >= 500) return fail(429, 'too_many_comments');
+      const now = Date.now();
+      const recent = comments.filter((comment) => comment.authorId === user.id && now - Number(comment.createdAt || 0) < 10_000);
+      if (recent.length >= 5) return fail(429, 'comment_rate_limited');
+      const comment = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        authorName: user.name,
+        authorUsername: user.username,
+        authorAvatarUri: user.avatarUri || null,
+        text,
+        time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: now
+      };
+      comments.push(comment);
+      save();
+      broadcast({ type: 'channel_comment', channelId, postId, comment });
+      return reply(201, { ok: true, comment, comments });
+    }
 
     if (url.pathname === '/api/account/inactivity/status') {
       const user = userFromToken(body.token);
