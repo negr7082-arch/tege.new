@@ -854,7 +854,11 @@ attachWebSocket(server, (conn, url) => {
       }
 
       case 'ping':
+        // A live client heartbeat counts as activity; otherwise an open, idle session
+        // could be deleted by the inactivity policy while the user is still online.
+        user.lastActiveAt = Date.now();
         conn.send({ type: 'pong' });
+        save();
         break;
     }
   };
