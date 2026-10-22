@@ -78,7 +78,11 @@ fun TelegramDrawer(
             viewModel.navigateTo(ScreenRoute.Channels)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.Call, label = "Звонки") {\n            viewModel.navigateTo(ScreenRoute.Calls)\n            onCloseDrawer()\n        }\n        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
+        DrawerItem(icon = Icons.Default.Call, label = "Звонки") {
+            viewModel.navigateTo(ScreenRoute.Calls)
+            onCloseDrawer()
+        }
+        DrawerItem(icon = Icons.Default.Contacts, label = "Контакты") {
             viewModel.navigateTo(ScreenRoute.Contacts)
             onCloseDrawer()
         }
