@@ -48,3 +48,37 @@ This document records the integration approach only. It is not evidence that a m
 - Video-note messages remain rendered as circular bubbles; they are deliberately not handed off to the system's rectangular video player.
 
 **Current limitation:** this is the native UI/data-flow slice, not Telegram server upload/sync. Attachment messages currently live in the in-memory Compose prototype; real upload, remote delivery, durable cache, and Telegram-compatible circular video-note playback still need implementation and device/build testing. No APK build has been verified in this environment.
+
+
+## Expanded feature backlog from Telegram / Telegram X / Monogram
+
+The following are planned targets, not claims of completed implementation. Port only features that fit the host architecture and preserve the source licenses.
+
+### Messaging and media
+- Photo/video gallery preview before sending, multi-select, captions, send-as-file vs send-as-media.
+- In-app image viewer, video player, zoom, swipe between media, download/share/save.
+- Proper round video-note capture/playback, voice-message recording with waveform, playback speed, seek, and background playback.
+- Upload/download progress, cancel/retry, file size/type display, thumbnails, caching, and large-file handling.
+- Reply, forward, edit, delete, pin, copy, select multiple messages, message links, reactions, and read/delivery states.
+- Drafts, typing indicators, unread divider, jump-to-latest, message search, and chat history pagination.
+
+### Chat list and navigation
+- Archive, folders/filters, pinned chats, mute/unmute, unread counts, mark-as-read, chat search.
+- Contact/profile sheets, usernames, shared media/files/links tabs, block/report, privacy controls.
+- Group member management, invite links, admin permissions, topics, polls/quizzes, channel posting and comments.
+- Story viewer/editor and account switching only where the server/data model supports the behavior.
+
+### Calling, notifications, and reliability
+- Push notifications with correct account/chat routing, notification actions, per-chat settings, and mute schedules.
+- Real call signaling and WebRTC lifecycle, permissions, Bluetooth/audio route, reconnect, and call UI states.
+- Offline queue, retry/backoff, duplicate prevention, sync after reconnect, lifecycle restoration, and persistent local storage.
+
+### Visual and accessibility parity
+- Telegram-like attachment bottom sheet, media bubbles, voice/video note controls, context menus, swipe-to-reply, haptics, and dark theme.
+- Dynamic type, TalkBack labels, keyboard behavior, RTL support, and reduced-motion handling.
+
+### Required implementation gates
+1. Implement UI plus a real model/API action together; don't add decorative controls that do nothing.
+2. For network features, define request/response and error states, then test against the actual TEGE backend or Telegram client stack.
+3. Keep local file URIs local-only; never pretend a selected attachment has been uploaded or delivered until the server confirms it.
+4. Run a clean Android build and add tests for the affected behavior before calling a feature complete.
