@@ -93,12 +93,12 @@ fun SettingsScreen(
                             Pair(WallpaperId.DARK, "#0B0F19"),
                             Pair(WallpaperId.EMERALD, "#0D2818"),
                             Pair(WallpaperId.SUNSET, "#FCE7F3"),
-                            Pair(WallpaperId.OCEAN, "#E0F2FE")
+                            Pair(WallpaperId.OCEAN, "#E0F2FE"), Pair(WallpaperId.MINIMAL, "#F8FAFC")
                         ).forEach { (id, colorHex) ->
                             val color = Color(android.graphics.Color.parseColor(colorHex))
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
                                     .background(color)
                                     .clickable { viewModel.setWallpaper(id) },
