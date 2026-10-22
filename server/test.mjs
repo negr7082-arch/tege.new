@@ -224,7 +224,8 @@ try {
   const volunteerReports = await post('/api/security/reports/list', { token: volunteer.token });
   assert.ok(volunteerReports.reports.some((r) => r.id === submittedReport.report.id));
   assert.equal((await post('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'review' })).error, 'junior_review_only');
-  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'review' })).ok, true);
+  const juniorReview = await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'review' });
+  assert.equal(juniorReview.ok, true, JSON.stringify(juniorReview));
   assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'forward', note: 'Needs senior review' })).ok, true);
   const seniorReports = await post('/api/security/reports/list', { token: senior.token });
   assert.ok(seniorReports.reports.some((r) => r.id === submittedReport.report.id && r.status === 'forwarded'));
