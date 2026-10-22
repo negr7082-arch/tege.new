@@ -169,6 +169,28 @@ try {
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
 
+  // Server-side anti-spam: 100 message attempts inside the rolling window trigger a 3-day mute and a Security event.
+  const spammer = (await post('/api/register', { email: 'spammer@x.io', password: 'password3', name: 'Spammer', username: '@spammer' })).user;
+  const cs = new Client(spammer.token); await cs.ready; await cs.waitFor((m) => m.type === 'snapshot');
+  for (let i = 1; i <= 100; i++) {
+    cs.send({ type: 'send', payload: { id: 1000 + i, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 1000 + i, text: 'burst ' + i, time: '12:10' } } });
+  }
+  const spamResult = await cs.waitFor((m) => m.type === 'send_result' && m.id === 1100, 5000);
+  assert.equal(spamResult.ok, false);
+  assert.equal(spamResult.reason, 'spam_muted');
+  const spamSecurity = await post('/api/security/events', { token: spammer.token });
+  assert.equal(spamSecurity.ok, true);
+  assert.ok(spamSecurity.activeMute && !spamSecurity.activeMute.permanent);
+  assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
+  console.log('✓ server-side spam mute and Security explanation');
+
+  // Immediate account deletion verifies the password and invalidates the bearer token.
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' })).error, 'bad_credentials');
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' })).ok, true);
+  assert.equal((await post('/api/security/events', { token: spammer.token })).error, 'bad_token');
+  cs.ws.close();
+  console.log('✓ immediate account deletion and token revocation');
+
   // persistence across restart
   console.log('\nALL TESTS PASSED');
 } catch (e) {
