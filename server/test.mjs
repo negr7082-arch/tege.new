@@ -12,7 +12,8 @@ const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const post = async (p, body) => (await fetch(base + p, { method: 'POST', body: JSON.stringify(body) })).json();
+const post = async (p, body, testIp) => (await fetch(base + p, { method: 'POST', headers: testIp ? { 'x-forwarded-for': testIp } : {}, body: JSON.stringify(body) })).json();
+const reportPost = (p, body) => post(p, body, '203.0.113.42');
 
 class Client {
   constructor(token) {
@@ -215,22 +216,22 @@ try {
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
   const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
   assert.equal(senior.role, 'senior_volunteer');
-  const submittedReport = await post('/api/security/reports/create', {
+  const submittedReport = await reportPost('/api/security/reports/create', {
     token: volunteer.token, targetUserId: b.id, messageId: 'reported-message-1',
     messageText: 'sample spam message', category: 'spam', details: 'Repeated unsolicited ads'
   });
   assert.equal(submittedReport.ok, true, JSON.stringify(submittedReport));
   assert.equal(submittedReport.report.status, 'open');
-  const volunteerReports = await post('/api/security/reports/list', { token: volunteer.token });
+  const volunteerReports = await reportPost('/api/security/reports/list', { token: volunteer.token });
   assert.ok(volunteerReports.reports.some((r) => r.id === submittedReport.report.id));
-  assert.equal((await post('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'review' })).error, 'junior_review_only');
-  const juniorReview = await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'review' });
+  assert.equal((await reportPost('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'review' })).error, 'junior_review_only');
+  const juniorReview = await reportPost('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'review' });
   assert.equal(juniorReview.ok, true, JSON.stringify(juniorReview));
-  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'forward', note: 'Needs senior review' })).ok, true);
-  const seniorReports = await post('/api/security/reports/list', { token: senior.token });
+  assert.equal((await reportPost('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'forward', note: 'Needs senior review' })).ok, true);
+  const seniorReports = await reportPost('/api/security/reports/list', { token: senior.token });
   assert.ok(seniorReports.reports.some((r) => r.id === submittedReport.report.id && r.status === 'forwarded'));
-  assert.equal((await post('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'resolve', note: 'Reviewed' })).ok, true);
-  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'resolve' })).error, 'senior_volunteer_required');
+  assert.equal((await reportPost('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'resolve', note: 'Reviewed' })).ok, true);
+  assert.equal((await reportPost('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'resolve' })).error, 'senior_volunteer_required');
   console.log('✓ Security reports: junior review/forward and senior-only resolution');
   const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
   assert.equal(allowedUnmute.ok, true);
