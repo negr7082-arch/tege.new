@@ -108,6 +108,11 @@ class TegeChanActivity : Activity() {
                         rendererReady = true
                         mainHandler.removeCallbacks(renderWatchdog)
                     }
+                },
+                onRenderFailure = {
+                    runOnUiThread {
+                        if (mascot != null && !rendererReady) showFallback()
+                    }
                 }
             )
             mascot = sceneView
