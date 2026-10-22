@@ -2,28 +2,46 @@ package org.tege.messenger
 
 import android.app.Activity
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.tege.messenger.ui.components.TegeChan3DView
+import org.tege.messenger.ui.components.TegeChanFallbackView
 
 /**
- * Hosts the OpenGL mascot in its own window. Keeping GLSurfaceView out of a
- * Compose dialog avoids the separate-surface bug that could blank the main UI.
+ * Owns the mascot scene outside Compose. If a device fails to create its OpenGL
+ * surface, a Canvas-based fallback replaces it instead of leaving a white screen.
  */
 class TegeChanActivity : Activity() {
     private var mascot: TegeChan3DView? = null
+    private var renderHost: FrameLayout? = null
+    private var reactionLabel: TextView? = null
+    private var rendererReady = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val renderWatchdog = Runnable {
+        if (!rendererReady) showFallback()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(12, 20, 42)
-        window.navigationBarColor = Color.rgb(12, 20, 42)
+        val darkBackground = Color.rgb(12, 20, 42)
+        window.setBackgroundDrawable(ColorDrawable(darkBackground))
+        window.statusBarColor = darkBackground
+        window.navigationBarColor = darkBackground
+        // The theme uses light system-bar icons for the main app; switch to light
+        // icons on this dark easter-egg background.
+        window.decorView.systemUiVisibility = 0
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setBackgroundColor(Color.rgb(12, 20, 42))
+            setBackgroundColor(darkBackground)
             setPadding(dp(20), dp(12), dp(20), dp(20))
         }
 
@@ -34,6 +52,8 @@ class TegeChanActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(8), dp(12), dp(12))
             contentDescription = "Вернуться в TEGE"
+            isClickable = true
+            isFocusable = true
             setOnClickListener { finish() }
         }
         root.addView(back, LinearLayout.LayoutParams(-1, dp(48)))
@@ -60,13 +80,81 @@ class TegeChanActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
+        reactionLabel = reaction
 
-        mascot = TegeChan3DView(this) { message ->
-            runOnUiThread { reaction.text = message }
+        val sceneHost = FrameLayout(this).apply {
+            setBackgroundColor(darkBackground)
+            clipChildren = true
+            clipToPadding = true
         }
-        root.addView(mascot, LinearLayout.LayoutParams(-1, 0, 1f))
+        renderHost = sceneHost
+        root.addView(sceneHost, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(reaction, LinearLayout.LayoutParams(-1, dp(64)))
+
+        // Attach the regular Android UI before creating the GL surface. If the
+        // driver/renderer fails to produce a frame, the watchdog installs a view
+        // that does not depend on EGL or SurfaceView composition.
         setContentView(root)
+
+        try {
+            lateinit var sceneView: TegeChan3DView
+            sceneView = TegeChan3DView(
+                context = this,
+                onReaction = { message ->
+                    runOnUiThread { reactionLabel?.text = message }
+                },
+                onFirstFrame = {
+                    runOnUiThread {
+                        if (mascot !== sceneView) return@runOnUiThread
+                        rendererReady = true
+                        mainHandler.removeCallbacks(renderWatchdog)
+                    }
+                }
+            )
+            mascot = sceneView
+            sceneHost.addView(
+                sceneView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            mainHandler.postDelayed(renderWatchdog, 2200L)
+        } catch (_: Exception) {
+            showFallback()
+        }
+    }
+
+    private fun showFallback() {
+        mainHandler.removeCallbacks(renderWatchdog)
+        if (rendererReady) return
+        val host = renderHost ?: return
+        mascot?.let { glView ->
+            try {
+                glView.onPause()
+            } catch (_: Exception) {
+                // Continue showing the fallback even if the GL lifecycle is broken.
+            }
+            host.removeView(glView)
+        }
+        mascot = null
+        host.removeAllViews()
+        host.addView(
+            TegeChanFallbackView(this) {
+                reactionLabel?.text = listOf(
+                    "Ой! Ты меня заметил 💙",
+                    "Эй-эй, щекотно! ✨",
+                    "Хи-хи~ Я тут вообще-то живу 👀",
+                    "Ня? Поверни меня пальцем!",
+                    "А-а, не смотри так… я смущаюсь 🙈"
+                ).random()
+            },
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        reactionLabel?.text = "Запасной режим активен — проведи пальцем 💙"
     }
 
     override fun onResume() {
@@ -79,5 +167,13 @@ class TegeChanActivity : Activity() {
         super.onPause()
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(renderWatchdog)
+        mascot?.onPause()
+        mascot = null
+        super.onDestroy()
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 }
