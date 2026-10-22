@@ -427,6 +427,10 @@ fun MessageBubble(
                         color = textColor,
                         fontSize = 15.sp
                     )
+                    if (message.text.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        org.tege.messenger.ui.components.MessageTranslation(text = message.text)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
