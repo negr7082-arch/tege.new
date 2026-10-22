@@ -620,31 +620,33 @@ function joinChats(userId, chatIds) {
 function handleSend(user, conn, payload) {
   const now = Date.now();
   user.lastActiveAt = now;
+  const isNewMessage = Boolean(payload?.message && !payload.action);
+  let window = spamWindows.get(user.id) || [];
+  if (isNewMessage) {
+    window = window.filter((t) => now - t < SPAM_WINDOW_MS);
+    window.push(now);
+    spamWindows.set(user.id, window);
+    // 200+ send attempts inside the rolling window escalates to a permanent system mute,
+    // including attempts made while a temporary mute is active.
+    if (window.length >= 200 && !user.spamMutedPermanently) {
+      applySpamMute(user, Infinity, '200+ сообщений за 19 минут');
+    }
+  }
   if (user.spamMutedPermanently || Number(user.spamMuteUntil || 0) > now) {
     conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMutedPermanently ? null : user.spamMuteUntil, permanent: Boolean(user.spamMutedPermanently) });
     return;
   }
   if (user.spamMuteUntil && Number(user.spamMuteUntil) <= now) { delete user.spamMuteUntil; delete user.spamMutedPermanently; }
-  if (payload?.message && !payload.action) {
-    const window = (spamWindows.get(user.id) || []).filter(t => now - t < SPAM_WINDOW_MS);
-    window.push(now);
-    spamWindows.set(user.id, window);
-    if (window.length >= 200) {
-      applySpamMute(user, Infinity, '200+ сообщений за 19 минут');
+  if (isNewMessage && window.length >= 100) {
+    const previousStrike = securityEventsFor(user.id).some((event) => event.type === 'spam_mute');
+    if (previousStrike) {
+      applySpamMute(user, Infinity, 'Повторный массовый спам после предыдущего наказания');
       conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', permanent: true });
-      return;
+    } else {
+      applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
+      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
     }
-    if (window.length >= 100) {
-      const previousStrike = securityEventsFor(user.id).some((event) => event.type === 'spam_mute');
-      if (previousStrike) {
-        applySpamMute(user, Infinity, 'Повторный массовый спам после предыдущего наказания');
-        conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', permanent: true });
-      } else {
-        applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
-        conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
-      }
-      return;
-    }
+    return;
   }
   const ok = (extra) => conn.send({ type: 'send_result', id: payload?.id, ok: true, ...extra });
   const no = (reason) => conn.send({ type: 'send_result', id: payload?.id, ok: false, reason });
