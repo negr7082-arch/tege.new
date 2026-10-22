@@ -155,6 +155,21 @@ class RealtimeNetworkService {
     return Boolean(r.ok);
   }
 
+  public async getInactivitySettings(token: string): Promise<{ ok: boolean; months: number | null; lastActiveAt: number | null; deletionAt: number | null }> {
+    const r = await this.api('/api/account/inactivity/status', { token });
+    return { ok: Boolean(r.ok), months: r.months ?? null, lastActiveAt: r.lastActiveAt ?? null, deletionAt: r.deletionAt ?? null };
+  }
+
+  public async setInactivitySettings(token: string, months: number | null): Promise<{ ok: boolean; error?: string; deletionAt?: number | null }> {
+    const r = await this.api('/api/account/inactivity', { token, months });
+    return { ok: Boolean(r.ok), error: r.error, deletionAt: r.deletionAt ?? null };
+  }
+
+  public async getSecurityEvents(token: string): Promise<{ ok: boolean; activeMute: { permanent: boolean; until: number | null } | null; events: Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }> }> {
+    const r = await this.api('/api/security/events', { token });
+    return { ok: Boolean(r.ok), activeMute: r.activeMute || null, events: Array.isArray(r.events) ? r.events : [] };
+  }
+
   public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
     const r = await this.api('/api/sessions', { token });
     return { ok: Boolean(r.ok), sessions: Array.isArray(r.sessions) ? r.sessions : [] };
