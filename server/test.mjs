@@ -207,7 +207,6 @@ try {
   assert.ok(spamSecurity.activeMute && !spamSecurity.activeMute.permanent);
   assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
 
-  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
   const ordinaryVolunteer = volunteer;
   const deniedUnmute = await post('/api/security/moderation/action', { token: ordinaryVolunteer.token, targetUserId: spammer.id, action: 'unmute' });
   assert.equal(deniedUnmute.error, 'senior_volunteer_required');
@@ -216,6 +215,22 @@ try {
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
   const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
   assert.equal(senior.role, 'senior_volunteer');
+  const submittedReport = await post('/api/security/reports/create', {
+    token: volunteer.token, targetUserId: b.id, messageId: 'reported-message-1',
+    messageText: 'sample spam message', category: 'spam', details: 'Repeated unsolicited ads'
+  });
+  assert.equal(submittedReport.ok, true);
+  assert.equal(submittedReport.report.status, 'open');
+  const volunteerReports = await post('/api/security/reports/list', { token: volunteer.token });
+  assert.ok(volunteerReports.reports.some((r) => r.id === submittedReport.report.id));
+  assert.equal((await post('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'review' })).error, 'junior_review_only');
+  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'review' })).ok, true);
+  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'forward', note: 'Needs senior review' })).ok, true);
+  const seniorReports = await post('/api/security/reports/list', { token: senior.token });
+  assert.ok(seniorReports.reports.some((r) => r.id === submittedReport.report.id && r.status === 'forwarded'));
+  assert.equal((await post('/api/security/reports/action', { token: senior.token, reportId: submittedReport.report.id, action: 'resolve', note: 'Reviewed' })).ok, true);
+  assert.equal((await post('/api/security/reports/action', { token: volunteer.token, reportId: submittedReport.report.id, action: 'resolve' })).error, 'senior_volunteer_required');
+  console.log('✓ Security reports: junior review/forward and senior-only resolution');
   const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
   assert.equal(allowedUnmute.ok, true);
   assert.equal((await post('/api/security/moderation/list', { token: senior.token })).mutedUsers.some((u) => u.id === spammer.id), false);
