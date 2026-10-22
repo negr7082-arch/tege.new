@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Message, Comment, Language, UserAccount } from '../types';
 import { MessageSquare, Send, X, Shield, User } from 'lucide-react';
+import { realtimeNetwork } from '../services/realtimeNetwork';
 
 interface CommentsModalProps {
   isOpen: boolean;
   post: Message | null;
+  channelId: number;
   channelName: string;
   currentAccount: UserAccount;
   language: Language;
@@ -15,6 +17,7 @@ interface CommentsModalProps {
 export const CommentsModal: React.FC<CommentsModalProps> = ({
   isOpen,
   post,
+  channelId,
   channelName,
   currentAccount,
   language,
@@ -22,14 +25,35 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   onAddComment
 }) => {
   const [commentText, setCommentText] = useState('');
+  const [serverComments, setServerComments] = useState<Comment[] | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setServerComments(null);
+    setCommentError(null);
+    if (isOpen && post && currentAccount.token) {
+      setCommentsLoading(true);
+      void realtimeNetwork.getChannelComments(currentAccount.token, channelId, post.id).then((result) => {
+        if (cancelled) return;
+        if (result.ok) setServerComments(result.comments);
+        else setCommentError(result.error === 'forbidden'
+          ? (language === 'ru' ? 'Нет доступа к обсуждению этого канала.' : 'You cannot access this discussion.')
+          : (language === 'ru' ? 'Не удалось загрузить комментарии.' : 'Could not load comments.'));
+      }).finally(() => { if (!cancelled) setCommentsLoading(false); });
+    }
+    return () => { cancelled = true; };
+  }, [isOpen, post?.id, channelId, currentAccount.token, language]);
 
   if (!isOpen || !post) return null;
 
-  const comments = post.comments || [];
+  const comments = serverComments ?? post.comments ?? [];
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || commentBusy) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newComment: Comment = {
@@ -42,7 +66,22 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
       time: timeStr
     };
 
-    onAddComment(post.id, newComment);
+    setCommentError(null);
+    if (currentAccount.token) {
+      setCommentBusy(true);
+      const result = await realtimeNetwork.addChannelComment(currentAccount.token, channelId, post.id, commentText.trim());
+      setCommentBusy(false);
+      if (!result.ok || !result.comment) {
+        setCommentError(result.error === 'comment_rate_limited'
+          ? (language === 'ru' ? 'Слишком часто. Подождите немного.' : 'You are commenting too quickly. Please wait.')
+          : (language === 'ru' ? 'Не удалось отправить комментарий.' : 'Could not send comment.'));
+        return;
+      }
+      onAddComment(post.id, result.comment);
+      setServerComments(result.comments);
+    } else {
+      onAddComment(post.id, newComment);
+    }
     setCommentText('');
   };
 
@@ -85,7 +124,9 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
 
         {/* Comments List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {comments.length === 0 ? (
+          {commentsLoading && <p className="text-center text-xs text-gray-400 py-3">{language === 'ru' ? 'Загрузка комментариев…' : 'Loading comments…'}</p>}
+          {commentError && <p role="alert" className="text-xs text-rose-500 px-2">{commentError}</p>}
+          {!commentsLoading && comments.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-zinc-500 text-xs">
               <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-zinc-600" />
               <p className="font-medium">
@@ -95,7 +136,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 {language === 'ru' ? 'Будьте первым, кто оставит комментарий!' : 'Be the first to comment!'}
               </p>
             </div>
-          ) : (
+          ) : !commentsLoading ? (
             comments.map((c) => {
               const isMine = c.authorId === currentAccount.id;
               return (
@@ -152,7 +193,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
           />
           <button
             type="submit"
-            disabled={!commentText.trim()}
+            disabled={!commentText.trim() || commentBusy}
             className="w-9 h-9 rounded-full bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white flex items-center justify-center transition active:scale-95 shadow-md shadow-sky-500/20 shrink-0"
           >
             <Send className="w-4 h-4 ml-0.5" />
