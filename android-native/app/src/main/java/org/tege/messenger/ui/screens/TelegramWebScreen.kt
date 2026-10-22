@@ -127,6 +127,25 @@ fun TelegramWebScreen(onBack: () -> Unit) {
                         ) {
                             if (request?.isForMainFrame == true) loadError = true
                         }
+
+                        override fun onReceivedHttpError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            errorResponse: android.webkit.WebResourceResponse?
+                        ) {
+                            // Network errors can be reported for images and API calls too.
+                            // Only replace the whole client when the main document fails.
+                            if (request?.isForMainFrame == true &&
+                                (errorResponse?.statusCode ?: 0) >= 400
+                            ) {
+                                loadError = true
+                                loadingProgress = 100
+                            }
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            loadingProgress = 100
+                        }
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
