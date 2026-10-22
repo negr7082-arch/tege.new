@@ -100,3 +100,20 @@ The following are planned targets, not claims of completed implementation. Port 
 - Remember preferred target language and optionally follow app language.
 - Translation for captions and channel posts; do not translate attachments without OCR/transcription consent.
 - Explicit privacy disclosure and a clear way to disable translation.
+
+
+## Presence and last-seen display slice (implemented on this branch)
+
+- Added an optional `lastSeenAt` timestamp to the native chat model.
+- Added a presence formatter for online, recently active, minutes/hours ago, yesterday, days ago, months ago, and years ago states.
+- The chat list now shows a green/gray presence dot and a last-seen label for direct chats; the chat header shows the same readable status.
+- When no timestamp is known, the UI explicitly shows “статус неизвестен” rather than inventing an activity time.
+
+**Important limitation:** this is the model/UI slice, not yet a real presence service. Existing sample chats still contain demo `online` values, and no heartbeat, server timestamp, WebSocket presence event, offline transition, privacy enforcement, or persistence has been wired into this change. The UI will show an exact elapsed duration only when a trustworthy `lastSeenAt` value is supplied by a real backend. Compile and device-test before release.
+
+### Presence service follow-up
+
+- Update presence on authenticated app foreground/background and maintain a server-side heartbeat/expiry policy.
+- Broadcast online/offline transitions and the last-seen server timestamp through the existing real-time channel.
+- Add privacy settings for who can see last seen/online, plus a consistent “recently” fallback when visibility is restricted.
+- Test reconnects, force-stop, lost connectivity, multiple devices, clock skew, and stale sessions; do not derive presence solely from whether a client socket currently appears connected.
