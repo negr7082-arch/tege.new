@@ -163,6 +163,7 @@ function applySpamMute(user, durationMs, reason) {
   const until = durationMs === Infinity ? null : Date.now() + durationMs;
   user.spamMuteUntil = until;
   user.spamMutedPermanently = durationMs === Infinity;
+  user.spamMuteReason = reason;
   recordSecurityEvent(user.id, { type: 'spam_mute', reason, until, permanent: durationMs === Infinity, botId: SECURITY_BOT_ID });
   sendToUser(user.id, { type: 'security_bot_notice', botId: SECURITY_BOT_ID, text: durationMs === Infinity ? 'Системный Security: за массовый спам установлен постоянный мут.' : 'Системный Security: обнаружен массовый спам. Мут на 3 дня.' });
 }
@@ -201,10 +202,17 @@ setInterval(enforceInactivityDeletion, 60 * 60_000).unref();
 enforceInactivityDeletion(); // chatId -> info
 
 const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const seniorVolunteerEmails = new Set(String(process.env.TEGE_SENIOR_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const volunteerIds = new Set();
+const staffRole = (u) => {
+  const email = String(u.email || '').toLowerCase();
+  if (seniorVolunteerEmails.has(email)) return 'senior_volunteer';
+  if (volunteerEmails.has(email) || volunteerIds.has(u.id)) return 'volunteer';
+  return 'user';
+};
 const publicUser = (u) => ({
   id: u.id,
-  role: volunteerEmails.has(String(u.email || '').toLowerCase()) || volunteerIds.has(u.id) ? 'volunteer' : 'user',
+  role: staffRole(u),
   name: u.name,
   username: u.username,
   bio: u.bio || '',
@@ -226,7 +234,7 @@ const selfUser = (u, token) => ({
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
   token,
-  role: volunteerEmails.has(String(u.email || '').toLowerCase()) || volunteerIds.has(u.id) ? 'volunteer' : 'user'
+  role: staffRole(u)
 });
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -460,6 +468,61 @@ const server = http.createServer(async (req, res) => {
       const muteUntil = user.spamMutedPermanently ? null : Number(user.spamMuteUntil || 0);
       const activeMute = Boolean(user.spamMutedPermanently || muteUntil > now);
       return reply(200, { ok: true, bot: { id: SECURITY_BOT_ID, name: 'Security' }, activeMute: activeMute ? { permanent: Boolean(user.spamMutedPermanently), until: muteUntil || null } : null, events: securityEventsFor(user.id) });
+    }
+
+    // Staff moderation is enforced on the server. Volunteer role comes from private env allowlists.
+    if (url.pathname === '/api/security/moderation/list') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      if (!['volunteer', 'senior_volunteer'].includes(staffRole(actor))) return fail(403, 'staff_only');
+      const now = Date.now();
+      const mutedUsers = Object.values(db.users)
+        .filter((u) => Boolean(u.spamMutedPermanently || Number(u.spamMuteUntil || 0) > now))
+        .map((u) => ({
+          id: u.id, name: u.name, username: u.username,
+          permanent: Boolean(u.spamMutedPermanently),
+          until: u.spamMutedPermanently ? null : Number(u.spamMuteUntil || 0),
+          reason: String(u.spamMuteReason || securityEventsFor(u.id).find((e) => e.type === 'spam_mute')?.reason || 'Spam detection'),
+          events: securityEventsFor(u.id).slice(0, 20)
+        }));
+      return reply(200, { ok: true, role: staffRole(actor), mutedUsers });
+    }
+
+    if (url.pathname === '/api/security/moderation/action') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const targetId = Number(body.targetUserId);
+      const target = Number.isSafeInteger(targetId) ? db.users[targetId] : null;
+      if (!target) return fail(404, 'user_not_found');
+      const action = String(body.action || '');
+      const now = Date.now();
+      const isMuted = Boolean(target.spamMutedPermanently || Number(target.spamMuteUntil || 0) > now);
+      if (!isMuted) return fail(409, 'not_muted');
+      if (action === 'unmute') {
+        if (role !== 'senior_volunteer') return fail(403, 'senior_volunteer_required');
+        delete target.spamMuteUntil;
+        delete target.spamMutedPermanently;
+        delete target.spamMuteReason;
+        recordSecurityEvent(target.id, { type: 'moderation_unmute', reason: 'Мут снят старшим волонтёром', actorId: actor.id, actorRole: role });
+      } else if (action === 'extend') {
+        const hours = Number(body.hours);
+        if (!Number.isInteger(hours) || hours < 1 || hours > 720) return fail(400, 'bad_duration');
+        if (target.spamMutedPermanently) return fail(409, 'permanent_mute');
+        target.spamMuteUntil = Math.max(Number(target.spamMuteUntil || 0), now) + hours * 60 * 60_000;
+        target.spamMuteReason = String(target.spamMuteReason || 'Spam detection');
+        recordSecurityEvent(target.id, { type: 'moderation_extend', reason: `Мут продлён на ${hours} ч.`, until: target.spamMuteUntil, actorId: actor.id, actorRole: role });
+      } else if (action === 'reason') {
+        const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+        if (reason.length < 5 || reason.length > 300) return fail(400, 'bad_reason');
+        target.spamMuteReason = reason;
+        recordSecurityEvent(target.id, { type: 'moderation_reason', reason, until: target.spamMutedPermanently ? null : target.spamMuteUntil, permanent: Boolean(target.spamMutedPermanently), actorId: actor.id, actorRole: role });
+      } else {
+        return fail(400, 'bad_action');
+      }
+      save();
+      return reply(200, { ok: true, role, targetUserId: target.id, permanent: Boolean(target.spamMutedPermanently), until: target.spamMutedPermanently ? null : Number(target.spamMuteUntil || 0), reason: target.spamMuteReason || null });
     }
 
     if (url.pathname === '/api/push-key') {
