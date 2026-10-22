@@ -100,6 +100,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [accountDeleteAt, setAccountDeleteAt] = useState<number | null>(null);
   const [accountDeleteBusy, setAccountDeleteBusy] = useState(false);
   const [accountDeleteNotice, setAccountDeleteNotice] = useState<string | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [securityEvents, setSecurityEvents] = useState<Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }>>([]);
   const [securityMute, setSecurityMute] = useState<{ permanent: boolean; until: number | null } | null>(null);
   const [revokingSession, setRevokingSession] = useState<string | null>(null);
@@ -283,6 +286,36 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {securityMute && <p className="text-xs font-medium text-rose-500 mb-2">{securityMute.permanent ? (settings.language === 'ru' ? 'Активен постоянный системный спам-мут.' : 'Permanent system spam mute is active.') : (settings.language === 'ru' ? 'Активен системный спам-мут до ' : 'System spam mute until ')+new Date(securityMute.until || 0).toLocaleString()}</p>}
                 <p className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{settings.language === 'ru' ? 'История системных предупреждений и наказаний' : 'System warnings and punishment history'}</p>
                 {securityEvents.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Наказаний пока нет.' : 'No punishments yet.'}</p> : <div className="space-y-2">{securityEvents.slice(0, 10).map((event) => <div key={event.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3"><p className="text-xs font-semibold text-gray-800 dark:text-zinc-100">{event.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'Системный спам-мут' : 'System spam mute')}</p><p className="text-xs text-gray-500 dark:text-zinc-400">{event.reason || 'Spam detection'} · {new Date(event.createdAt).toLocaleString()}</p>{event.until && <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'До: ' : 'Until: '}{new Date(event.until).toLocaleString()}</p>}</div>)}</div>}
+              </div>
+              <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{settings.language === 'ru' ? 'Удалить аккаунт сейчас' : 'Delete account now'}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Будут отозваны все сеансы и удалены данные профиля. Это действие нельзя отменить.' : 'All sessions will be revoked and account data removed. This cannot be undone.'}</p>
+                {!showDeleteAccount ? (
+                  <button onClick={() => { setShowDeleteAccount(true); setDeleteAccountError(null); }} className="mt-3 w-full rounded-xl border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm font-semibold py-2.5">
+                    {settings.language === 'ru' ? 'Продолжить удаление' : 'Continue to deletion'}
+                  </button>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <label className="block text-xs text-gray-600 dark:text-zinc-300" htmlFor="delete-account-password">{settings.language === 'ru' ? 'Подтверди текущим паролем аккаунта' : 'Confirm with your account password'}</label>
+                    <input id="delete-account-password" type="password" autoComplete="current-password" value={deleteAccountPassword} onChange={(e) => setDeleteAccountPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 text-sm" />
+                    {deleteAccountError && <p role="alert" className="text-xs text-rose-500">{deleteAccountError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => { setShowDeleteAccount(false); setDeleteAccountPassword(''); setDeleteAccountError(null); }} className="flex-1 rounded-xl border border-gray-200 dark:border-zinc-700 py-2.5 text-sm">{settings.language === 'ru' ? 'Отмена' : 'Cancel'}</button>
+                      <button disabled={!currentUser?.token || !deleteAccountPassword || accountDeleteBusy} onClick={async () => {
+                        if (!currentUser?.token || !deleteAccountPassword || accountDeleteBusy) return;
+                        const confirmed = window.confirm(settings.language === 'ru' ? 'Точно удалить аккаунт навсегда? Восстановить его будет нельзя.' : 'Permanently delete this account? This cannot be undone.');
+                        if (!confirmed) return;
+                        setAccountDeleteBusy(true); setDeleteAccountError(null);
+                        const result = await realtimeNetwork.deleteAccount(currentUser.token, deleteAccountPassword);
+                        setAccountDeleteBusy(false);
+                        if (result.ok) { onLogout?.(); return; }
+                        setDeleteAccountError(result.error === 'bad_credentials' ? (settings.language === 'ru' ? 'Неверный пароль.' : 'Incorrect password.') : (settings.language === 'ru' ? 'Не удалось удалить аккаунт. Попробуй ещё раз.' : 'Could not delete account. Try again.'));
+                      }} className="flex-1 rounded-xl bg-rose-600 disabled:opacity-50 text-white py-2.5 text-sm font-semibold">
+                        {accountDeleteBusy ? (settings.language === 'ru' ? 'Удаляю…' : 'Deleting…') : (settings.language === 'ru' ? 'Удалить навсегда' : 'Delete permanently')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
