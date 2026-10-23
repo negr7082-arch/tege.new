@@ -136,7 +136,10 @@ data class ContactUser(
     val registrationDate: String = "",
     val online: Boolean = false,
     val avatarUri: String? = null,
-    val color: String = "#2AABEE"
+    val color: String = "#2AABEE",
+    val bannerUri: String? = null,
+    val themeColor: String = "#2AABEE",
+    val fontFamily: String = "system"
 )
 
 data class Chat(
