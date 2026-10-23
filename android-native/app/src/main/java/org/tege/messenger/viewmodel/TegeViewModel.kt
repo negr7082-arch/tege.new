@@ -44,6 +44,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             registrationDate = profilePrefs.getString("created_at", "").orEmpty(),
             avatarUri = profilePrefs.getString("avatar_uri", null),
             bannerUri = profilePrefs.getString("banner_uri", null),
+            themeColor = profilePrefs.getString("theme_color", "#2AABEE") ?: "#2AABEE",
+            fontFamily = profilePrefs.getString("font_family", "system") ?: "system",
             isOnline = false
         )
     }
@@ -62,6 +64,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             .putString("country", account.country)
             .putString("avatar_uri", account.avatarUri)
             .putString("banner_uri", account.bannerUri)
+            .putString("theme_color", account.themeColor)
+            .putString("font_family", account.fontFamily)
             .putString("created_at", account.registrationDate)
             .apply()
     }
@@ -423,7 +427,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         country = user.optString("country"),
                         registrationDate = user.optString("registrationDate"),
                         online = user.optBoolean("online"),
-                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                        bannerUri = user.optString("bannerUri").takeIf { it.isNotBlank() },
+                        themeColor = user.optString("themeColor", "#2AABEE"),
+                        fontFamily = user.optString("fontFamily", "system")
                     )
                 }.sortedBy { it.name.lowercase(Locale.ROOT) }
                 _connectionState.value = "Подключено"
@@ -441,6 +448,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         phone = user.optString("phone", current.phone),
                         country = user.optString("country", current.country),
                         avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                        bannerUri = user.optString("bannerUri").takeIf { it.isNotBlank() },
+                        themeColor = user.optString("themeColor", current.themeColor),
+                        fontFamily = user.optString("fontFamily", current.fontFamily),
                         isOnline = user.optBoolean("online")
                     )
                     _currentAccount.value = updated
@@ -742,12 +752,75 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun resolveMediaUrl(uri: String?): String? {
+        if (uri.isNullOrBlank()) return null
+        if (uri.startsWith("https://") || uri.startsWith("http://") || uri.startsWith("content://") || uri.startsWith("file://")) return uri
+        return savedServerUrl.trimEnd('/') + "/" + uri.trimStart('/')
+    }
+
     fun updateProfileMedia(avatarUri: String? = _currentAccount.value?.avatarUri, bannerUri: String? = _currentAccount.value?.bannerUri) {
         val current = _currentAccount.value ?: return
+        val changedKind = when {
+            avatarUri != current.avatarUri && avatarUri?.startsWith("content://") == true -> "avatar"
+            bannerUri != current.bannerUri && bannerUri?.startsWith("content://") == true -> "banner"
+            else -> null
+        }
+        val selectedUri = if (changedKind == "avatar") avatarUri else bannerUri
+        if (changedKind != null && selectedUri != null) {
+            viewModelScope.launch {
+                try {
+                    val uri = android.net.Uri.parse(selectedUri)
+                    val resolver = getApplication<Application>().contentResolver
+                    val mime = resolver.getType(uri)?.lowercase(Locale.ROOT)
+                    if (mime !in setOf("image/png", "image/jpeg", "image/webp")) {
+                        _messageError.value = "Выбери изображение PNG, JPG или WebP."
+                        return@launch
+                    }
+                    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: run { _messageError.value = "Не удалось прочитать изображение."; return@launch }
+                    if (bytes.size > 3 * 1024 * 1024) {
+                        _messageError.value = "Изображение должно быть не больше 3 МБ."
+                        return@launch
+                    }
+                    val token = savedToken ?: run { _messageError.value = "Войди в аккаунт для загрузки на сервер."; return@launch }
+                    val remotePath = BackendClient.uploadProfileMedia(savedServerUrl, token, changedKind, mime, bytes)
+                        ?: run { _messageError.value = "Не удалось загрузить изображение на сервер."; return@launch }
+                    val updated = if (changedKind == "avatar") current.copy(avatarUri = remotePath) else current.copy(bannerUri = remotePath)
+                    _currentAccount.value = updated
+                    _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+                    persistLocalAccount(updated)
+                    BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone,
+                        updated.avatarUri, updated.bannerUri, updated.themeColor, updated.fontFamily)
+                } catch (_: Exception) {
+                    _messageError.value = "Не удалось загрузить изображение. Попробуй ещё раз."
+                }
+            }
+            return
+        }
         val updated = current.copy(avatarUri = avatarUri, bannerUri = bannerUri)
         _currentAccount.value = updated
         _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
         persistLocalAccount(updated)
+        BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone,
+            updated.avatarUri, updated.bannerUri, updated.themeColor, updated.fontFamily)
+    }
+
+    fun updateProfileStyle(themeColor: String, fontFamily: String) {
+        val current = _currentAccount.value ?: return
+        if (!Regex("^#[0-9a-fA-F]{6}$").matches(themeColor) ||
+            fontFamily !in setOf("system", "serif", "monospace", "sans-serif-rounded", "cursive")) return
+        val updated = current.copy(themeColor = themeColor.uppercase(Locale.ROOT), fontFamily = fontFamily)
+        _currentAccount.value = updated
+        _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+        persistLocalAccount(updated)
+        if (savedToken != null) {
+            if (!BackendClient.updateProfile(activeSocket, updated.name, "@" + updated.username.removePrefix("@"), updated.bio, updated.phone,
+                    updated.avatarUri, updated.bannerUri, updated.themeColor, updated.fontFamily)) {
+                _messageError.value = "Нет соединения с сервером. Оформление не отправлено."
+            }
+        } else {
+            _messageError.value = "Войди в аккаунт, чтобы сохранить оформление для всех устройств."
+        }
     }
 
     fun updateProfile(name: String, username: String, bio: String, phone: String) {
