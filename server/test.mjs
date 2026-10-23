@@ -38,6 +38,8 @@ class Client {
 let failed = false;
 try {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await sleep(100); } }
+  const malformedPathResponse = await fetch(base + '/%E0%A4%A');
+  assert.equal(malformedPathResponse.status, 400, 'malformed URL paths should return 400 rather than crash the server');
 
   const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice', phone: '+15551234567' })).user;
   const b = (await post('/api/register', { email: 'bob@x.io', password: 'password2', name: 'Bob', username: 'bob' })).user;
