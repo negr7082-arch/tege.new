@@ -95,6 +95,13 @@ try {
   await ca.waitFor((m) => m.type === 'presence' && m.userId === b.id && m.online);
   console.log('✓ offline message delivered on login, sender spoof ignored, presence pushed');
 
+  // Profile changes must not allow taking another user's username.
+  ca.send({ type: 'profile', user: { username: '@bob' } });
+  const profileResult = await ca.waitFor((m) => m.type === 'profile_result' && m.error === 'username_taken');
+  assert.equal(profileResult.ok, false);
+  assert.equal((await ca.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id)).user.username, '@alice');
+  console.log('✓ duplicate username rejected on profile updates');
+
   // not acked -> redelivered on reconnect; acked -> gone
   cb.ws.close(); await cb.closed; await sleep(100);
   const cb2 = new Client(b.token); await cb2.ready;
