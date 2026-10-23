@@ -94,6 +94,13 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
+                                is ScreenRoute.Security -> {
+                                    SecurityScreen(
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.navigateBack() },
+                                        onLoggedOut = { viewModel.navigateTo(ScreenRoute.ChatList) }
+                                    )
+                                }
                                 is ScreenRoute.Settings -> {
                                     SettingsScreen(
                                         viewModel = viewModel,

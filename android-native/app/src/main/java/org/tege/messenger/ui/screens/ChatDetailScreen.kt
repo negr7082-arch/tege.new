@@ -60,6 +60,7 @@ fun ChatDetailScreen(
     val chats by viewModel.chats.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val currentAccount by viewModel.currentAccount.collectAsState()
+    val contacts by viewModel.contacts.collectAsState()
     val messageError by viewModel.messageError.collectAsState()
     val currentUserId = currentAccount?.id ?: 0L
     val chat = chats.find { it.id == chatId } ?: return
@@ -79,7 +80,18 @@ fun ChatDetailScreen(
     var inputText by remember { mutableStateOf("") }
     var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var reportCategory by remember { mutableStateOf("spam") }
+    var reportDetails by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var showCommunitySettings by remember { mutableStateOf(false) }
+    var allowCommunityMessages by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityMedia by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityMembers by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityTopics by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityPins by remember(chatId) { mutableStateOf(false) }
+    val selectedCommunityAdmins = remember(chatId) { mutableStateListOf<Long>() }
+    var showCommunityAdmins by remember(chatId) { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var editingMessageId by remember { mutableStateOf<Long?>(null) }
     var deletingMessageId by remember { mutableStateOf<Long?>(null) }
@@ -104,7 +116,9 @@ fun ChatDetailScreen(
         try {
             val file = File(context.cacheDir, "tege-voice-${System.currentTimeMillis()}.m4a")
             val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            // Ask Android for the voice-communication capture path; supported devices may
+            // provide speech-oriented noise suppression and automatic level control.
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             mediaRecorder.setAudioSamplingRate(44100)
@@ -200,6 +214,25 @@ fun ChatDetailScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        if ((chat.type == ChatType.GROUP || chat.type == ChatType.CHANNEL) && (chat.isOwner || chat.isAdmin)) {
+                            DropdownMenuItem(
+                                text = { Text("Управление группой/каналом") },
+                                leadingIcon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null) },
+                                onClick = { showMenu = false; showCommunitySettings = true }
+                            )
+                        }
+                        if (chat.type == ChatType.DIRECT && chat.userId != null && chat.userId != currentUserId) {
+                            DropdownMenuItem(
+                                text = { Text("Пожаловаться на пользователя") },
+                                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    reportCategory = "spam"
+                                    reportDetails = ""
+                                    showReportDialog = true
+                                }
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
                             onClick = {
@@ -499,12 +532,144 @@ fun ChatDetailScreen(
         )
     }
 
+    if (showReportDialog) {
+        val reportCategories = listOf(
+            "spam" to "Спам",
+            "harassment" to "Травля или угрозы",
+            "scam" to "Мошенничество",
+            "impersonation" to "Выдаёт себя за другого",
+            "other" to "Другое"
+        )
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = { Text("Пожаловаться на ${chat.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Выберите причину")
+                    reportCategories.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { reportCategory = key },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = reportCategory == key, onClick = { reportCategory = key })
+                            Text(label)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reportDetails,
+                        onValueChange = { reportDetails = it.take(1500) },
+                        label = { Text("Подробности (необязательно)") },
+                        minLines = 2,
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val sent = viewModel.submitSecurityReport(chat.userId.toString(), reportCategory, reportDetails.ifBlank { "Без дополнительных подробностей" })
+                    if (sent) {
+                        Toast.makeText(context, "Жалоба отправлена на сервер", Toast.LENGTH_SHORT).show()
+                        showReportDialog = false
+                    } else {
+                        Toast.makeText(context, "Не удалось отправить жалобу. Проверьте подключение.", Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Отправить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
     if (showPollDialog) {
         CreatePollDialog(
             onDismiss = { showPollDialog = false },
             onCreate = { question, options ->
                 viewModel.sendPoll(chat.id, question, options)
             }
+        )
+    }
+
+
+    if (showCommunitySettings) {
+        AlertDialog(
+            onDismissRequest = { showCommunitySettings = false },
+            title = { Text("Управление: ${chat.name}") },
+            text = {
+                Column(modifier = Modifier.heightIn(max = 440.dp)) {
+                    Text("Эти права будут сохранены на сервере и обновятся у участников.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMessages, onCheckedChange = { allowCommunityMessages = it })
+                        Text("Участники могут отправлять сообщения")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMedia, onCheckedChange = { allowCommunityMedia = it })
+                        Text("Отправлять фото и файлы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMembers, onCheckedChange = { allowCommunityMembers = it })
+                        Text("Добавлять участников")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityTopics, onCheckedChange = { allowCommunityTopics = it })
+                        Text("Создавать темы и опросы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityPins, onCheckedChange = { allowCommunityPins = it })
+                        Text("Закреплять сообщения")
+                    }
+                    if (chat.isOwner) {
+                        TextButton(onClick = { showCommunityAdmins = true }) { Text("Назначить администраторов") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityPermissions(chat.id, chat.type, allowCommunityMessages, allowCommunityMedia, allowCommunityMembers, allowCommunityTopics, allowCommunityPins)
+                    showCommunitySettings = false
+                }) { Text("Сохранить на сервере") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunitySettings = false }) { Text("Отмена") } }
+        )
+    }
+
+    if (showCommunityAdmins) {
+        AlertDialog(
+            onDismissRequest = { showCommunityAdmins = false },
+            title = { Text("Администраторы") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(contacts, key = { it.id }) { contact ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.remove(contact.id)
+                                else selectedCommunityAdmins.add(contact.id)
+                            }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedCommunityAdmins.contains(contact.id),
+                                onCheckedChange = { checked ->
+                                    if (checked && !selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.add(contact.id)
+                                    if (!checked) selectedCommunityAdmins.remove(contact.id)
+                                }
+                            )
+                            Column {
+                                Text(contact.name)
+                                Text("@${contact.username}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityAdmins(chat.id, chat.type, contacts.filter { selectedCommunityAdmins.contains(it.id) })
+                    showCommunityAdmins = false
+                }) { Text("Сохранить администраторов") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunityAdmins = false }) { Text("Отмена") } }
         )
     }
 }
@@ -800,6 +965,8 @@ fun MessageBubble(
             }
         }
     }
+
+
 }
 
 @Composable

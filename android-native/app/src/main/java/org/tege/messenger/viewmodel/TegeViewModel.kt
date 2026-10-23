@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import okhttp3.WebSocket
 import org.tege.messenger.service.BackendClient
+import org.tege.messenger.security.SessionTokenStore
 import org.tege.messenger.service.TegeSocketListener
 import org.tege.messenger.data.SampleData
 import org.tege.messenger.model.*
@@ -26,11 +27,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private fun chatStorageKey(accountId: Long? = _currentAccount.value?.id): String =
         persistedChatsKey + "_" + (accountId?.toString() ?: "device")
     private val profilePrefs = application.getSharedPreferences("tege_local_profile", Context.MODE_PRIVATE)
+    private val tokenStore = SessionTokenStore(application)
     private val settingsPrefs = application.getSharedPreferences("tege_local_settings", Context.MODE_PRIVATE)
 
     private fun loadLocalAccount(): UserAccount? {
         // A saved display name is not an authenticated account. Restore only a server session.
-        if (profilePrefs.getString("auth_token", null).isNullOrBlank()) return null
+        if (savedToken.isNullOrBlank()) return null
         val name = profilePrefs.getString("name", null)?.trim().orEmpty()
         if (name.isBlank()) return null
         return UserAccount(
@@ -303,7 +305,17 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         get() = profilePrefs.getString("api_base_url", BackendClient.DEFAULT_BASE_URL)
             ?: BackendClient.DEFAULT_BASE_URL
     private val savedToken: String?
-        get() = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
+        get() {
+            tokenStore.read()?.takeIf { it.isNotBlank() }?.let { return it }
+            // Migrate an existing session once, then remove the legacy plaintext token.
+            val legacyToken = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
+                ?: return null
+            if (tokenStore.write(legacyToken)) {
+                profilePrefs.edit().remove("auth_token").apply()
+                return legacyToken
+            }
+            return null
+        }
 
     init {
         restoreChats()
@@ -342,11 +354,16 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             country = json.optString("country"),
             registrationDate = json.optString("registrationDate"),
             avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
-            isOnline = true
+            isOnline = true,
+            volunteerRole = json.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+            isVerified = json.optBoolean("isVerified")
         )
         val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
+        if (!tokenStore.write(token)) {
+            return "Не удалось безопасно сохранить сессию. Обнови приложение и попробуй ещё раз."
+        }
         profilePrefs.edit()
-            .putString("auth_token", token)
+            .remove("auth_token")
             .putString("api_base_url", normalizedUrl)
             .apply()
         activeSocket?.close(1000, "New session")
@@ -368,7 +385,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         error == "bad_email" -> "Проверь адрес электронной почты."
         error == "short_password" -> "Пароль должен содержать не меньше 7 символов."
         error == "no_name" -> "Введи имя."
-        error == "email_taken" -> "Этот адрес уже зарегистрирован. Войди в аккаунт."
+        error == "email_taken" -> "Данная почта уже занята. Войди в аккаунт."
         error == "username_taken" -> "Это имя пользователя уже занято."
         error == "bad_username" -> "Username должен содержать 3–32 символа: латиницу, цифры или подчёркивание."
         error == "bad_credentials" -> "Неверная почта или пароль."
@@ -405,13 +422,35 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleServerEvent(event: JSONObject) {
         when (event.optString("type")) {
+            "volunteer_apply_result" -> {
+                _messageError.value = when (event.optString("error")) {
+                    "already_pending" -> "Заявка уже находится на рассмотрении."
+                    "account_too_new" -> "Для заявки аккаунту должно быть не меньше года."
+                    "requirements_incomplete" -> "Подтверди все пункты заявки."
+                    else -> if (event.optBoolean("ok")) "Заявка отправлена на сервер и ожидает проверки." else "Сервер отклонил заявку."
+                }
+            }
+            "volunteer_role_update_result" -> {
+                _messageError.value = if (event.optBoolean("ok")) "Роль обновлена сервером." else "Сервер отказал в изменении роли: " + event.optString("error")
+            }
             "snapshot" -> {
                 val users = event.optJSONArray("users") ?: JSONArray()
                 val selfId = _currentAccount.value?.id
                 _contacts.value = (0 until users.length()).mapNotNull { index ->
                     val user = users.optJSONObject(index) ?: return@mapNotNull null
                     val id = user.optLong("id")
-                    if (id == 0L || id == selfId) return@mapNotNull null
+                    if (id == 0L) return@mapNotNull null
+                    if (id == selfId) {
+                        _currentAccount.value?.let { current ->
+                            val updated = current.copy(
+                                volunteerRole = user.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+                                isVerified = user.optBoolean("isVerified")
+                            )
+                            _currentAccount.value = updated
+                            persistLocalAccount(updated)
+                        }
+                        return@mapNotNull null
+                    }
                     ContactUser(
                         id = id,
                         name = user.optString("name", "Пользователь"),
@@ -421,10 +460,94 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         country = user.optString("country"),
                         registrationDate = user.optString("registrationDate"),
                         online = user.optBoolean("online"),
-                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                        volunteerRole = user.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+                        isVerified = user.optBoolean("isVerified")
                     )
                 }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                val myChatIds = event.optJSONArray("myChatIds") ?: JSONArray()
+                val joinedChatIds = (0 until myChatIds.length()).mapNotNull { myChatIds.optLong(it).takeIf { id -> id != 0L } }.toSet()
+                val channelArray = event.optJSONArray("channels") ?: JSONArray()
+                _channels.value = (0 until channelArray.length()).mapNotNull { index ->
+                    val item = channelArray.optJSONObject(index) ?: return@mapNotNull null
+                    val ownerId = item.optLong("ownerId")
+                    Channel(
+                        id = item.optLong("id"),
+                        name = item.optString("name", "Канал"),
+                        description = item.optString("description"),
+                        subscribersCount = item.optInt("subscribersCount"),
+                        avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                        color = item.optString("color", "#2AABEE"),
+                        isSubscribed = item.optLong("id") in joinedChatIds,
+                        isPublic = item.optBoolean("isPublic", true),
+                        channelLink = item.optString("channelLink"),
+                        isOwner = ownerId == selfId
+                    )
+                }
+                val groupArray = event.optJSONArray("groups") ?: JSONArray()
+                for (index in 0 until groupArray.length()) {
+                    val item = groupArray.optJSONObject(index) ?: continue
+                    val id = item.optLong("id")
+                    if (id == 0L) continue
+                    val ownerId = item.optLong("ownerId")
+                    val groupChat = Chat(
+                        id = id,
+                        type = ChatType.GROUP,
+                        name = item.optString("name", "Группа"),
+                        description = item.optString("description"),
+                        avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                        membersCount = item.optInt("membersCount", 1),
+                        isOwner = ownerId == selfId,
+                        isAdmin = (item.optJSONArray("admins") ?: JSONArray()).let { admins -> (0 until admins.length()).any { admins.optJSONObject(it)?.optLong("id") == selfId } }
+                    )
+                    _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
+                }
                 _connectionState.value = "Подключено"
+            }
+            "channel_upsert" -> {
+                val item = event.optJSONObject("channel") ?: return
+                val selfId = _currentAccount.value?.id
+                val channel = Channel(
+                    id = item.optLong("id"),
+                    name = item.optString("name", "Канал"),
+                    description = item.optString("description"),
+                    subscribersCount = item.optInt("subscribersCount"),
+                    avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                    color = item.optString("color", "#2AABEE"),
+                    isPublic = item.optBoolean("isPublic", true),
+                    channelLink = item.optString("channelLink"),
+                    isOwner = item.optLong("ownerId") == selfId
+                )
+                _channels.value = (_channels.value.filterNot { it.id == channel.id } + channel)
+            }
+            "group_upsert" -> {
+                val item = event.optJSONObject("group") ?: return
+                val id = item.optLong("id")
+                if (id == 0L) return
+                val groupChat = Chat(
+                    id = id, type = ChatType.GROUP,
+                    name = item.optString("name", "Группа"),
+                    description = item.optString("description"),
+                    avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                    membersCount = item.optInt("membersCount", 1),
+                    isOwner = item.optLong("ownerId") == _currentAccount.value?.id,
+                    isAdmin = (item.optJSONArray("admins") ?: JSONArray()).let { admins -> (0 until admins.length()).any { admins.optJSONObject(it)?.optLong("id") == _currentAccount.value?.id } }
+                )
+                _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
+            }
+            "community_removed" -> {
+                val id = event.optLong("chatId")
+                _chats.value = _chats.value.filterNot { it.id == id }
+                _channels.value = _channels.value.filterNot { it.id == id }
+            }
+            "community_update_result" -> {
+                if (!event.optBoolean("ok")) {
+                    _messageError.value = when (event.optString("reason")) {
+                        "forbidden", "owner_only" -> "Недостаточно прав для изменения сообщества"
+                        "chat_not_found" -> "Группа или канал не найдены на сервере"
+                        else -> "Не удалось сохранить настройки сообщества"
+                    }
+                }
             }
             "user_upsert" -> {
                 val user = event.optJSONObject("user") ?: return
@@ -452,7 +575,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     phone = user.optString("phone"), country = user.optString("country"),
                     registrationDate = user.optString("registrationDate"),
                     online = user.optBoolean("online"),
-                    avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                    avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                    volunteerRole = user.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+                    isVerified = user.optBoolean("isVerified")
                 )
                 _contacts.value = (_contacts.value.filterNot { it.id == id } + contact)
                     .sortedBy { it.name.lowercase(Locale.ROOT) }
@@ -804,9 +929,212 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _currentAccount.value = null
         _contacts.value = emptyList()
         _connectionState.value = "Не подключено"
+        tokenStore.clear()
         profilePrefs.edit().clear().apply()
         _chats.value = SampleData.getInitialChats()
         _searchQuery.value = ""
+    }
+
+ 
+    private val _cloudPasswordEnabled = MutableStateFlow(false)
+    val cloudPasswordEnabled: StateFlow<Boolean> = _cloudPasswordEnabled.asStateFlow()
+    private val _cloudRecoveryCodes = MutableStateFlow<List<String>>(emptyList())
+    val cloudRecoveryCodes: StateFlow<List<String>> = _cloudRecoveryCodes.asStateFlow()
+    private val _cloudPasswordBusy = MutableStateFlow(false)
+    val cloudPasswordBusy: StateFlow<Boolean> = _cloudPasswordBusy.asStateFlow()
+
+    fun refreshCloudPasswordStatus() {
+        val token = savedToken ?: return
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "status", token)
+            if (result.optBoolean("ok")) _cloudPasswordEnabled.value = result.optBoolean("enabled")
+            else _messageError.value = "Не удалось проверить облачный пароль: " + result.optString("error")
+            _cloudPasswordBusy.value = false
+        }
+    }
+
+    fun enableCloudPassword(password: String, currentPassword: String = "") {
+        val token = savedToken ?: run { _messageError.value = "Войди в аккаунт заново."; return }
+        if (password.length < 12 || password.length > 128) {
+            _messageError.value = "Облачный пароль должен содержать минимум 12 символов."
+            return
+        }
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val fields = JSONObject().put("cloudPassword", password)
+            if (currentPassword.isNotBlank()) fields.put("currentPassword", currentPassword)
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "set", token, fields)
+            if (result.optBoolean("ok")) {
+                val codes = result.optJSONArray("recoveryCodes")
+                _cloudRecoveryCodes.value = (0 until (codes?.length() ?: 0)).mapNotNull { codes?.optString(it)?.takeIf(String::isNotBlank) }
+                _cloudPasswordEnabled.value = true
+                _messageError.value = "Сохрани коды восстановления сейчас. Повторно показать их нельзя."
+            } else _messageError.value = when (result.optString("error")) {
+                "bad_cloud_password" -> "Неверный текущий облачный пароль."
+                "short_password" -> "Пароль слишком короткий."
+                else -> "Не удалось включить облачный пароль: " + result.optString("error")
+            }
+            _cloudPasswordBusy.value = false
+        }
+    }
+
+    fun clearCloudRecoveryCodesAfterSave() {
+        _cloudRecoveryCodes.value = emptyList()
+    }
+
+    fun disableCloudPassword(currentPassword: String) {
+        val token = savedToken ?: run { _messageError.value = "Войди в аккаунт заново."; return }
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "disable", token, JSONObject().put("currentPassword", currentPassword))
+            if (result.optBoolean("ok")) {
+                _cloudPasswordEnabled.value = false
+                _cloudRecoveryCodes.value = emptyList()
+                _messageError.value = "Облачный пароль отключён."
+            } else _messageError.value = "Не удалось отключить облачный пароль: " + result.optString("error")
+            _cloudPasswordBusy.value = false
+        }
+    }
+
+    fun setMessage(message: String) {
+        _messageError.value = message
+    }
+
+    fun applyForVolunteer(age16Plus: Boolean, identityReady: Boolean, conductOk: Boolean, accountAgeAcknowledged: Boolean): Boolean {
+        val socket = activeSocket ?: return false
+        return socket.send(JSONObject()
+            .put("type", "volunteer_apply")
+            .put("checks", JSONObject()
+                .put("age16PlusSelfAttested", age16Plus)
+                .put("identityReadyForManualReview", identityReady)
+                .put("conductSelfAttested", conductOk)
+                .put("accountAgeAcknowledged", accountAgeAcknowledged))
+            .toString())
+    }
+
+    fun submitSecurityReport(targetUserId: String, category: String, details: String): Boolean {
+        val socket = activeSocket ?: return false
+        val targetId = targetUserId.trim().toLongOrNull() ?: return false
+        val allowed = setOf("spam", "harassment", "scam", "impersonation", "other")
+        val description = details.trim().take(1500)
+        if (targetId <= 0L || description.isBlank() || category !in allowed) return false
+        return socket.send(JSONObject()
+            .put("type", "security_report_submit")
+            .put("targetUserId", targetId)
+            .put("category", category)
+            .put("details", description)
+            .toString())
+    }
+
+    fun requestVolunteerUserInfo(userId: Long): Boolean {
+        val socket = activeSocket ?: return false
+        if (userId <= 0L) return false
+        return socket.send(JSONObject()
+            .put("type", "volunteer_user_info")
+            .put("userId", userId)
+            .toString())
+    }
+
+    fun updateVolunteerRole(email: String, role: String?): Boolean {
+        val socket = activeSocket ?: return false
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        if (!normalizedEmail.contains("@")) {
+            _messageError.value = "Укажите корректный email пользователя."
+            return false
+        }
+        val payload = JSONObject()
+            .put("type", "volunteer_role_update")
+            .put("email", normalizedEmail)
+            .put("role", role ?: "")
+        return socket.send(payload.toString())
+    }
+
+    fun createGroup(name: String, description: String = "", isPublic: Boolean = true): Boolean {
+        val socket = activeSocket ?: run {
+            _messageError.value = "Нет соединения с сервером"
+            return false
+        }
+        val cleanName = name.trim().take(80)
+        if (cleanName.isBlank()) {
+            _messageError.value = "Укажите название группы"
+            return false
+        }
+        val id = System.currentTimeMillis()
+        return socket.send(JSONObject()
+            .put("type", "register_group")
+            .put("group", JSONObject()
+                .put("id", id)
+                .put("type", "group")
+                .put("name", cleanName)
+                .put("description", description.trim().take(500))
+                .put("isPublic", isPublic)
+                .put("ownerId", _currentAccount.value?.id ?: 0L)
+                .put("membersCount", 1))
+            .toString())
+    }
+
+    fun createChannel(name: String, description: String = "", isPublic: Boolean = true): Boolean {
+        val socket = activeSocket ?: run {
+            _messageError.value = "Нет соединения с сервером"
+            return false
+        }
+        val cleanName = name.trim().take(80)
+        if (cleanName.isBlank()) {
+            _messageError.value = "Укажите название канала"
+            return false
+        }
+        val id = System.currentTimeMillis()
+        return socket.send(JSONObject()
+            .put("type", "register_channel")
+            .put("channel", JSONObject()
+                .put("id", id)
+                .put("name", cleanName)
+                .put("description", description.trim().take(500))
+                .put("isPublic", isPublic)
+                .put("ownerId", _currentAccount.value?.id ?: 0L)
+                .put("subscribersCount", 1))
+            .toString())
+    }
+
+    fun updateCommunityPermissions(chatId: Long, chatType: ChatType, sendMessages: Boolean, sendMedia: Boolean, addMembers: Boolean, createTopics: Boolean, pinMessages: Boolean): Boolean {
+        val socket = activeSocket ?: return false
+        val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
+        val payload = JSONObject()
+            .put("type", "community_update")
+            .put("chatId", chatId)
+            .put("chatType", type)
+            .put("action", "permissions")
+            .put("permissions", JSONObject()
+                .put("sendMessages", sendMessages)
+                .put("sendMedia", sendMedia)
+                .put("addMembers", addMembers)
+                .put("createTopics", createTopics)
+                .put("pinMessages", pinMessages))
+        return socket.send(payload.toString())
+    }
+
+    fun updateCommunityAdmins(chatId: Long, chatType: ChatType, admins: List<ContactUser>): Boolean {
+        val socket = activeSocket ?: return false
+        val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
+        val array = JSONArray()
+        admins.forEach { admin ->
+            array.put(JSONObject()
+                .put("id", admin.id)
+                .put("name", admin.name)
+                .put("username", admin.username)
+                .put("permissions", JSONObject()
+                    .put("manageMessages", true)
+                    .put("manageMembers", true)
+                    .put("manageInfo", false)
+                    .put("manageAdmins", false)))
+        }
+        return socket.send(JSONObject()
+            .put("type", "community_update")
+            .put("chatId", chatId)
+            .put("chatType", type)
+            .put("action", "admins")
+            .put("admins", array).toString())
     }
 
     fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null): Boolean {

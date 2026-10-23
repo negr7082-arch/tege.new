@@ -1,6 +1,17 @@
 package org.tege.messenger.ui.screens
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.widget.VideoView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -28,6 +39,23 @@ fun ProfileScreen(
     onBack: () -> Unit
 ) {
     val account by viewModel.currentAccount.collectAsState()
+    val context = LocalContext.current
+    var bannerUri by remember { mutableStateOf<String?>(null) }
+    var bannerIsVideo by remember { mutableStateOf(false) }
+    val bannerPicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            bannerUri = uri.toString()
+            bannerIsVideo = context.contentResolver.getType(uri)?.startsWith("video/") == true
+            context.getSharedPreferences("tege_profile_customization", android.content.Context.MODE_PRIVATE)
+                .edit().putString("profile_banner_uri", bannerUri).putBoolean("profile_banner_video", bannerIsVideo).apply()
+        }
+    }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("tege_profile_customization", android.content.Context.MODE_PRIVATE)
+        bannerUri = prefs.getString("profile_banner_uri", null)
+        bannerIsVideo = prefs.getBoolean("profile_banner_video", false)
+    }
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editUsername by remember { mutableStateOf("") }
@@ -67,6 +95,74 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
+            // Profile banner: local persistent customization; server sync requires media upload support.
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Баннер профиля", style = MaterialTheme.typography.titleMedium)
+                if (bannerUri != null) {
+                    if (bannerIsVideo) {
+                        AndroidView(
+                            factory = { ctx -> VideoView(ctx).apply {
+                                setVideoURI(Uri.parse(bannerUri))
+                                setOnPreparedListener { player -> player.isLooping = true; start() }
+                            } },
+                            update = { view ->
+                                if (view.tag != bannerUri) {
+                                    view.tag = bannerUri
+                                    view.setVideoURI(Uri.parse(bannerUri))
+                                    view.setOnPreparedListener { player -> player.isLooping = true; view.start() }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(180.dp).clip(MaterialTheme.shapes.large)
+                        )
+                    } else {
+                        val bitmap = remember(bannerUri) {
+                            runCatching {
+                                context.contentResolver.openInputStream(Uri.parse(bannerUri))?.use {
+                                    BitmapFactory.decodeStream(it)?.asImageBitmap()
+                                }
+                            }.getOrNull()
+                        }
+                        if (bitmap != null) {
+                            Image(bitmap = bitmap, contentDescription = "Баннер профиля",
+                                modifier = Modifier.fillMaxWidth().height(180.dp).clip(MaterialTheme.shapes.large))
+                        } else {
+                            Text("Не удалось загрузить баннер. Выберите файл заново.", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(110.dp).clip(MaterialTheme.shapes.large)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) { Text("Фото или короткое видео для баннера") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        bannerPicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageAndVideo))
+                    }) {
+                        Icon(Icons.Default.Collections, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Выбрать фото или видео")
+                    }
+                    if (bannerUri != null) {
+                        TextButton(onClick = {
+                            bannerUri = null
+                            bannerIsVideo = false
+                            context.getSharedPreferences("tege_profile_customization", android.content.Context.MODE_PRIVATE)
+                                .edit().remove("profile_banner_uri").remove("profile_banner_video").apply()
+                        }) { Text("Удалить") }
+                    }
+                }
+                Text(
+                    "Пока баннер сохранён на этом устройстве; публикация для других пользователей потребует серверной загрузки.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             // Profile Header
             Box(
                 modifier = Modifier

@@ -136,7 +136,9 @@ data class ContactUser(
     val registrationDate: String = "",
     val online: Boolean = false,
     val avatarUri: String? = null,
-    val color: String = "#2AABEE"
+    val color: String = "#2AABEE",
+    val volunteerRole: String? = null,
+    val isVerified: Boolean = false
 )
 
 data class Chat(
@@ -161,7 +163,8 @@ data class Chat(
     val subscribersCount: Int = 0,
     val membersCount: Int = 0,
     val activeVideoChat: GroupVideoChatInfo? = null,
-    val isOwner: Boolean = false
+    val isOwner: Boolean = false,
+    val isAdmin: Boolean = false
 )
 
 data class Channel(
@@ -189,7 +192,9 @@ data class UserAccount(
     val country: String = "Russia",
     val registrationDate: String = "",
     val avatarUri: String? = null,
-    val isOnline: Boolean = true
+    val isOnline: Boolean = true,
+    val volunteerRole: String? = null,
+    val isVerified: Boolean = false
 )
 
 data class Story(
@@ -217,4 +222,5 @@ sealed class ScreenRoute {
     object Contacts : ScreenRoute()
     object Calls : ScreenRoute()
     object Settings : ScreenRoute()
+    object Security : ScreenRoute()
 }

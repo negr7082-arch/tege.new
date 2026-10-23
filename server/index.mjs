@@ -29,6 +29,9 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
+  volunteerApplications: {}, // userId -> {status, checks, createdAt, updatedAt, reviewerId}
+  moderationHistory: {}, // userId -> moderation events; never client-controlled
+  securityLoginLogs: [], // restricted audit trail; never expose through public profile APIs
   vapid: null // {publicKey, privateKey}
 };
 try {
@@ -146,19 +149,36 @@ const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
+// Public staff badges are derived from a server-side allowlist, never client profile input.
+// Privileged identities are configured by immutable internal user IDs, never by email.
+// Email-only ownership is unsafe here because registration does not prove mailbox control.
+const TEGE_OWNER_USER_ID = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+const CHIEF_VOLUNTEER_USER_ID = Number.parseInt(process.env.TEGE_CHIEF_VOLUNTEER_USER_ID || '', 10);
+const VOLUNTEER_ROLES = new Set(['junior_volunteer', 'volunteer', 'chief_volunteer']);
+const isOwner = (u) => Number.isSafeInteger(TEGE_OWNER_USER_ID) && TEGE_OWNER_USER_ID > 0 && u?.id === TEGE_OWNER_USER_ID;
+const volunteerRoleFor = (u) => {
+  if (!u) return null;
+  if (isOwner(u) || (Number.isSafeInteger(CHIEF_VOLUNTEER_USER_ID) && CHIEF_VOLUNTEER_USER_ID > 0 && u.id === CHIEF_VOLUNTEER_USER_ID)) return 'chief_volunteer';
+  return VOLUNTEER_ROLES.has(u.volunteerRole) ? u.volunteerRole : null;
+};
 const publicUser = (u) => ({
+  volunteerRole: volunteerRoleFor(u),
+  isVerified: volunteerRoleFor(u) !== null,
   id: u.id,
   name: u.name,
   username: u.username,
   bio: u.bio || '',
   phone: u.phone,
   country: u.country,
-  registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
+  bannerUrl: u.bannerUrl || null,
+  bannerType: u.bannerType || null,
   online: online.has(u.id),
   lastSeenAt: u.lastSeenAt || null
 });
 const selfUser = (u, token) => ({
+  volunteerRole: volunteerRoleFor(u),
+  isVerified: volunteerRoleFor(u) !== null,
   id: u.id,
   email: u.email,
   name: u.name,
@@ -231,10 +251,90 @@ function rateLimited(ip) {
   return list.length > 30;
 }
 
-// Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
+// Limit repeated password guesses per IP + normalized email without permanently locking an account.
+const loginFailures = new Map(); // key -> { count, windowStartedAt, lockedUntil }
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60_000;
+const LOGIN_FAILURE_LIMIT = 5;
+function loginFailureKey(ip, email) {
+  return String(ip || 'unknown') + ':' + String(email || '').trim().toLowerCase();
+}
+function loginBlocked(ip, email) {
+  const key = loginFailureKey(ip, email);
+  const entry = loginFailures.get(key);
+  if (!entry) return false;
+  const now = Date.now();
+  if (entry.lockedUntil && entry.lockedUntil > now) return true;
+  if (now - entry.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS || (entry.lockedUntil && entry.lockedUntil <= now)) {
+    loginFailures.delete(key);
+  }
+  return false;
+}
+function recordLoginFailure(ip, email) {
+  const key = loginFailureKey(ip, email);
+  const now = Date.now();
+  const previous = loginFailures.get(key);
+  const entry = !previous || now - previous.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS
+    ? { count: 0, windowStartedAt: now, lockedUntil: 0 }
+    : previous;
+  entry.count += 1;
+  if (entry.count >= LOGIN_FAILURE_LIMIT) entry.lockedUntil = now + LOGIN_FAILURE_WINDOW_MS;
+  loginFailures.set(key, entry);
+  // Bound memory if many distinct addresses are submitted.
+  if (loginFailures.size > 50_000) {
+    for (const [storedKey, storedEntry] of loginFailures) {
+      if (now - storedEntry.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS || storedEntry.lockedUntil <= now) {
+        loginFailures.delete(storedKey);
+      }
+      if (loginFailures.size <= 40_000) break;
+    }
+  }
+}
+function clearLoginFailures(ip, email) {
+  loginFailures.delete(loginFailureKey(ip, email));
+}
+
+// Render appends the observed client address to X-Forwarded-For; do not trust the client-supplied first entry.
 function clientIp(req) {
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.socket.remoteAddress || '';
+  const forwarded = String(req.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return forwarded.at(-1) || req.socket.remoteAddress || '';
+}
+function recordSecurityLogin({ user, ip, req, body, outcome, method }) {
+  db.securityLoginLogs ||= [];
+  db.securityAlerts ||= [];
+  const now = Date.now();
+  const safeIp = String(ip || 'unknown').slice(0, 64);
+  const agent = String(req.headers['user-agent'] || 'unknown').replace(/[\\r\\n\\t]/g, ' ').slice(0, 300);
+  const device = String(body?.device || 'unknown').replace(/[\\r\\n\\t]/g, ' ').slice(0, 120);
+  const previousSuccess = user ? [...db.securityLoginLogs].reverse().find((event) => event.userId === user.id && event.outcome === 'success') : null;
+  const event = {
+    id: crypto.randomBytes(12).toString('hex'), timestamp: now,
+    userId: user?.id ?? null, username: user?.username ?? null,
+    email: user?.email ?? String(body?.email || '').trim().toLowerCase().slice(0, 254),
+    ip: safeIp, userAgent: agent, device, method, outcome
+  };
+  db.securityLoginLogs.push(event);
+  const recentFailures = db.securityLoginLogs.filter((item) =>
+    item.userId === event.userId && item.outcome === 'failure' && now - item.timestamp <= 10 * 60_000
+  ).length;
+  let reason = null;
+  if (outcome === 'success' && previousSuccess && previousSuccess.ip !== safeIp) reason = 'new_ip';
+  if (outcome === 'success' && previousSuccess && previousSuccess.userAgent !== agent) reason = reason ? 'new_ip_and_device' : 'new_device';
+  if (outcome === 'failure' && recentFailures >= 5) reason = 'repeated_failed_logins';
+  if (reason) {
+    db.securityAlerts.push({
+      id: crypto.randomBytes(12).toString('hex'), timestamp: now, severity: reason === 'repeated_failed_logins' ? 'high' : 'medium',
+      reason, userId: event.userId, username: event.username, email: event.email,
+      ip: safeIp, userAgent: agent, device, outcome, status: 'open'
+    });
+  }
+  // Keep a bounded history (90 days, max 20,000 events / 5,000 alerts).
+  const cutoff = now - 90 * 24 * 60 * 60 * 1000;
+  db.securityLoginLogs = db.securityLoginLogs.filter((item) => item.timestamp >= cutoff).slice(-20000);
+  db.securityAlerts = db.securityAlerts.filter((item) => item.timestamp >= cutoff).slice(-5000);
+  save();
 }
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
 const checks = new Map(); // ip -> [timestamps]
@@ -299,7 +399,74 @@ const server = http.createServer(async (req, res) => {
   const fail = (code, error) => reply(code, { ok: false, error });
 
   try {
+    // Public profile banners are stored as binary files, never as client-supplied local URIs.
+    if (url.pathname.startsWith('/media/profile-banners/')) {
+      if (req.method !== 'GET') return fail(405, 'method');
+      const id = path.basename(url.pathname);
+      if (!/^[a-f0-9]{32}\\.(?:jpg|png|webp|mp4|webm)$/.test(id)) return fail(404, 'not_found');
+      const file = path.join(DATA_DIR, 'profile-banners', id);
+      if (!fs.existsSync(file)) return fail(404, 'not_found');
+      const ext = path.extname(id);
+      const type = ({ '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.mp4': 'video/mp4', '.webm': 'video/webm' })[ext];
+      res.writeHead(200, { 'content-type': type, 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff' });
+      return fs.createReadStream(file).pipe(res);
+    }
+    if (url.pathname === '/api/profile-banner') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 14 * 1024 * 1024);
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      if (typeof body.data !== 'string' || body.data.length > 13 * 1024 * 1024) return fail(413, 'file_too_large');
+      const mimeToExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+      const ext = mimeToExt[body.mime];
+      if (!ext) return fail(415, 'unsupported_media_type');
+      const bytes = Buffer.from(body.data, 'base64');
+      if (!bytes.length || bytes.length > 9 * 1024 * 1024) return fail(413, 'file_too_large');
+      const sigOk = ext === 'jpg' ? bytes[0] === 0xff && bytes[1] === 0xd8 :
+        ext === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) :
+        ext === 'webp' ? bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' :
+        ext === 'mp4' ? bytes.toString('ascii', 4, 8) === 'ftyp' :
+        bytes.length > 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+      if (!sigOk) return fail(400, 'invalid_file');
+      const dir = path.join(DATA_DIR, 'profile-banners');
+      fs.mkdirSync(dir, { recursive: true });
+      const id = crypto.randomBytes(16).toString('hex') + '.' + ext;
+      fs.writeFileSync(path.join(dir, id), bytes, { flag: 'wx', mode: 0o600 });
+      user.bannerUrl = '/media/profile-banners/' + id;
+      user.bannerType = body.mime.startsWith('video/') ? 'video' : 'image';
+      save();
+      broadcast({ type: 'user_upsert', user: publicUser(user) });
+      return reply(200, { ok: true, bannerUrl: user.bannerUrl, bannerType: user.bannerType });
+    }
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
+    if (url.pathname === '/api/admin/security-alerts') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 10000);
+      const requester = userFromToken(body.token);
+      const ownerId = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+      if (!requester || (requester.id !== ownerId && requester.securityLogsAccess !== true)) return fail(403, 'forbidden');
+      const alerts = (db.securityAlerts || []).slice(-100).reverse();
+      return reply(200, { ok: true, alerts, pollAfterSeconds: 67 });
+    }
+    if (url.pathname === '/api/admin/security-login-logs') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 10000);
+      const requester = userFromToken(body.token);
+      const ownerId = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+      if (!requester || (!Number.isSafeInteger(ownerId) || ownerId <= 0 || requester.id !== ownerId) && requester.securityLogsAccess !== true) {
+        return fail(403, 'forbidden');
+      }
+      const targetId = body.userId == null ? null : Number(body.userId);
+      const limit = Math.max(1, Math.min(200, Number(body.limit) || 100));
+      const logs = (db.securityLoginLogs || [])
+        .filter((event) => targetId == null || event.userId === targetId)
+        .slice(-limit)
+        .reverse();
+      db.securityLoginLogs ||= [];
+      db.securityLoginLogs.push({ id: crypto.randomBytes(12).toString('hex'), timestamp: Date.now(), userId: requester.id, username: requester.username, ip: clientIp(req), method: 'security_logs_view', outcome: 'success', targetUserId: targetId });
+      save();
+      return reply(200, { ok: true, logs });
+    }
     if (req.method !== 'POST') return fail(405, 'method');
 
     const ip = clientIp(req);
@@ -367,20 +534,29 @@ const server = http.createServer(async (req, res) => {
         bio: String(body.bio || 'Online on Tege Messenger').slice(0, 300),
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
-        registrationDate: new Date().toLocaleDateString('ru-RU')
+        registrationDate: new Date().toLocaleDateString('ru-RU'),
+        registeredAt: Date.now()
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = id;
       db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip, req, body, outcome: 'success', method: 'register' });
       broadcast({ type: 'user_upsert', user: publicUser(user) });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
     if (url.pathname === '/api/login') {
-      const user = findByEmail(body.email);
-      if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      const email = String(body.email || '').trim().toLowerCase();
+      if (loginBlocked(ip, email)) return fail(429, 'too_many_requests');
+      const user = findByEmail(email);
+      if (!user || !checkPassword(user, String(body.password || ''))) {
+        recordLoginFailure(ip, email);
+        recordSecurityLogin({ user, ip, req, body, outcome: 'failure', method: 'password' });
+        return fail(401, 'bad_credentials');
+      }
+      clearLoginFailures(ip, email);
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
         twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
@@ -390,6 +566,7 @@ const server = http.createServer(async (req, res) => {
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip, req, body, outcome: 'success', method: 'password' });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
@@ -402,10 +579,29 @@ const server = http.createServer(async (req, res) => {
       }
       const user = db.users[pending.userId];
       if (!user || !user.cloudPasswordHash || !user.cloudPasswordSalt) return fail(401, 'bad_credentials');
-      const attempt = hashPassword(String(body.cloudPassword || ''), user.cloudPasswordSalt).hash;
-      const a = Buffer.from(attempt, 'hex');
-      const b = Buffer.from(user.cloudPasswordHash, 'hex');
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      const supplied = String(body.cloudPassword || '');
+      let accepted = false;
+      if (user.cloudRecoveryCodes && Array.isArray(user.cloudRecoveryCodes)) {
+        const recoveryIndex = user.cloudRecoveryCodes.findIndex((entry) => {
+          if (!entry || entry.usedAt) return false;
+          const candidate = hashPassword(supplied, entry.salt).hash;
+          const a = Buffer.from(candidate, 'hex');
+          const b = Buffer.from(entry.hash || '', 'hex');
+          return a.length === b.length && crypto.timingSafeEqual(a, b);
+        });
+        if (recoveryIndex >= 0) {
+          user.cloudRecoveryCodes[recoveryIndex].usedAt = Date.now();
+          accepted = true;
+          save();
+        }
+      }
+      if (!accepted) {
+        const attempt = hashPassword(supplied, user.cloudPasswordSalt).hash;
+        const a = Buffer.from(attempt, 'hex');
+        const b = Buffer.from(user.cloudPasswordHash, 'hex');
+        accepted = a.length === b.length && crypto.timingSafeEqual(a, b);
+      }
+      if (!accepted) {
         pending.attempts = (pending.attempts || 0) + 1;
         if (pending.attempts >= 5) twoFactorChallenges.delete(challenge);
         return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
@@ -415,6 +611,7 @@ const server = http.createServer(async (req, res) => {
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip: clientIp(req), req, body, outcome: 'success', method: 'cloud_password' });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
@@ -437,8 +634,18 @@ const server = http.createServer(async (req, res) => {
       const hashed = hashPassword(password);
       user.cloudPasswordSalt = hashed.salt;
       user.cloudPasswordHash = hashed.hash;
+      // Three one-time recovery codes; show plaintext only in this response.
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const recoveryCodes = Array.from({ length: 3 }, () => {
+        const bytes = crypto.randomBytes(12);
+        const suffix = [...bytes].map((b) => alphabet[b % alphabet.length]).join('');
+        const code = 'TEGE-1636' + suffix.slice(0, 4) + '-' + suffix.slice(4, 8) + suffix.slice(8, 12);
+        const stored = hashPassword(code);
+        return { code, salt: stored.salt, hash: stored.hash, usedAt: null };
+      });
+      user.cloudRecoveryCodes = recoveryCodes.map(({ salt, hash, usedAt }) => ({ salt, hash, usedAt }));
       save();
-      return reply(200, { ok: true, enabled: true });
+      return reply(200, { ok: true, enabled: true, recoveryCodes: recoveryCodes.map((entry) => entry.code) });
     }
 
     if (url.pathname === '/api/cloud-password/disable') {
@@ -450,6 +657,7 @@ const server = http.createServer(async (req, res) => {
       if (currentHash !== user.cloudPasswordHash) return fail(401, 'bad_cloud_password');
       delete user.cloudPasswordHash;
       delete user.cloudPasswordSalt;
+      delete user.cloudRecoveryCodes;
       save();
       return reply(200, { ok: true, enabled: false });
     }
@@ -498,7 +706,7 @@ const server = http.createServer(async (req, res) => {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
       const pw = String(body.newPassword || '');
-      if (pw.length < 7) return fail(400, 'short_password');
+      if (pw.length < 7 || pw.length > 256) return fail(400, 'short_password');
       Object.assign(user, hashPassword(pw));
       // sign out all other sessions of this user
       for (const [t, id] of Object.entries(db.tokens)) if (id === user.id && t !== body.token) { delete db.tokens[t]; delete db.sessions[t]; const sockets = sessionConnections.get(t); if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} } sessionConnections.delete(t); }
@@ -514,11 +722,81 @@ const server = http.createServer(async (req, res) => {
 
 // ───────────────────────── WebSocket ─────────────────────────
 function joinChats(userId, chatIds) {
+  let changed = false;
   for (const id of chatIds.map(Number)) {
+    const group = db.groups[id];
+    const channel = db.channels[id];
+    const registry = group || channel;
+    if (!registry) continue;
     const list = (db.members[id] ||= []);
-    if (!list.includes(userId)) list.push(userId);
+    if (list.includes(userId)) continue;
+    if (registry.ownerId === userId) {
+      list.push(userId);
+      changed = true;
+      continue;
+    }
+    if (!registry.isPublic && !(registry.invitedUserIds || []).includes(userId)) continue;
+    list.push(userId);
+    changed = true;
   }
+  if (changed) save();
+}
+
+function communityStaff(registry, userId) {
+  return !!registry && (registry.ownerId === userId || (registry.admins || []).some((a) => Number(a.id) === userId));
+}
+
+function cleanAdmins(admins, ownerId) {
+  if (!Array.isArray(admins)) return [];
+  return admins.filter((a) => a && Number.isFinite(Number(a.id)) && Number(a.id) !== ownerId)
+    .slice(0, 100).map((a) => ({
+      id: Number(a.id),
+      name: String(a.name || '').slice(0, 64),
+      username: String(a.username || '').slice(0, 64),
+      permissions: {
+        manageMessages: a.permissions?.manageMessages === true,
+        manageMembers: a.permissions?.manageMembers === true,
+        manageInfo: a.permissions?.manageInfo === true,
+        manageAdmins: a.permissions?.manageAdmins === true
+      }
+    }));
+}
+
+function updateCommunity(user, conn, msg) {
+  const id = Number(msg.chatId);
+  const registry = msg.chatType === 'channel' ? db.channels[id] : db.groups[id];
+  const result = (ok, reason) => conn.send({ type: 'community_update_result', chatId: id, chatType: msg.chatType, ok, ...(reason ? { reason } : {}) });
+  if (!Number.isFinite(id) || !registry) return result(false, 'chat_not_found');
+  if (!communityStaff(registry, user.id)) return result(false, 'forbidden');
+  if (msg.action === 'permissions') {
+    if (msg.chatType !== 'group' && msg.chatType !== 'channel') return result(false, 'bad_chat_type');
+    const p = msg.permissions || {};
+    registry.permissions = {
+      sendMessages: p.sendMessages !== false,
+      sendMedia: p.sendMedia !== false,
+      addMembers: p.addMembers === true,
+      createTopics: p.createTopics === true,
+      pinMessages: p.pinMessages === true
+    };
+  } else if (msg.action === 'admins') {
+    if (registry.ownerId !== user.id) return result(false, 'owner_only');
+    registry.admins = cleanAdmins(msg.admins, registry.ownerId);
+  } else if (msg.action === 'member_remove') {
+    if (registry.ownerId !== user.id && !(registry.admins || []).some((a) => Number(a.id) === user.id && a.permissions?.manageMembers)) return result(false, 'forbidden');
+    const memberId = Number(msg.userId);
+    if (!Number.isFinite(memberId) || memberId === registry.ownerId) return result(false, 'bad_user');
+    db.members[id] = (db.members[id] || []).filter((member) => member !== memberId);
+    sendToUser(memberId, { type: 'community_removed', chatId: id, chatType: msg.chatType });
+  } else {
+    return result(false, 'bad_action');
+  }
+  const memberCount = (db.members[id] || []).length;
+  if (msg.chatType === 'channel') registry.subscribersCount = memberCount;
+  else registry.membersCount = memberCount;
   save();
+  const event = msg.chatType === 'channel' ? 'channel_upsert' : 'group_upsert';
+  broadcast({ type: event, [msg.chatType === 'channel' ? 'channel' : 'group']: registry });
+  result(true);
 }
 
 function handleSend(user, conn, payload) {
@@ -561,11 +839,18 @@ function handleSend(user, conn, payload) {
 
   // group / channel
   const registry = chatType === 'channel' ? db.channels[out.chatId] : db.groups[out.chatId];
-  if (chatType === 'channel' && registry) {
-    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
-    if (!isStaff) return no('forbidden');
+  if (!registry) return no('chat_not_found');
+  const members = db.members[out.chatId] || [];
+  if (!members.includes(user.id)) return no('not_member');
+  const isOwner = registry.ownerId === user.id;
+  const isAdmin = (registry.admins || []).some((a) => Number(a.id) === user.id);
+  if (chatType === 'channel' && !isOwner && !isAdmin) return no('forbidden');
+  if (chatType === 'group' && !isOwner && !isAdmin && registry.permissions?.sendMessages === false) return no('forbidden');
+  if (!isOwner && !isAdmin && registry.permissions?.sendMedia === false &&
+      (out.message.attachmentUri || out.message.videoUri || out.message.audioUri || out.message.fileUri || out.message.videoNoteUri)) {
+    return no('media_forbidden');
   }
-  const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
+  const recipients = members.filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
   return ok({ delivered: recipients.length });
 }
@@ -594,6 +879,7 @@ attachWebSocket(server, (conn, url) => {
     users: Object.values(db.users).map(publicUser),
     channels: Object.values(db.channels),
     groups: Object.values(db.groups),
+    myChatIds: Object.keys(db.members).filter((id) => (db.members[id] || []).includes(user.id)).map(Number),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
     videoChats: Object.fromEntries(activeVideo)
@@ -640,6 +926,283 @@ attachWebSocket(server, (conn, url) => {
         break;
       }
 
+      case 'security_report_submit': {
+        const targetId = Number(msg.targetUserId);
+        const category = String(msg.category || '');
+        const details = String(msg.details || '').trim();
+        const allowedCategories = new Set(['spam', 'harassment', 'scam', 'impersonation', 'other']);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || targetId <= 0 || !target || targetId === user.id ||
+            !allowedCategories.has(category) || !details || details.length > 1500) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        db.securityReports ||= [];
+        const now = Date.now();
+        const recent = db.securityReports.filter((r) => r.reporterId === user.id && now - Number(r.createdAt || 0) < 60 * 60 * 1000);
+        if (recent.length >= 5) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'rate_limited' });
+          break;
+        }
+        const duplicate = recent.find((r) => r.targetUserId === targetId && r.category === category && r.status === 'pending');
+        if (duplicate) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'duplicate_report' });
+          break;
+        }
+        const report = {
+          id: crypto.randomUUID(),
+          reporterId: user.id,
+          targetUserId: targetId,
+          category,
+          details: details.slice(0, 1500),
+          status: 'pending',
+          createdAt: now,
+          assignedTo: null,
+          reviewedAt: null
+        };
+        db.securityReports.push(report);
+        save();
+        conn.send({ type: 'security_report_submit_result', ok: true, reportId: report.id, status: report.status });
+        break;
+      }
+
+      case 'security_report_list': {
+        const role = volunteerRoleFor(user);
+        if (!role) {
+          conn.send({ type: 'security_report_list_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        db.securityReports ||= [];
+        const reports = db.securityReports
+          .filter((r) => role === 'chief_volunteer' || isOwner(user) || r.status !== 'resolved')
+          .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+          .slice(0, 100)
+          .map((r) => ({
+            id: r.id, targetUserId: r.targetUserId, category: r.category,
+            details: r.details, status: r.status, createdAt: r.createdAt,
+            assignedTo: r.assignedTo, reviewedAt: r.reviewedAt,
+            reporterId: role === 'chief_volunteer' || isOwner(user) ? r.reporterId : undefined
+          }));
+        conn.send({ type: 'security_report_list_result', ok: true, reports });
+        break;
+      }
+
+      case 'security_report_review': {
+        const role = volunteerRoleFor(user);
+        if (!role) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const reportId = String(msg.reportId || '');
+        const action = String(msg.action || '');
+        db.securityReports ||= [];
+        const report = db.securityReports.find((r) => r.id === reportId);
+        const allowedActions = new Set(['claim', 'escalate', 'resolve', 'dismiss']);
+        if (!report || !allowedActions.has(action)) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        if ((action === 'resolve' || action === 'dismiss') && role !== 'chief_volunteer' && !isOwner(user)) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'chief_required' });
+          break;
+        }
+        if (action === 'claim') {
+          if (report.assignedTo && report.assignedTo !== user.id) {
+            conn.send({ type: 'security_report_review_result', ok: false, error: 'already_claimed' });
+            break;
+          }
+          report.assignedTo = user.id;
+          report.status = 'in_review';
+        } else if (action === 'escalate') {
+          report.status = 'escalated';
+          report.escalatedBy = user.id;
+        } else {
+          report.status = action === 'resolve' ? 'resolved' : 'dismissed';
+          report.resolution = String(msg.note || '').trim().slice(0, 500);
+          report.reviewedAt = Date.now();
+          report.reviewedBy = user.id;
+        }
+        report.updatedAt = Date.now();
+        db.securityAudit ||= [];
+        db.securityAudit.push({ id: crypto.randomUUID(), actorId: user.id, event: 'report_' + action, targetId: report.targetUserId, reportId: report.id, at: Date.now() });
+        if (db.securityAudit.length > 10000) db.securityAudit.splice(0, db.securityAudit.length - 10000);
+        save();
+        conn.send({ type: 'security_report_review_result', ok: true, reportId: report.id, status: report.status, assignedTo: report.assignedTo });
+        break;
+      }
+
+      case 'volunteer_apply': {
+        const existing = db.volunteerApplications?.[String(user.id)];
+        if (existing?.status === 'pending' || existing?.status === 'practice' || existing?.status === 'escalated') {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'already_pending' });
+          break;
+        }
+        // Rejected applications cannot be spammed: require a 7-day cooldown before resubmission.
+        if (existing?.status === 'rejected' && Date.now() - Number(existing.updatedAt || existing.createdAt || 0) < 7 * 86400000) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'cooldown' });
+          break;
+        }
+        const registeredAt = Number(user.registeredAt || 0);
+        const registrationAgeDays = Number.isFinite(registeredAt) ? Math.floor((Date.now() - registeredAt) / 86400000) : null;
+        if (registrationAgeDays === null || registrationAgeDays < 365) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'account_too_new', registrationAgeDays });
+          break;
+        }
+        const checks = {
+          age16PlusSelfAttested: msg.checks?.age16PlusSelfAttested === true,
+          identityReadyForManualReview: msg.checks?.identityReadyForManualReview === true,
+          conductSelfAttested: msg.checks?.conductSelfAttested === true,
+          accountAgeAcknowledged: msg.checks?.accountAgeAcknowledged === true
+        };
+        if (!Object.values(checks).every(Boolean)) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'requirements_incomplete' });
+          break;
+        }
+        // Account age and conduct are reviewed server-side; never trust client-supplied age/IP/history.
+        const application = {
+          userId: user.id,
+          status: 'pending',
+          track: 'junior_volunteer',
+          checks,
+          registrationAgeDays,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          reviewerId: null,
+          reviewNote: null
+        };
+        db.volunteerApplications ||= {};
+        db.volunteerApplications[String(user.id)] = application;
+        save();
+        conn.send({ type: 'volunteer_apply_result', ok: true, status: 'pending', track: application.track });
+        break;
+      }
+      case 'volunteer_user_info': {
+        // Detailed account metadata is private to the owner and chief volunteers only.
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_user_info_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || !target) {
+          conn.send({ type: 'volunteer_user_info_result', ok: false, error: 'user_not_found' });
+          break;
+        }
+        const registeredAt = Number(target.registeredAt || 0);
+        const events = (db.moderationHistory?.[String(targetId)] || []).map((event) => ({
+          type: String(event.type || 'unknown'),
+          createdAt: Number(event.createdAt || 0),
+          expiresAt: event.expiresAt ? Number(event.expiresAt) : null,
+          status: String(event.status || 'active')
+        }));
+        conn.send({
+          type: 'volunteer_user_info_result',
+          ok: true,
+          user: {
+            id: target.id,
+            username: target.username,
+            displayName: target.name,
+            registrationDate: registeredAt ? new Date(registeredAt).toISOString() : null,
+            accountAgeDays: registeredAt ? Math.max(0, Math.floor((Date.now() - registeredAt) / 86400000)) : null,
+            moderationHistory: events,
+            moderationHistoryAvailable: Boolean(db.moderationHistory && Array.isArray(db.moderationHistory[String(targetId)])),
+            lastSeenAt: target.lastSeenAt || null
+          }
+        });
+        break;
+      }
+
+      case 'volunteer_application_list': {
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_application_list_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const applications = Object.values(db.volunteerApplications || {}).map((a) => ({
+          userId: a.userId, status: a.status, track: a.track, checks: a.checks,
+          registrationAgeDays: a.registrationAgeDays, createdAt: a.createdAt,
+          updatedAt: a.updatedAt, reviewerId: a.reviewerId, reviewNote: a.reviewNote
+        }));
+        conn.send({ type: 'volunteer_application_list_result', ok: true, applications });
+        break;
+      }
+      case 'volunteer_application_review': {
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const application = db.volunteerApplications?.[String(targetId)];
+        const decision = String(msg.decision || '');
+        // Reviewers cannot approve, reject, or escalate their own application.
+        if (!Number.isSafeInteger(targetId) || targetId === user.id) {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'self_review_forbidden' });
+          break;
+        }
+        const note = String(msg.note || '').trim().slice(0, 500);
+        if (!Number.isSafeInteger(targetId) || !application || application.status !== 'pending' || !['approve_practice', 'escalate', 'reject'].includes(decision)) {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'invalid_review' });
+          break;
+        }
+        application.status = decision === 'approve_practice' ? 'practice' : decision === 'escalate' ? 'escalated' : 'rejected';
+        application.updatedAt = Date.now();
+        application.reviewerId = user.id;
+        application.reviewNote = note || null;
+        if (decision === 'approve_practice') {
+          const target = db.users[String(targetId)];
+          if (target) target.volunteerRole = 'junior_volunteer';
+        }
+        save();
+        const target = db.users[String(targetId)];
+        if (target) broadcast({ type: 'user_upsert', user: publicUser(target) });
+        conn.send({ type: 'volunteer_application_review_result', ok: true, userId: targetId, status: application.status });
+        break;
+      }
+
+      case 'security_logs_access_update': {
+        if (!isOwner(user)) {
+          conn.send({ type: 'security_logs_access_update_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || !target || typeof msg.enabled !== 'boolean') {
+          conn.send({ type: 'security_logs_access_update_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        target.securityLogsAccess = msg.enabled;
+        save();
+        conn.send({ type: 'security_logs_access_update_result', ok: true, userId: targetId, enabled: target.securityLogsAccess });
+        break;
+      }
+
+      case 'volunteer_role_update': {
+        // Only the explicitly configured owner account can issue or revoke volunteer roles.
+        if (!isOwner(user)) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetEmail = String(msg.email || '').trim().toLowerCase();
+        const role = msg.role === null || msg.role === '' ? null : String(msg.role);
+        if (!targetEmail || (role !== null && !VOLUNTEER_ROLES.has(role))) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        const target = Object.values(db.users).find((candidate) => candidate.email?.toLowerCase() === targetEmail);
+        if (!target) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'user_not_found' });
+          break;
+        }
+        if (isOwner(target) && role !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'owner_role_protected' });
+          break;
+        }
+        target.volunteerRole = role;
+        save();
+        broadcast({ type: 'user_upsert', user: publicUser(target) });
+        conn.send({ type: 'volunteer_role_update_result', ok: true, user: publicUser(target) });
+        break;
+      }
+
       case 'profile': {
         const p = msg.user || {};
         if (typeof p.name === 'string' && p.name.trim()) user.name = p.name.trim().slice(0, 64);
@@ -661,6 +1224,10 @@ attachWebSocket(server, (conn, url) => {
         joinChats(user.id, Array.isArray(msg.chatIds) ? msg.chatIds.filter(Number.isFinite) : []);
         break;
 
+      case 'community_update':
+        updateCommunity(user, conn, msg);
+        break;
+
       case 'leave_chat':
         if (db.members[msg.chatId]) {
           db.members[msg.chatId] = db.members[msg.chatId].filter((x) => x !== user.id);
@@ -673,7 +1240,16 @@ attachWebSocket(server, (conn, url) => {
         if (!ch || !Number.isFinite(ch.id)) break;
         const existing = db.channels[ch.id];
         if (existing && existing.ownerId !== user.id && !(existing.admins || []).some((a) => a.id === user.id)) break;
-        db.channels[ch.id] = { ...ch, ownerId: existing?.ownerId ?? user.id };
+        db.channels[ch.id] = {
+          ...ch,
+          ownerId: existing?.ownerId ?? user.id,
+          isPublic: existing ? existing.isPublic !== false : ch.isPublic !== false,
+          admins: existing?.admins || cleanAdmins(ch.admins, existing?.ownerId ?? user.id),
+          permissions: { sendMessages: false, sendMedia: true, addMembers: false, createTopics: false, pinMessages: false, ...(existing?.permissions || ch.permissions || {}) }
+        };
+        const memberList = (db.members[ch.id] ||= []);
+        if (!memberList.includes(user.id)) memberList.push(user.id);
+        db.channels[ch.id].subscribersCount = memberList.length;
         save();
         broadcast({ type: 'channel_upsert', channel: db.channels[ch.id] });
         break;
@@ -693,7 +1269,16 @@ attachWebSocket(server, (conn, url) => {
         if (!g || !Number.isFinite(g.id) || g.type !== 'group') break;
         const existing = db.groups[g.id];
         if (existing && existing.ownerId !== user.id) break;
-        db.groups[g.id] = { ...g, ownerId: existing?.ownerId ?? user.id };
+        db.groups[g.id] = {
+          ...g,
+          ownerId: existing?.ownerId ?? user.id,
+          isPublic: existing ? existing.isPublic !== false : g.isPublic !== false,
+          admins: existing?.admins || cleanAdmins(g.admins, existing?.ownerId ?? user.id),
+          permissions: { sendMessages: true, sendMedia: true, addMembers: true, createTopics: true, pinMessages: false, ...(existing?.permissions || g.permissions || {}) }
+        };
+        const memberList = (db.members[g.id] ||= []);
+        if (!memberList.includes(user.id)) memberList.push(user.id);
+        db.groups[g.id].membersCount = memberList.length;
         save();
         broadcast({ type: 'group_upsert', group: db.groups[g.id] });
         break;

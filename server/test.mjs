@@ -12,7 +12,8 @@ const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const post = async (p, body) => (await fetch(base + p, { method: 'POST', body: JSON.stringify(body) })).json();
+const post = async (p, body, headers = {}) =>
+  (await fetch(base + p, { method: 'POST', headers, body: JSON.stringify(body) })).json();
 
 class Client {
   constructor(token) {
@@ -120,6 +121,18 @@ try {
   assert.ok(!ca.inbox.some((p) => p.message.text === 'hello team'), 'sender must not receive own group msg');
   console.log('✓ group fan-out to members only');
 
+  // Community permissions are persisted and enforced by the server, not just UI toggles.
+  ca.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: false, sendMedia: false, addMembers: false, createTopics: false, pinMessages: false } });
+  const permissionUpdate = await ca.waitFor((m) => m.type === 'community_update_result' && m.chatId === G);
+  assert.equal(permissionUpdate.ok, true);
+  cb3.send({ type: 'send', payload: { id: 51, chatId: G, chatType: 'group', message: { id: 51, text: 'should be denied', time: '12:04' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 51)).reason, 'forbidden');
+  ca.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: true, sendMedia: true, addMembers: true, createTopics: true, pinMessages: true } });
+  assert.equal((await ca.waitFor((m) => m.type === 'community_update_result' && m.chatId === G)).ok, true);
+  cb3.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: false } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'community_update_result' && m.chatId === G)).reason, 'forbidden');
+  console.log('✓ group permissions enforced server-side; non-admin cannot change them');
+
   // channel: only owner may post
   const C = 1122000888;
   ca.send({ type: 'register_channel', channel: { id: C, name: 'News', ownerId: a.id, isPublic: true } });
@@ -143,6 +156,21 @@ try {
   assert.equal((await ca.waitFor((m) => m.type === 'send_result' && m.id === 11)).ok, false);
   console.log('✓ delete / edit relayed to the other side, bad action rejected');
 
+  // Security reports: authenticated submit, validation, duplicate prevention and per-user throttling.
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'spam', details: 'Repeated unsolicited messages' });
+  const reportOk = await ca.waitFor((m) => m.type === 'security_report_submit_result');
+  assert.equal(reportOk.ok, true);
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'spam', details: 'Repeated unsolicited messages' });
+  const reportDuplicate = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'duplicate_report');
+  assert.equal(reportDuplicate.ok, false);
+  ca.send({ type: 'security_report_submit', targetUserId: a.id, category: 'other', details: 'Self report is invalid' });
+  const reportSelf = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'invalid_input');
+  assert.equal(reportSelf.ok, false);
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'made_up', details: 'Invalid category' });
+  const reportCategory = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'invalid_input');
+  assert.equal(reportCategory.ok, false);
+  console.log('✓ security report submission validates target/category, rejects duplicates and self-reports');
+
   // presence off + profile
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });
   const up = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.name === 'Alice A.');
@@ -150,6 +178,19 @@ try {
   ca.ws.close();
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
+
+  // Failed-login throttling should not alter the existing account directory or sessions tests.
+  await post('/api/register', { email: 'locked@x.io', password: 'password3', name: 'Locked' });
+  for (let i = 0; i < 5; i++) {
+    // Simulate a client trying to spoof X-Forwarded-For before Render appends the observed IP.
+    const headers = { 'x-forwarded-for': '198.51.100.' + (i + 1) + ', 127.0.0.1' };
+    assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'wrong-password' }, headers)).error, 'bad_credentials');
+  }
+  assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'password3', }, {
+    'x-forwarded-for': '203.0.113.88, 127.0.0.1'
+  })).error, 'too_many_requests');
+  assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' })).ok, true);
+  console.log('✓ repeated failed logins throttled per IP + email');
 
   // persistence across restart
   console.log('\nALL TESTS PASSED');
