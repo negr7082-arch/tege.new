@@ -231,10 +231,14 @@ function rateLimited(ip) {
   return list.length > 30;
 }
 
-// Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
+// Render's proxy appends the observed client address to X-Forwarded-For.
+// Use the rightmost entry instead of trusting the client-supplied leftmost value.
 function clientIp(req) {
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.socket.remoteAddress || '';
+  const forwarded = String(req.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return forwarded.length ? forwarded[forwarded.length - 1] : req.socket.remoteAddress || '';
 }
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
 const checks = new Map(); // ip -> [timestamps]
