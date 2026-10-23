@@ -319,6 +319,18 @@ function clientIp(req) {
 }
 const normaliseIp = (value) => String(value || '').trim().replace(/^::ffff:/, '');
 const securityDeviceHash = (value) => crypto.createHash('sha256').update(String(value || '').trim().slice(0, 200)).digest('hex');
+const sanitizeDeviceInfo = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const clean = (key, max = 100) => typeof value[key] === 'string' ? value[key].trim().slice(0, max) : '';
+  return {
+    platform: clean('platform', 24),
+    manufacturer: clean('manufacturer', 80),
+    model: clean('model', 100),
+    androidSdk: Number.isInteger(value.androidSdk) ? Math.max(0, Math.min(1000, value.androidSdk)) : null,
+    appVersion: clean('appVersion', 32),
+    networkType: clean('networkType', 24)
+  };
+};
 const securityLoginFailures = new Map();
 const securityIpLockouts = new Map();
 const SECURITY_FAILURE_WINDOW_MS = 15 * 60_000;
@@ -756,7 +768,7 @@ const server = http.createServer(async (req, res) => {
         recentSecurityEvents: securityEventsFor(u.id).slice(0, 20),
         recentSessions: Object.entries(db.sessions).filter(([, meta]) => meta.userId === u.id).map(([token, meta]) => ({
           id: token.slice(0, 12), device: meta.device || 'Unknown device', createdAt: meta.createdAt || 0,
-          ip: meta.ip || null, deviceId: meta.deviceId || null, userAgent: meta.userAgent || null
+          ip: meta.ip || null, deviceId: meta.deviceId || null, deviceInfo: meta.deviceInfo || null, userAgent: meta.userAgent || null
         })).slice(0, 20)
       }));
       return reply(200, { ok: true, accounts, blockedIps: db.securityBlockedIps || [], blockedEmails: db.securityBlockedEmails || [], blockedDeviceCount: (db.securityBlockedDevices || []).length });
@@ -793,7 +805,7 @@ const server = http.createServer(async (req, res) => {
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = id;
-      db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
+      db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, deviceInfo: sanitizeDeviceInfo(body.deviceInfo), userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
       save();
       broadcast({ type: 'user_upsert', user: publicUser(user) });
       return reply(200, { ok: true, user: selfUser(user, token) });
@@ -864,7 +876,7 @@ const server = http.createServer(async (req, res) => {
       user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
-      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, userAgent: ua };
+      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, deviceInfo: sanitizeDeviceInfo(body.deviceInfo), userAgent: ua };
       save();
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
