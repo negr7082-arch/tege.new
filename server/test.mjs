@@ -168,6 +168,16 @@ try {
   assert.ok(!ca.inbox.some((p) => p.message.text === 'hello team'), 'sender must not receive own group msg');
   console.log('✓ group fan-out to members only');
 
+  // Private groups must not be joinable by guessing their IDs or sendable by non-members.
+  const PRIVATE_GROUP = 1122000999;
+  ca.send({ type: 'register_group', group: { id: PRIVATE_GROUP, type: 'group', name: 'Private', ownerId: a.id, isPublic: false } });
+  await ca.waitFor((m) => m.type === 'group_upsert' && m.group.id === PRIVATE_GROUP);
+  ca.send({ type: 'join_chats', chatIds: [PRIVATE_GROUP] }); await sleep(100);
+  cb3.send({ type: 'join_chats', chatIds: [PRIVATE_GROUP] }); await sleep(100);
+  cb3.send({ type: 'send', payload: { id: 51, chatId: PRIVATE_GROUP, chatType: 'group', message: { id: 51, text: 'unauthorized' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 51)).reason, 'not_a_member');
+  console.log('✓ private group ID guessing and unauthorized sends rejected');
+
   // channel: only owner may post
   const C = 1122000888;
   ca.send({ type: 'register_channel', channel: { id: C, name: 'News', ownerId: a.id, isPublic: true } });
