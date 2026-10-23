@@ -84,6 +84,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const channelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedChannelForPhoto, setSelectedChannelForPhoto] = useState<number | null>(null);
   const t = getT(language);
+  const profileMediaUrl = (uri?: string | null) => uri ? (uri.startsWith("http") ? uri : new URL(uri, getServerUrl()).toString()) : undefined;
 
   // Filter channels created by this user
   const userChannels = channels.filter(
@@ -207,7 +208,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <div className="max-w-lg mx-auto w-full p-4 pb-28 space-y-4">
         {/* Server-synced profile banner */ }
         <div className="relative h-40 sm:h-48 rounded-2xl overflow-hidden shadow-sm" style={{ background: `linear-gradient(135deg, ${themeColor}, #7c3aed, #00b8a9)` }}>
-          {profile.bannerUri && <img src={profile.bannerUri} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+          {profile.bannerUri && <img src={profileMediaUrl(profile.bannerUri)} alt="" className="absolute inset-0 w-full h-full object-cover" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
           <span className="absolute left-4 top-3 text-white/60 font-black tracking-widest">TEGE</span>
           <button type="button" onClick={() => bannerInputRef.current?.click()} className="absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-2 text-sm text-white hover:bg-black/75">
@@ -269,7 +270,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {profile.avatarUri ? (
                 <div className="relative">
                   <img
-                    src={profile.avatarUri}
+                    src={profileMediaUrl(profile.avatarUri)}
                     alt={profile.name}
                     className="w-28 h-28 sm:w-30 sm:h-30 rounded-full object-cover"
                   />
