@@ -45,7 +45,7 @@ try {
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
   assert.equal((await post('/api/register', { email: 'c2@x.io', password: 'password1', name: 'x', username: '@orig_manager_creator_tege.new' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
-  assert.equal((await post('/api/username', { username: 'orig_manager_creator_tege.new' })).reason, 'invalid');
+  assert.equal((await post('/api/username', { username: 'orig_manager_creator_tege.new' })).available, true);
   const owner = (await post('/api/register', { email: 'negr7082@gmail.com', password: 'password1', name: 'Tege Owner', username: '@orig_manager_creator_tege.new' })).user;
   assert.equal(owner.isVerified, true, 'owner account receives verified flag');
   assert.equal(owner.role, 'Главный волонтёр', 'owner account receives volunteer role');
