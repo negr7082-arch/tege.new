@@ -230,6 +230,9 @@ try {
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });
   const up = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.name === 'Alice A.');
   assert.equal(up.user.bio, 'new bio');
+  ca.send({ type: 'profile', user: { username: '@bad name' } });
+  const invalidUsername = await ca.waitFor((m) => m.type === 'profile_result' && m.error === 'bad_username');
+  assert.equal(invalidUsername.ok, false);
   ca.ws.close();
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
