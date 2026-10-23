@@ -439,7 +439,18 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                 _contacts.value = (0 until users.length()).mapNotNull { index ->
                     val user = users.optJSONObject(index) ?: return@mapNotNull null
                     val id = user.optLong("id")
-                    if (id == 0L || id == selfId) return@mapNotNull null
+                    if (id == 0L) return@mapNotNull null
+                    if (id == selfId) {
+                        _currentAccount.value?.let { current ->
+                            val updated = current.copy(
+                                volunteerRole = user.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+                                isVerified = user.optBoolean("isVerified")
+                            )
+                            _currentAccount.value = updated
+                            persistLocalAccount(updated)
+                        }
+                        return@mapNotNull null
+                    }
                     ContactUser(
                         id = id,
                         name = user.optString("name", "Пользователь"),
