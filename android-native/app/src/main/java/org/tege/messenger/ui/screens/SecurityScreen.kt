@@ -137,10 +137,30 @@ fun SecurityScreen(viewModel: TegeViewModel, onBack: () -> Unit, onLoggedOut: ()
                         }
                     }
                 }
-                item { SecurityRow(Icons.Default.Flag, "Жалобы", "Назначенные обращения и решения") }
-                item { SecurityRow(Icons.Default.Search, "Пользователи", "Поиск и доступные сведения о профиле") }
-                item { SecurityRow(Icons.Default.Gavel, "История модерации", "Наказания и решения в пределах полномочий") }
-                item { SecurityRow(Icons.Default.Warning, "Подозрительные входы", "Предупреждения, доступные вашей роли") }
+                item {
+                    var reportCategory by remember { mutableStateOf("spam") }
+                    var reportUserId by remember { mutableStateOf("") }
+                    var reportDetails by remember { mutableStateOf("") }
+                    Card {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Подать жалобу", style = MaterialTheme.typography.titleMedium)
+                            OutlinedTextField(value = reportUserId, onValueChange = { reportUserId = it }, label = { Text("ID пользователя") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            Text("Категория")
+                            listOf("spam" to "Спам", "harassment" to "Оскорбления и травля", "scam" to "Мошенничество", "impersonation" to "Выдаёт себя за другого", "other" to "Другое").forEach { (value, label) ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = reportCategory == value, onClick = { reportCategory = value })
+                                    Text(label)
+                                }
+                            }
+                            OutlinedTextField(value = reportDetails, onValueChange = { reportDetails = it }, label = { Text("Описание (без паролей и личных данных)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                            Button(onClick = { viewModel.submitSecurityReport(reportUserId, reportCategory, reportDetails) }, enabled = reportUserId.toLongOrNull() != null && reportDetails.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Отправить жалобу") }
+                        }
+                    }
+                }
+                item { SecurityRow(Icons.Default.Flag, "Жалобы", "Форма подачи доступна; очередь назначенных жалоб требует подключения API") }
+                item { SecurityRow(Icons.Default.Search, "Пользователи", "Поиск и сведения доступны согласно серверным правам") }
+                item { SecurityRow(Icons.Default.Gavel, "История модерации", "История решений будет загружаться из серверного API") }
+                item { SecurityRow(Icons.Default.Warning, "Подозрительные входы", "Предупреждения доступны после подключения защищённого журнала") }
                 if (role == "chief_volunteer" && account?.email?.equals("negr7082@gmail.com", ignoreCase = true) == true) {
                     item {
                         Card {
