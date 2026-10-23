@@ -193,6 +193,8 @@ data class UserAccount(
     val registrationDate: String = "",
     val avatarUri: String? = null,
     val bannerUri: String? = null,
+    val themeColor: String = "#2AABEE",
+    val fontFamily: String = "system",
     val isOnline: Boolean = true
 )
 
