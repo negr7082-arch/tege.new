@@ -18,7 +18,8 @@ import {
   Copy,
   Trash2,
   Pencil,
-  Forward
+  Forward,
+  ShieldAlert
 } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -33,6 +34,7 @@ interface MessageBubbleProps {
   onDeleteMessage?: (messageId: number) => void;
   onEditMessage?: (message: Message) => void;
   onForwardMessage?: (message: Message) => void;
+  onReportMessage?: (message: Message) => void;
 }
 
 const COMMON_REACTIONS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '⚡'];
@@ -53,7 +55,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReplyMessage,
   onDeleteMessage,
   onEditMessage,
-  onForwardMessage
+  onForwardMessage,
+  onReportMessage
 }) => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -709,6 +712,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 >
                   <Pencil className="w-5 h-5 text-gray-500 dark:text-zinc-300" />
                   <span>Изменить</span>
+                </button>
+              )}
+              {onReportMessage && !isMine && !message.isSystemBotMessage && (
+                <button onClick={() => { onReportMessage(message); setShowMenu(false); }} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-zinc-700 text-left text-sm text-rose-600">
+                  <ShieldAlert className="w-5 h-5" /><span>Пожаловаться в Security</span>
                 </button>
               )}
               {onForwardMessage && !message.poll && !message.isSystemBotMessage && (

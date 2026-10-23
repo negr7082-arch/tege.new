@@ -378,6 +378,11 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
                             <span className="font-bold text-sm text-gray-900 dark:text-zinc-100">
                               {user.name}
                             </span>
+                            {user.role && user.role !== 'user' && (
+                              <span className="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-1.5 py-0.5 text-[9px] font-bold">
+                                {language === 'ru' ? 'Волонтёр' : 'Volunteer'}
+                              </span>
+                            )}
                             <span className="text-[10px] text-gray-400 font-mono">
                               #{user.id}
                             </span>

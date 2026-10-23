@@ -35,6 +35,7 @@ import { StoryCreatorModal } from './components/StoryCreatorModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import { TelegramDrawer } from './components/TelegramDrawer';
 import { AddAccountModal } from './components/AddAccountModal';
+import { VolunteerScreen } from './components/VolunteerScreen';
 import { getT } from './translations';
 import { refreshPush } from './services/pushService';
 
@@ -158,6 +159,7 @@ export const App: React.FC = () => {
     }
   });
 
+  const [serverAccountConfirmed, setServerAccountConfirmed] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
 
@@ -346,6 +348,21 @@ export const App: React.FC = () => {
       console.warn('Failed to persist user chats:', e);
     }
   }, [chats, account?.id]);
+
+  // Refresh privileged flags from the authenticated server and fail closed if it cannot confirm them.
+  useEffect(() => {
+    let cancelled = false;
+    setServerAccountConfirmed(false);
+    if (!account?.token) return () => { cancelled = true; };
+    realtimeNetwork.getCurrentAccount(account.token).then((result) => {
+      if (cancelled || !result.ok || !result.user || result.user.id !== account.id) return;
+      const serverFields = { role: result.user.role || 'user', verified: result.user.verified === true };
+      setAccount((current) => current && current.id === result.user!.id ? { ...current, ...serverFields } : current);
+      setAccounts((current) => current.map((item) => item.id === result.user!.id ? { ...item, ...serverFields } : item));
+      setServerAccountConfirmed(true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [account?.id, account?.token]);
 
   // Keep phone push attached to whichever account is active on this device
   useEffect(() => {
@@ -782,13 +799,13 @@ export const App: React.FC = () => {
   };
 
   // Password change handler with multi-account & registry sync
-  const handleSavePassword = async (newPassword: string) => {
-    if (!account) return;
+  const handleSavePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+    if (!account) return false;
     if (account.token) {
-      const ok = await realtimeNetwork.changePassword(account.token, newPassword);
+      const ok = await realtimeNetwork.changePassword(account.token, currentPassword, newPassword);
       if (!ok) {
         showToast(settings.language === 'ru' ? 'Не удалось сменить пароль на сервере' : 'Could not change the password on the server');
-        return;
+        return false;
       }
     }
     const updated = { ...account, password: newPassword };
@@ -813,6 +830,7 @@ export const App: React.FC = () => {
       localStorage.setItem(STORAGE_REGISTERED_KEY, JSON.stringify(reg));
     } catch {}
     showToast(settings.language === 'ru' ? 'Пароль успешно обновлён и сохранён!' : 'Password updated and saved!');
+    return true;
   };
 
   // Update profile with multi-account & registry sync (note: email cannot be changed!)
@@ -1373,6 +1391,10 @@ export const App: React.FC = () => {
     );
   }
 
+  // The server-issued role is the only source of truth. Never infer staff access from email or local UI state.
+  const effectiveVolunteerRole = account.role || 'user';
+  const canOpenVolunteerMenu = serverAccountConfirmed && effectiveVolunteerRole !== 'user';
+
   const selectedChat =
     currentRoute.type === 'chat_detail'
       ? chats.find((c) => c.id === currentRoute.chatId) || chats[0]
@@ -1392,6 +1414,16 @@ export const App: React.FC = () => {
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-zinc-900/95 dark:bg-zinc-800/95 text-white text-xs font-semibold rounded-2xl shadow-2xl border border-white/10 animate-in fade-in slide-in-from-top duration-200">
           {toastNotice}
         </div>
+      )}
+
+      {canOpenVolunteerMenu && (
+        <button
+          type="button"
+          onClick={() => setCurrentRoute({ type: 'volunteer' })}
+          className="fixed bottom-20 right-4 z-40 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 shadow-xl text-sm font-bold"
+        >
+          {settings.language === 'ru' ? '🛡 Меню волонтёра' : '🛡 Volunteer menu'}
+        </button>
       )}
 
       {/* Main Responsive App Frame */}
@@ -1492,6 +1524,7 @@ export const App: React.FC = () => {
             <ProfileScreen
               profile={{
                 id: account.id,
+                role: effectiveVolunteerRole,
                 email: account.email,
                 name: account.name,
                 username: account.username,
@@ -1549,6 +1582,10 @@ export const App: React.FC = () => {
             />
           )}
 
+          {currentRoute.type === 'volunteer' && canOpenVolunteerMenu && (
+            <VolunteerScreen user={{ ...account, role: effectiveVolunteerRole }} language={settings.language} onBack={navigateBack} />
+          )}
+
           {currentRoute.type === 'channels' && (
             <ChannelsScreen
               channels={channels}
@@ -1580,7 +1617,6 @@ export const App: React.FC = () => {
       {/* Change Password Modal */}
       <ChangePasswordModal
         isOpen={showChangePasswordModal}
-        currentPasswordHash={account.password || ''}
         language={settings.language}
         onClose={() => setShowChangePasswordModal(false)}
         onSavePassword={handleSavePassword}

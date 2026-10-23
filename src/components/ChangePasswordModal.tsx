@@ -5,15 +5,13 @@ import { Lock, Eye, EyeOff, Check, X, AlertCircle } from 'lucide-react';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
-  currentPasswordHash: string;
   language: Language;
   onClose: () => void;
-  onSavePassword: (newPassword: string) => void;
+  onSavePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
 }
 
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   isOpen,
-  currentPasswordHash,
   language,
   onClose,
   onSavePassword
@@ -29,15 +27,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    // Validate old password
-    if (oldPassword !== currentPasswordHash) {
-      setError(language === 'ru' ? 'Неверный старый пароль!' : 'Incorrect current password!');
-      return;
-    }
 
     // Validate new password length
     if (newPassword.length < 7) {
@@ -59,7 +51,11 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       return;
     }
 
-    onSavePassword(newPassword);
+    const saved = await onSavePassword(oldPassword, newPassword);
+    if (!saved) {
+      setError(language === 'ru' ? 'Не удалось сменить пароль. Проверьте текущий пароль и соединение.' : 'Could not change password. Check your current password and connection.');
+      return;
+    }
     setSuccess(true);
     setTimeout(() => {
       setSuccess(false);

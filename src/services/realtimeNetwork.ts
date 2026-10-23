@@ -1,4 +1,4 @@
-import { Message, UserAccount, ContactUser, Channel, Chat, BlockedUser, GroupVideoChatInfo } from '../types';
+import { Message, UserAccount, ContactUser, Channel, Chat, BlockedUser, GroupVideoChatInfo, Comment } from '../types';
 
 export interface NetworkMessagePayload {
   id: number;
@@ -116,7 +116,7 @@ class RealtimeNetworkService {
     phone?: string;
     bio?: string;
   }): Promise<AuthResult> {
-    const r = await this.api('/api/register', { ...data, device: this.getDeviceLabel() });
+    const r = await this.api('/api/register', { ...data, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: { ...r.user, password: data.password } } : { ok: false, error: r.error };
   }
 
@@ -126,13 +126,18 @@ class RealtimeNetworkService {
   }
 
   public async login(email: string, password: string): Promise<AuthResult> {
-    const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel() });
+    const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: r.user ? { ...r.user, password } : undefined, requiresTwoFactor: Boolean(r.requiresTwoFactor), challenge: r.challenge } : { ok: false, error: r.error };
   }
 
   public async loginWithCloudPassword(challenge: string, cloudPassword: string): Promise<AuthResult> {
-    const r = await this.api('/api/login/cloud-password', { challenge, cloudPassword, device: this.getDeviceLabel() });
+    const r = await this.api('/api/login/cloud-password', { challenge, cloudPassword, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: r.user ? { ...r.user, password: '' } : undefined } : { ok: false, error: r.error };
+  }
+
+  public async getCurrentAccount(token: string): Promise<{ ok: boolean; user?: UserAccount; error?: string }> {
+    const r = await this.api('/api/account/me', { token });
+    return r.ok && r.user ? { ok: true, user: r.user as UserAccount } : { ok: false, error: r.error };
   }
 
   public async getCloudPasswordStatus(token: string): Promise<{ ok: boolean; enabled: boolean }> {
@@ -150,9 +155,52 @@ class RealtimeNetworkService {
     return { ok: Boolean(r.ok), error: r.error };
   }
 
-  public async changePassword(token: string, newPassword: string): Promise<boolean> {
-    const r = await this.api('/api/password', { token, newPassword });
+  public async changePassword(token: string, currentPassword: string, newPassword: string): Promise<boolean> {
+    const r = await this.api('/api/password', { token, currentPassword, newPassword });
     return Boolean(r.ok);
+  }
+
+  public async getInactivitySettings(token: string): Promise<{ ok: boolean; months: number | null; lastActiveAt: number | null; deletionAt: number | null }> {
+    const r = await this.api('/api/account/inactivity/status', { token });
+    return { ok: Boolean(r.ok), months: r.months ?? null, lastActiveAt: r.lastActiveAt ?? null, deletionAt: r.deletionAt ?? null };
+  }
+
+  public async setInactivitySettings(token: string, months: number | null): Promise<{ ok: boolean; error?: string; deletionAt?: number | null }> {
+    const r = await this.api('/api/account/inactivity', { token, months });
+    return { ok: Boolean(r.ok), error: r.error, deletionAt: r.deletionAt ?? null };
+  }
+
+  public async deleteAccount(token: string, password: string): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/account/delete', { token, password });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
+  public async getSecurityEvents(token: string): Promise<{ ok: boolean; activeMute: { permanent: boolean; until: number | null } | null; events: Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }> }> {
+    const r = await this.api('/api/security/events', { token });
+    return { ok: Boolean(r.ok), activeMute: r.activeMute || null, events: Array.isArray(r.events) ? r.events : [] };
+  }
+
+  public async createSecurityReport(token: string, input: { targetUserId: number; messageId: string | number; messageText: string; category: 'spam' | 'adult' | 'harassment' | 'violence' | 'scam' | 'other'; details?: string }): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/reports/create', { token, ...input });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+  public async getSecurityReports(token: string): Promise<{ ok: boolean; error?: string; role?: string; reports: Array<{ id: string; reporterId: number; targetUserId: number; messageId: string; messageText: string; category: string; details: string; status: string; createdAt: number; history: Array<{ actorId: number; actorRole: string; action: string; createdAt: number }> }> }> {
+    const r = await this.api('/api/security/reports/list', { token });
+    return { ok: Boolean(r.ok), error: r.error, role: r.role, reports: Array.isArray(r.reports) ? r.reports : [] };
+  }
+  public async actOnSecurityReport(token: string, reportId: string, action: 'review' | 'forward' | 'resolve', note = ''): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/reports/action', { token, reportId, action, note });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
+  public async getModerationQueue(token: string): Promise<{ ok: boolean; error?: string; role?: string; mutedUsers: Array<{ id: number; name: string; username: string; permanent: boolean; until: number | null; reason: string; events: Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }> }> }> {
+    const r = await this.api('/api/security/moderation/list', { token });
+    return { ok: Boolean(r.ok), error: r.error, role: r.role, mutedUsers: Array.isArray(r.mutedUsers) ? r.mutedUsers : [] };
+  }
+
+  public async moderateSecurity(token: string, targetUserId: number, action: 'unmute' | 'extend' | 'reason', options: { hours?: number; reason?: string } = {}): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/moderation/action', { token, targetUserId, action, ...options });
+    return { ok: Boolean(r.ok), error: r.error };
   }
 
   public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
@@ -168,6 +216,24 @@ class RealtimeNetworkService {
   public async revokeOtherSessions(token: string): Promise<boolean> {
     const r = await this.api('/api/sessions/revoke-others', { token });
     return Boolean(r.ok);
+  }
+
+  private getDeviceId(): string {
+    // Persistent random install identifier is a risk signal, not a hardware fingerprint.
+    // It can be reset or copied, so server-side authorization never relies on it alone.
+    const key = 'tege_security_device_id';
+    try {
+      let id = window.localStorage.getItem(key);
+      if (!id || id.length < 32) {
+        id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID() + crypto.randomUUID()
+          : Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        window.localStorage.setItem(key, id);
+      }
+      return id;
+    } catch {
+      return '';
+    }
   }
 
   private getDeviceLabel(): string {
@@ -638,6 +704,17 @@ class RealtimeNetworkService {
     const token = Math.random().toString(36).substring(2, 8);
     const link = `https://tege.im/+join_${type}_${id}_${token}`;
     return { link, createdAt, expiresAt };
+  }
+
+  // ================= CHANNEL DISCUSSIONS =================
+  public async getChannelComments(token: string, channelId: number, postId: number): Promise<{ ok: boolean; comments: Comment[]; error?: string }> {
+    const r = await this.api('/api/channels/comments/list', { token, channelId, postId });
+    return { ok: Boolean(r.ok), comments: Array.isArray(r.comments) ? r.comments : [], error: r.error };
+  }
+
+  public async addChannelComment(token: string, channelId: number, postId: number, text: string): Promise<{ ok: boolean; comment?: Comment; comments: Comment[]; error?: string }> {
+    const r = await this.api('/api/channels/comments/add', { token, channelId, postId, text });
+    return { ok: Boolean(r.ok), comment: r.comment, comments: Array.isArray(r.comments) ? r.comments : [], error: r.error };
   }
 
   // ================= MESSAGES =================

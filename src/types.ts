@@ -173,6 +173,8 @@ export interface ContactUser {
   lastSeenAt?: number | null;
   avatarUri?: string | null;
   color?: string;
+  role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
 }
 
 export interface Chat {
@@ -259,6 +261,8 @@ export interface UserAccount {
   registrationDate?: string;
   avatarUri?: string | null;
   isOnline?: boolean;
+  role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
 }
 
 export interface Story {
@@ -280,6 +284,8 @@ export interface Story {
 
 export interface UserProfile {
   id: number;
+  role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
   email: string;
   name: string;
   username: string;
@@ -297,4 +303,5 @@ export type ScreenRoute =
   | { type: 'profile' }
   | { type: 'channels' }
   | { type: 'create_chat' }
-  | { type: 'settings' };
+  | { type: 'settings' }
+  | { type: 'volunteer' };

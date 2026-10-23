@@ -550,16 +550,16 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className={`flex flex-col h-full min-h-0 relative overflow-hidden transition-colors ${currentWallpaperClass}`}
+      className={`flex flex-col h-full relative overflow-hidden transition-colors ${currentWallpaperClass}`}
     >
       {/* Telegram Authentic Chat Top Bar */}
-      <header className="h-[60px] px-2.5 flex items-center justify-between gap-2 sticky top-0 z-40 shrink-0 select-none bg-white/95 dark:bg-[#17212b]/95 border-b border-gray-200 dark:border-white/5">
+      <header className="h-16 px-2 pt-1 flex items-center justify-between gap-2 sticky top-0 z-40 shrink-0 select-none">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Prominent Back Button (Large 44x44px touch target) */}
           <button
             type="button"
             onClick={onBack}
-            className="min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full text-sky-500 dark:text-sky-400 bg-transparent active:bg-sky-50 dark:active:bg-zinc-800 transition shrink-0 cursor-pointer touch-manipulation"
+            className="min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full text-gray-800 dark:text-white bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl active:scale-90 transition shrink-0 cursor-pointer touch-manipulation shadow-md shadow-black/10"
             aria-label="Назад к чатам"
             title="Назад к списку чатов"
           >
@@ -569,7 +569,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           {/* Chat Avatar + Title & Subtitle (Clickable to open info) */}
           <div
             onClick={isSavedMessages ? undefined : () => setShowInfoModal(true)}
-            className={`flex items-center gap-2.5 min-w-0 flex-1 h-12 pl-1 pr-2 rounded-xl bg-transparent shadow-none ${isSavedMessages ? '' : 'cursor-pointer active:opacity-75 transition'}`}
+            className={`flex items-center gap-2.5 min-w-0 flex-1 h-12 pl-1 pr-4 rounded-full bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl shadow-md shadow-black/10 ${isSavedMessages ? '' : 'cursor-pointer active:opacity-75 transition'}`}
           >
             {isSavedMessages ? (
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-sky-400 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -600,7 +600,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         </div>
 
         {/* Clean right side actions */}
-        <div className="flex items-center gap-0.5 h-12 px-1 rounded-xl bg-transparent shadow-none text-gray-700 dark:text-white shrink-0">
+        <div className="flex items-center gap-0.5 h-12 px-1 rounded-full bg-white/75 dark:bg-zinc-900/75 backdrop-blur-xl shadow-md shadow-black/10 text-gray-700 dark:text-white shrink-0">
           {chat.type === 'direct' && !isSavedMessages && (
             <>
               <button
@@ -711,7 +711,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
       {/* Telegram Pinned Message Banner */}
       {pinnedMessage && (
-        <div className="bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between text-xs z-30 shadow-xs">
+        <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-b border-gray-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between text-xs z-30 shadow-xs">
           <div
             className="flex items-center gap-2 min-w-0 cursor-pointer"
             onClick={() => {
@@ -866,7 +866,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       )}
 
       {isSearchOpen && (
-        <div className="shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#17212b] px-3 py-2">
+        <div className="shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 px-3 py-2">
           <div className="flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-zinc-800 px-3 py-2">
             <Search className="w-4 h-4 text-gray-400 shrink-0" />
             <input
@@ -901,7 +901,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
       {/* Messages Feed View */}
       <div
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2.5 select-text"
+        className="flex-1 overflow-y-auto p-4 space-y-2 select-text"
         onClick={() => setShowOptionsMenu(false)}
       >
         <div className="text-center my-2">
@@ -939,6 +939,15 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
               onDeleteMessage={handleDeleteMessage}
               onEditMessage={onEditMessageSync ? handleStartEdit : undefined}
               onForwardMessage={onForwardMessageSync ? (m) => setForwardingMessage(m) : undefined}
+              onReportMessage={async (msg) => {
+                if (!currentAccount.token) return;
+                const category = window.prompt('Причина жалобы: spam, adult, harassment, violence, scam, other', 'spam');
+                if (!category) return;
+                const allowed = ['spam', 'adult', 'harassment', 'violence', 'scam', 'other'];
+                if (!allowed.includes(category)) { window.alert('Неизвестная категория жалобы.'); return; }
+                const result = await realtimeNetwork.createSecurityReport(currentAccount.token, { targetUserId: msg.senderId || chat.userId || chat.id, messageId: msg.id, messageText: msg.text || '', category: category as 'spam' | 'adult' | 'harassment' | 'violence' | 'scam' | 'other' });
+                window.alert(result.ok ? 'Жалоба отправлена в Security.' : 'Не удалось отправить жалобу: ' + (result.error || 'ошибка'));
+              }}
             />
           </div>
         ))}
@@ -1172,6 +1181,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       <CommentsModal
         isOpen={Boolean(activeCommentsPost)}
         post={activeCommentsPost}
+        channelId={chat.id}
         channelName={chat.name}
         currentAccount={currentAccount}
         language={language}

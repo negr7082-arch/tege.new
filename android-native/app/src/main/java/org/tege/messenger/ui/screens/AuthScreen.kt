@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,7 @@ fun AuthScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -162,7 +164,8 @@ fun AuthScreen(
                                     password = password,
                                     displayName = displayName,
                                     username = username,
-                                    register = isRegister
+                                    register = isRegister,
+                                    context = context
                                 )
                                 if (result == null) onSuccess() else error = result
                             } catch (_: Exception) {

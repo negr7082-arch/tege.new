@@ -100,6 +100,9 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.navigateBack() }
                                     )
                                 }
+                                is ScreenRoute.Faq -> {
+                                    FaqScreen(onBack = { viewModel.navigateBack() })
+                                }
                                 is ScreenRoute.Calls -> {
                                     CallsScreen(
                                         viewModel = viewModel,

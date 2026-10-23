@@ -1,5 +1,10 @@
 package org.tege.messenger.service
 
+import android.content.Context
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -9,6 +14,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.Signature
+import java.security.spec.ECGenParameterSpec
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 data class AuthResponse(
@@ -34,6 +45,38 @@ object BackendClient {
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
+    private fun createDeviceProof(context: Context, email: String): JSONObject? = runCatching {
+        val alias = "tege.security.device.key.v1"
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        if (!keyStore.containsAlias(alias)) {
+            val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+            generator.initialize(
+                KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
+                    .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                    .setDigests(KeyProperties.DIGEST_SHA256)
+                    .build()
+            )
+            generator.generateKeyPair()
+        }
+        val privateKey = keyStore.getKey(alias, null) as java.security.PrivateKey
+        val publicKey = keyStore.getCertificate(alias).publicKey
+        val publicKeyBytes = publicKey.encoded
+        val deviceId = MessageDigest.getInstance("SHA-256").digest(publicKeyBytes)
+            .joinToString("") { byte -> "%02x".format(byte) }
+        val nonce = UUID.randomUUID().toString()
+        val timestamp = System.currentTimeMillis()
+        val signedPayload = "${'$'}email:${'$'}nonce:${'$'}timestamp"
+        val signer = Signature.getInstance("SHA256withECDSA")
+        signer.initSign(privateKey)
+        signer.update(signedPayload.toByteArray(Charsets.UTF_8))
+        val signature = signer.sign()
+        val proof = JSONObject()
+            .put("publicKey", Base64.encodeToString(publicKeyBytes, Base64.NO_WRAP))
+            .put("nonce", nonce)
+            .put("timestamp", timestamp)
+            .put("signature", Base64.encodeToString(signature, Base64.NO_WRAP))
+        JSONObject().put("deviceId", deviceId).put("proof", proof)
+    }.getOrNull()
     fun normalizeBaseUrl(input: String): String? {
         var candidate = input.trim().trimEnd('/')
         if (candidate.isBlank()) candidate = DEFAULT_BASE_URL
@@ -63,14 +106,26 @@ object BackendClient {
         email: String,
         password: String,
         name: String = "",
-        username: String = ""
+        username: String = "",
+        context: Context? = null
     ): AuthResponse = withContext(Dispatchers.IO) {
         val normalizedUrl = normalizeBaseUrl(baseUrl)
             ?: return@withContext AuthResponse(error = "bad_server_url")
+        val deviceProof = context?.let { createDeviceProof(it, email.trim().lowercase()) }
+        val deviceId = deviceProof?.optString("deviceId").orEmpty()
+        val deviceInfo = JSONObject()
+            .put("platform", "android")
+            .put("manufacturer", Build.MANUFACTURER.take(80))
+            .put("model", Build.MODEL.take(100))
+            .put("androidSdk", Build.VERSION.SDK_INT)
+            .put("appVersion", "1.0.0")
         val body = JSONObject()
             .put("email", email.trim())
             .put("password", password)
             .put("device", "Tege Android")
+            .put("deviceId", deviceId)
+            .put("deviceInfo", deviceInfo)
+        if (deviceProof != null) body.put("deviceProof", deviceProof.optJSONObject("proof"))
         if (register) {
             body.put("name", name.trim())
             if (username.isNotBlank()) body.put("username", username.trim().removePrefix("@"))
