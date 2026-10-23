@@ -263,6 +263,24 @@ try {
   cs.ws.close();
   console.log('✓ immediate account deletion and token revocation');
 
+  // A new IP plus an unseen install/device ID triggers automatic security freeze.
+  const riskUser = (await post('/api/register', {
+    email: 'risk-check@x.io', password: 'password9', name: 'Risk Check',
+    username: '@riskcheck', deviceId: 'risk-device-origin-000000000000'
+  }, '203.0.113.200')).user;
+  const sameNetworkLogin = await post('/api/login', {
+    email: 'risk-check@x.io', password: 'password9', deviceId: 'risk-device-origin-000000000000'
+  }, '203.0.113.200');
+  assert.equal(sameNetworkLogin.ok, true);
+  const suspiciousLogin = await post('/api/login', {
+    email: 'risk-check@x.io', password: 'password9', deviceId: 'risk-device-new-000000000000000'
+  }, '203.0.113.201');
+  assert.equal(suspiciousLogin.error, 'account_suspended_security_review');
+  assert.equal((await post('/api/login', { email: 'risk-check@x.io', password: 'password9' }, '203.0.113.202')).error, 'account_suspended');
+  const riskEvents = await post('/api/security/admin/overview', { token: a.token }, '203.0.113.203');
+  assert.ok(riskEvents.accounts.find((u) => u.id === riskUser.id).suspended);
+  console.log('✓ new IP + new device auto-freezes account for Security review');
+
   // persistence across restart
   console.log('\nALL TESTS PASSED');
 } catch (e) {
