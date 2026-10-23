@@ -781,7 +781,9 @@ const server = http.createServer(async (req, res) => {
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
         registrationDate: new Date().toLocaleDateString('ru-RU'),
-        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null
+        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null,
+        securityLoginIpHistory: [{ ip, at: Date.now() }],
+        securityKnownDeviceHashes: deviceId ? [securityDeviceHash(deviceId)] : []
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
@@ -832,7 +834,7 @@ const server = http.createServer(async (req, res) => {
       // Freeze immediately on the combined signal (new IP + new device), or on 3+ distinct IPs/24h.
       if ((newIp && newDevice) || distinctRecentIps >= 3) {
         user.securitySuspended = true;
-        user.securitySuspensionReason = 'ПП/взломан или продан — автоматическая блокировка по признакам риска; требуется проверка';
+        user.securitySuspensionReason = 'ПП/возможный взлом или продажа — автоматическая блокировка по признакам риска; требуется проверка';
         user.securitySuspendedAt = Date.now();
         revokeUserSessions(user.id);
         recordSecurityEvent(user.id, {
@@ -1198,34 +1200,3 @@ attachWebSocket(server, (conn, url) => {
         save();
         broadcast({ type: 'group_upsert', group: db.groups[g.id] });
         break;
-      }
-
-      case 'block': {
-        const b = msg.user;
-        if (!b || !Number.isFinite(b.id) || b.id === user.id) break;
-        const list = (db.blocks[user.id] ||= []);
-        if (!list.some((x) => x.id === b.id)) list.push({ ...b, blockedAt: Date.now() });
-        save();
-        sendToUser(b.id, { type: 'blocked_by', ids: blockedByList(b.id) });
-        break;
-      }
-      case 'unblock': {
-        db.blocks[user.id] = (db.blocks[user.id] || []).filter((x) => x.id !== msg.userId);
-        save();
-        sendToUser(msg.userId, { type: 'blocked_by', ids: blockedByList(msg.userId) });
-        break;
-      }
-
-      case 'video_chat': {
-        const { chatId, info } = msg;
-        if (!Number.isFinite(chatId)) break;
-        if (info && info.isActive) activeVideo.set(chatId, info);
-        else activeVideo.delete(chatId);
-        const targets = new Set([...(db.members[chatId] || []), user.id]);
-        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: info || null }, conn);
-        break;
-      }
-
-      case 'ping':
-        // A live client heartbeat counts as activity; otherwise an open, idle session
-        // could be deleted by the inactivity policy while the user is still online.
