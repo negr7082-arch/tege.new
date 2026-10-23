@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 val TelegramBlue = Color(0xFF3390EC)
-val TelegramLightBlue = Color(0xFF50B9EC)
+val TelegramLightBlue = Color(0xFF5CC5F8)
 val TelegramDarkBackground = Color(0xFF0E1621)
 val TelegramDarkSurface = Color(0xFF17212B)
 val TelegramLightBackground = Color(0xFFFFFFFF)
@@ -15,7 +15,9 @@ val TelegramLightSurface = Color(0xFFFFFFFF)
 private val DarkColorScheme = darkColorScheme(
     primary = TelegramBlue,
     secondary = TelegramLightBlue,
-    tertiary = Color(0xFF50B9EC),
+    tertiary = Color(0xFF6AB3F3),
+    surfaceVariant = Color(0xFF232E3C),
+    onSurfaceVariant = Color(0xFFAAAAAA),
     background = TelegramDarkBackground,
     surface = TelegramDarkSurface,
     onPrimary = Color.White,
@@ -27,7 +29,9 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = TelegramBlue,
     secondary = Color(0xFF2481CC),
-    tertiary = Color(0xFF0EA5E9),
+    tertiary = Color(0xFF50B9EC),
+    surfaceVariant = Color(0xFFF1F1F1),
+    onSurfaceVariant = Color(0xFF707579),
     background = TelegramLightBackground,
     surface = TelegramLightSurface,
     onPrimary = Color.White,
