@@ -799,13 +799,13 @@ export const App: React.FC = () => {
   };
 
   // Password change handler with multi-account & registry sync
-  const handleSavePassword = async (newPassword: string) => {
-    if (!account) return;
+  const handleSavePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+    if (!account) return false;
     if (account.token) {
-      const ok = await realtimeNetwork.changePassword(account.token, newPassword);
+      const ok = await realtimeNetwork.changePassword(account.token, currentPassword, newPassword);
       if (!ok) {
         showToast(settings.language === 'ru' ? 'Не удалось сменить пароль на сервере' : 'Could not change the password on the server');
-        return;
+        return false;
       }
     }
     const updated = { ...account, password: newPassword };
@@ -830,6 +830,7 @@ export const App: React.FC = () => {
       localStorage.setItem(STORAGE_REGISTERED_KEY, JSON.stringify(reg));
     } catch {}
     showToast(settings.language === 'ru' ? 'Пароль успешно обновлён и сохранён!' : 'Password updated and saved!');
+    return true;
   };
 
   // Update profile with multi-account & registry sync (note: email cannot be changed!)
@@ -1616,7 +1617,6 @@ export const App: React.FC = () => {
       {/* Change Password Modal */}
       <ChangePasswordModal
         isOpen={showChangePasswordModal}
-        currentPasswordHash={account.password || ''}
         language={settings.language}
         onClose={() => setShowChangePasswordModal(false)}
         onSavePassword={handleSavePassword}
