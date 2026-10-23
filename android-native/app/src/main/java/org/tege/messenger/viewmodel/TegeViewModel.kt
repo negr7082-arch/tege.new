@@ -912,6 +912,15 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
  
+    fun requestVolunteerUserInfo(userId: Long): Boolean {
+        val socket = activeSocket ?: return false
+        if (userId <= 0L) return false
+        return socket.send(JSONObject()
+            .put("type", "volunteer_user_info")
+            .put("userId", userId)
+            .toString())
+    }
+
     fun updateVolunteerRole(email: String, role: String?): Boolean {
         val socket = activeSocket ?: return false
         val normalizedEmail = email.trim().lowercase(Locale.ROOT)
