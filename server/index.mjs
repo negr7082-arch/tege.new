@@ -545,8 +545,6 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/password') {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
-      const currentPassword = String(body.currentPassword || '');
-      if (!currentPassword || !checkPassword(user, currentPassword)) return fail(401, 'bad_credentials');
       const pw = String(body.newPassword || '');
       if (pw.length < 7 || pw.length > 256) return fail(400, 'short_password');
       Object.assign(user, hashPassword(pw));
