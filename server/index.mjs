@@ -32,6 +32,7 @@ const db = {
   pushSubs: {}, // userId -> PushSubscription[]
   vapid: null, // {publicKey, privateKey}
   securityEvents: {}, // userId -> [{id,type,createdAt,until,reason}]
+  messageAuthors: {}, // chat/type/message key -> authenticated sender user ID
   securityBlockedIps: [],
   securityBlockedEmails: [],
   securityBlockedDevices: [],
@@ -1174,6 +1175,8 @@ function handleSend(user, conn, payload) {
     channelOrGroupName: payload.channelOrGroupName,
     message: { ...payload.message, senderId: user.id }
   };
+  const messageKey = (messageId) => `${chatType}:${String(payload.chatId)}:${String(messageId)}`;
+  if (action && db.messageAuthors[messageKey(payload.targetId)] !== user.id) return no('not_message_author');
 
   if (chatType === 'direct') {
     const target =
@@ -1182,6 +1185,9 @@ function handleSend(user, conn, payload) {
     if (!target) return no('no_user');
     if (target.id === user.id) return no('self');
     if ((db.blocks[target.id] || []).some((b) => b.id === user.id)) return no('blocked');
+    if (!action && payload.message.id !== undefined && payload.message.id !== null) {
+      db.messageAuthors[messageKey(payload.message.id)] = user.id;
+    }
     enqueue(target.id, { ...out, toUserId: target.id, toUsername: target.username });
     return ok();
   }
@@ -1194,6 +1200,9 @@ function handleSend(user, conn, payload) {
     if (!isStaff) return no('forbidden');
   } else if (registry.ownerId !== user.id && !(db.members[out.chatId] || []).includes(user.id)) {
     return no('not_a_member');
+  }
+  if (!action && payload.message.id !== undefined && payload.message.id !== null) {
+    db.messageAuthors[messageKey(payload.message.id)] = user.id;
   }
   const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
