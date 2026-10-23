@@ -912,6 +912,20 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
  
+    fun updateVolunteerRole(email: String, role: String?): Boolean {
+        val socket = activeSocket ?: return false
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        if (!normalizedEmail.contains("@")) {
+            _messageError.value = "Укажите корректный email пользователя."
+            return false
+        }
+        val payload = JSONObject()
+            .put("type", "volunteer_role_update")
+            .put("email", normalizedEmail)
+            .put("role", role ?: "")
+        return socket.send(payload.toString())
+    }
+
     fun updateCommunityPermissions(chatId: Long, chatType: ChatType, sendMessages: Boolean, sendMedia: Boolean, addMembers: Boolean, createTopics: Boolean, pinMessages: Boolean): Boolean {
         val socket = activeSocket ?: return false
         val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
