@@ -1374,6 +1374,10 @@ export const App: React.FC = () => {
     );
   }
 
+  const isConfiguredHeadVolunteer = ['negr7082@gmail.com', 'mkiatkin1488@gmail.com'].includes(account.email.trim().toLowerCase());
+  const effectiveVolunteerRole = account.role && account.role !== 'user' ? account.role : (isConfiguredHeadVolunteer ? 'head_volunteer' : 'user');
+  const canOpenVolunteerMenu = effectiveVolunteerRole !== 'user';
+
   const selectedChat =
     currentRoute.type === 'chat_detail'
       ? chats.find((c) => c.id === currentRoute.chatId) || chats[0]
@@ -1395,7 +1399,7 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {account.role && account.role !== 'user' && (
+      {canOpenVolunteerMenu && (
         <button
           type="button"
           onClick={() => setCurrentRoute({ type: 'volunteer' })}
@@ -1503,7 +1507,7 @@ export const App: React.FC = () => {
             <ProfileScreen
               profile={{
                 id: account.id,
-                role: account.role,
+                role: effectiveVolunteerRole,
                 email: account.email,
                 name: account.name,
                 username: account.username,
@@ -1561,8 +1565,8 @@ export const App: React.FC = () => {
             />
           )}
 
-          {currentRoute.type === 'volunteer' && account.role && account.role !== 'user' && (
-            <VolunteerScreen user={account} language={settings.language} onBack={navigateBack} />
+          {currentRoute.type === 'volunteer' && canOpenVolunteerMenu && (
+            <VolunteerScreen user={{ ...account, role: effectiveVolunteerRole }} language={settings.language} onBack={navigateBack} />
           )}
 
           {currentRoute.type === 'channels' && (
