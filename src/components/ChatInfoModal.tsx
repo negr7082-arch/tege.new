@@ -11,7 +11,7 @@ import {
   SystemBotConfig
 } from '../types';
 import { getT } from '../translations';
-import { realtimeNetwork } from '../services/realtimeNetwork';
+import { realtimeNetwork, getServerUrl } from '../services/realtimeNetwork';
 import {
   X,
   Shield,
@@ -961,6 +961,26 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 {/* ================= TAB 1: INFO ================= */}
                 {activeTab === 'info' && (
                   <>
+                    {chat.type === 'direct' && contactInfo && (
+                      <div className="overflow-hidden rounded-[22px] border border-black/5 dark:border-white/5 bg-white dark:bg-zinc-900">
+                        <div className="relative h-28" style={{ background: `linear-gradient(135deg, ${contactInfo.themeColor || '#2AABEE'}, #7c3aed, #00b8a9)` }}>
+                          {contactInfo.bannerUri && (
+                            <img
+                              src={contactInfo.bannerUri.startsWith('http') ? contactInfo.bannerUri : new URL(contactInfo.bannerUri, getServerUrl()).toString()}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        <div className="px-4 pb-4 -mt-7 relative">
+                          <div className="w-14 h-14 rounded-full ring-4 ring-white dark:ring-zinc-900 overflow-hidden">
+                            <TelegramAvatar src={contactInfo.avatarUri} name={contactInfo.name} id={contactInfo.id} size="lg" className="" />
+                          </div>
+                          <p className="mt-2 font-bold text-gray-900 dark:text-white" style={{ fontFamily: contactInfo.fontFamily || 'sans-serif' }}>{contactInfo.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-zinc-400">@{contactInfo.username.replace(/^@/, '')}</p>
+                        </div>
+                      </div>
+                    )}
                     {/* Description card */}
                     <div className="p-3.5 bg-white dark:bg-zinc-900 rounded-[22px]">
                       <span className="text-[11px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider block mb-1">
