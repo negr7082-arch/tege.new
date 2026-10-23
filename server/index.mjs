@@ -31,6 +31,7 @@ const db = {
   pushSubs: {}, // userId -> PushSubscription[]
   volunteerApplications: {}, // userId -> {status, checks, createdAt, updatedAt, reviewerId}
   moderationHistory: {}, // userId -> moderation events; never client-controlled
+  securityLoginLogs: [], // restricted audit trail; never expose through public profile APIs
   vapid: null // {publicKey, privateKey}
 };
 try {
@@ -298,6 +299,28 @@ function clientIp(req) {
     .filter(Boolean);
   return forwarded.at(-1) || req.socket.remoteAddress || '';
 }
+function recordSecurityLogin({ user, ip, req, body, outcome, method }) {
+  db.securityLoginLogs ||= [];
+  const now = Date.now();
+  const agent = String(req.headers['user-agent'] || 'unknown').slice(0, 300);
+  const device = String(body?.device || 'unknown').replace(/[\\r\\n\\t]/g, ' ').slice(0, 120);
+  db.securityLoginLogs.push({
+    id: crypto.randomBytes(12).toString('hex'),
+    timestamp: now,
+    userId: user?.id ?? null,
+    username: user?.username ?? null,
+    email: user?.email ?? String(body?.email || '').trim().toLowerCase().slice(0, 254),
+    ip: String(ip || 'unknown').slice(0, 64),
+    userAgent: agent,
+    device,
+    method,
+    outcome
+  });
+  // Keep a bounded history (90 days, max 20,000 events).
+  const cutoff = now - 90 * 24 * 60 * 60 * 1000;
+  db.securityLoginLogs = db.securityLoginLogs.filter((event) => event.timestamp >= cutoff).slice(-20000);
+  save();
+}
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
 const checks = new Map(); // ip -> [timestamps]
 function checkLimited(ip) {
@@ -362,6 +385,22 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
+    if (url.pathname === '/api/admin/security-login-logs') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 10000);
+      const requester = userFromToken(body.token);
+      const ownerId = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+      if (!requester || !Number.isSafeInteger(ownerId) || ownerId <= 0 || requester.id !== ownerId) {
+        return fail(403, 'forbidden');
+      }
+      const targetId = body.userId == null ? null : Number(body.userId);
+      const limit = Math.max(1, Math.min(200, Number(body.limit) || 100));
+      const logs = (db.securityLoginLogs || [])
+        .filter((event) => targetId == null || event.userId === targetId)
+        .slice(-limit)
+        .reverse();
+      return reply(200, { ok: true, logs });
+    }
     if (req.method !== 'POST') return fail(405, 'method');
 
     const ip = clientIp(req);
@@ -437,6 +476,7 @@ const server = http.createServer(async (req, res) => {
       db.tokens[token] = id;
       db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip, req, body, outcome: 'success', method: 'register' });
       broadcast({ type: 'user_upsert', user: publicUser(user) });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
@@ -447,6 +487,7 @@ const server = http.createServer(async (req, res) => {
       const user = findByEmail(email);
       if (!user || !checkPassword(user, String(body.password || ''))) {
         recordLoginFailure(ip, email);
+        recordSecurityLogin({ user, ip, req, body, outcome: 'failure', method: 'password' });
         return fail(401, 'bad_credentials');
       }
       clearLoginFailures(ip, email);
@@ -459,6 +500,7 @@ const server = http.createServer(async (req, res) => {
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip, req, body, outcome: 'success', method: 'password' });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
@@ -484,6 +526,7 @@ const server = http.createServer(async (req, res) => {
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
       save();
+      recordSecurityLogin({ user, ip: clientIp(req), req, body, outcome: 'success', method: 'cloud_password' });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
