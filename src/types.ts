@@ -172,6 +172,8 @@ export interface ContactUser {
   online: boolean;
   lastSeenAt?: number | null;
   avatarUri?: string | null;
+  isVerified?: boolean;
+  role?: string;
   color?: string;
 }
 
