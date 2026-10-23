@@ -202,6 +202,16 @@ fun AuthScreen(
                     }
                 }
 
+                if (loading) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Подключаемся к серверу. Первый запуск может занять до минуты.",
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = AuthMuted
+                    )
+                }
+
                 Spacer(Modifier.height(20.dp))
                 TextButton(
                     onClick = {
