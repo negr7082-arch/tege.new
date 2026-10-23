@@ -558,15 +558,20 @@ function handleSend(user, conn, payload) {
   if (!payload || !payload.message) return no('bad_payload');
 
   const chatType = ['direct', 'group', 'channel'].includes(payload.chatType) ? payload.chatType : 'direct';
-  const fromUser =
-    chatType === 'direct'
-      ? { id: user.id, name: user.name, username: user.username, avatarUri: user.avatarUri || null }
-      : {
-          id: user.id,
-          name: String(payload.fromUser?.name || user.name),
-          username: user.username,
-          avatarUri: payload.fromUser?.avatarUri ?? user.avatarUri ?? null
-        };
+  const fromUser = {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    avatarUri: user.avatarUri || null
+  };
+  const requestedAsChannel = Boolean(payload.message.asChannel);
+  const safeMessage = {
+    ...payload.message,
+    senderId: user.id,
+    senderName: user.name,
+    senderAvatarUri: user.avatarUri || null,
+    asChannel: false
+  };
   const action = payload.action === 'delete' || payload.action === 'edit' ? payload.action : undefined;
   if (action && !Number.isFinite(Number(payload.targetId))) return no('bad_action');
   const out = {
@@ -576,7 +581,7 @@ function handleSend(user, conn, payload) {
     chatId: payload.chatId,
     chatType,
     channelOrGroupName: payload.channelOrGroupName,
-    message: { ...payload.message, senderId: user.id }
+    message: safeMessage
   };
 
   if (chatType === 'direct') {
@@ -601,9 +606,17 @@ function handleSend(user, conn, payload) {
   const members = db.members[out.chatId] || [];
   if (!members.includes(user.id) && registry.ownerId !== user.id &&
       !(registry.admins || []).some((a) => a.id === user.id)) return no('not_member');
+  const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
   if (chatType === 'channel') {
-    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
     if (!isStaff) return no('forbidden');
+    out.channelOrGroupName = registry.name;
+    if (requestedAsChannel) {
+      out.message.asChannel = true;
+      out.message.senderName = registry.name;
+      out.message.senderAvatarUri = registry.avatarUri || null;
+    }
+  } else {
+    out.channelOrGroupName = registry.name;
   }
   if (action) {
     if (!ownsMessage(chatType, out.chatId, payload.targetId, user.id)) return no('not_message_author');
