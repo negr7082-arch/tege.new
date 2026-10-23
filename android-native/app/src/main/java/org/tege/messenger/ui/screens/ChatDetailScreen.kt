@@ -146,10 +146,6 @@ fun ChatDetailScreen(
         } catch (_: Exception) {
             // MediaRecorder can fail if the recording is too short; don't add an invalid message.
         } finally {
-            voiceNoiseSuppressor?.release()
-            voiceNoiseSuppressor = null
-            voiceAutoGainControl?.release()
-            voiceAutoGainControl = null
             recorder?.release()
             recorder = null
             recordingFile = null
