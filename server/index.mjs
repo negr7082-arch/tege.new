@@ -201,20 +201,25 @@ function enforceInactivityDeletion() {
 setInterval(enforceInactivityDeletion, 60 * 60_000).unref();
 enforceInactivityDeletion(); // chatId -> info
 
-const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
-const seniorVolunteerEmails = new Set(String(process.env.TEGE_SENIOR_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
-const headVolunteerEmails = new Set(['negr7082@gmail.com', 'mkiatkin1488@gmail.com', ...String(process.env.TEGE_HEAD_VOLUNTEER_EMAILS || '').split(',')].map((s) => s.trim().toLowerCase()).filter(Boolean));
-const volunteerIds = new Set();
+// Privileged roles and verification are controlled ONLY by server-side numeric account IDs.
+// Never grant staff or verification based on a client-supplied email: registration currently does
+// not prove mailbox ownership, so email allowlists would let an attacker claim a privileged address.
+const configuredIds = (value) => new Set(String(value || '').split(',').map((s) => Number(s.trim())).filter((id) => Number.isSafeInteger(id) && id > 0));
+const volunteerIds = configuredIds(process.env.TEGE_VOLUNTEER_USER_IDS);
+const seniorVolunteerIds = configuredIds(process.env.TEGE_SENIOR_VOLUNTEER_USER_IDS);
+const headVolunteerIds = configuredIds(process.env.TEGE_HEAD_VOLUNTEER_USER_IDS);
+const verifiedUserIds = configuredIds(process.env.TEGE_VERIFIED_USER_IDS);
+const isVerifiedUser = (u) => verifiedUserIds.has(Number(u.id));
 const staffRole = (u) => {
-  const email = String(u.email || '').toLowerCase();
-  if (headVolunteerEmails.has(email)) return 'head_volunteer';
-  if (seniorVolunteerEmails.has(email)) return 'senior_volunteer';
-  if (volunteerEmails.has(email) || volunteerIds.has(u.id)) return 'volunteer';
+  if (headVolunteerIds.has(Number(u.id))) return 'head_volunteer';
+  if (seniorVolunteerIds.has(Number(u.id))) return 'senior_volunteer';
+  if (volunteerIds.has(Number(u.id))) return 'volunteer';
   return 'user';
 };
 const publicUser = (u) => ({
   id: u.id,
   role: staffRole(u),
+  verified: isVerifiedUser(u),
   name: u.name,
   username: u.username,
   bio: u.bio || '',
@@ -236,7 +241,8 @@ const selfUser = (u, token) => ({
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
   token,
-  role: staffRole(u)
+  role: staffRole(u),
+  verified: isVerifiedUser(u)
 });
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
