@@ -177,7 +177,16 @@ try {
   cb3.send({ type: 'join_chats', chatIds: [PRIVATE_GROUP] }); await sleep(100);
   cb3.send({ type: 'send', payload: { id: 51, chatId: PRIVATE_GROUP, chatType: 'group', message: { id: 51, text: 'unauthorized' } } });
   assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 51)).reason, 'not_a_member');
-  console.log('✓ private group ID guessing and unauthorized sends rejected');
+  ca.send({ type: 'video_chat', chatId: PRIVATE_GROUP, info: { isActive: true, roomId: 'private-room' } });
+  await sleep(100);
+  cb3.send({ type: 'video_chat', chatId: PRIVATE_GROUP, info: { isActive: true, roomId: 'attacker-room' } });
+  await sleep(100);
+  assert.equal(ca.events.some((m) => m.type === 'video_chat' && m.chatId === PRIVATE_GROUP && m.info?.roomId === 'attacker-room'), false, 'non-member must not inject private group call state');
+  const cb4 = new Client(b.token); await cb4.ready;
+  const snap4 = await cb4.waitFor((m) => m.type === 'snapshot');
+  assert.equal(Object.hasOwn(snap4.videoChats || {}, String(PRIVATE_GROUP)), false, 'private group call state must not leak in snapshot');
+  cb4.ws.close();
+  console.log('✓ private group access and video-call state protected');
 
   // channel: only owner may post
   const C = 1122000888;
