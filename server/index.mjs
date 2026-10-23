@@ -1085,10 +1085,16 @@ const server = http.createServer(async (req, res) => {
       if (!checkPassword(user, currentPassword)) return fail(401, 'bad_current_password');
       if (pw.length < 7 || pw.length > 256) return fail(400, pw.length < 7 ? 'short_password' : 'password_too_long');
       Object.assign(user, hashPassword(pw));
-      // Sign out every session, including the current one, so a password change rotates credentials.
-      revokeUserSessions(user.id);
+      // Revoke every other session; keep the password-confirmed current session active.
+      for (const [t, id] of Object.entries(db.tokens)) {
+        if (id !== user.id || t === body.token) continue;
+        delete db.tokens[t]; delete db.sessions[t];
+        const sockets = sessionConnections.get(t);
+        if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+        sessionConnections.delete(t);
+      }
       save();
-      return reply(200, { ok: true, requiresLogin: true });
+      return reply(200, { ok: true });
     }
 
     return fail(404, 'not_found');
