@@ -282,6 +282,7 @@ const selfUser = (u, token) => ({
 });
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  if (String(password).length > 256) throw new Error('password_too_long');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
   return { salt, hash };
 }
@@ -337,6 +338,7 @@ function rateLimited(ip) {
   const now = Date.now();
   const list = (attempts.get(ip) || []).filter((t) => now - t < 10 * 60_000);
   list.push(now);
+  if (list.length > 31) list.splice(0, list.length - 31);
   attempts.set(ip, list);
   return list.length > 30;
 }
@@ -432,6 +434,7 @@ function checkLimited(ip) {
   const now = Date.now();
   const list = (checks.get(ip) || []).filter((t) => now - t < 60_000);
   list.push(now);
+  if (list.length > 121) list.splice(0, list.length - 121);
   checks.set(ip, list);
   return list.length > 120;
 }
