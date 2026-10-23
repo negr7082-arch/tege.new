@@ -319,6 +319,34 @@ function clientIp(req) {
 }
 const normaliseIp = (value) => String(value || '').trim().replace(/^::ffff:/, '');
 const securityDeviceHash = (value) => crypto.createHash('sha256').update(String(value || '').trim().slice(0, 200)).digest('hex');
+const verifyDeviceProof = (body, email) => {
+  const proof = body && body.deviceProof;
+  if (!proof) return { deviceId: String(body.deviceId || ''), invalid: false };
+  try {
+    const publicKeyBytes = Buffer.from(String(proof.publicKey || ''), 'base64');
+    const signatureBytes = Buffer.from(String(proof.signature || ''), 'base64');
+    const nonce = String(proof.nonce || '');
+    const timestamp = Number(proof.timestamp);
+    const now = Date.now();
+    if (!publicKeyBytes.length || !signatureBytes.length || nonce.length < 16 || nonce.length > 128 || !Number.isFinite(timestamp) || Math.abs(now - timestamp) > 5 * 60_000) return { deviceId: '', invalid: true };
+    const publicKey = crypto.createPublicKey({ key: publicKeyBytes, format: 'der', type: 'spki' });
+    const canonicalPublicKey = publicKey.export({ type: 'spki', format: 'der' });
+    const deviceId = crypto.createHash('sha256').update(canonicalPublicKey).digest('hex');
+    if (String(body.deviceId || '') !== deviceId) return { deviceId: '', invalid: true };
+    const payload = Buffer.from(`${String(email || '').trim().toLowerCase()}:${nonce}:${timestamp}`);
+    if (!crypto.verify('sha256', payload, publicKey, signatureBytes)) return { deviceId: '', invalid: true };
+    db.securityUsedDeviceNonces ||= [];
+    db.securityUsedDeviceNonces = db.securityUsedDeviceNonces.filter((entry) => now - Number(entry.at || 0) < 24 * 60 * 60_000);
+    const nonceHash = crypto.createHash('sha256').update(`${deviceId}:${nonce}`).digest('hex');
+    if (db.securityUsedDeviceNonces.some((entry) => entry.hash === nonceHash)) return { deviceId: '', invalid: true };
+    db.securityUsedDeviceNonces.push({ hash: nonceHash, at: now });
+    if (db.securityUsedDeviceNonces.length > 10000) db.securityUsedDeviceNonces = db.securityUsedDeviceNonces.slice(-10000);
+    save();
+    return { deviceId, invalid: false };
+  } catch {
+    return { deviceId: '', invalid: true };
+  }
+};
 const sanitizeDeviceInfo = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const clean = (key, max = 100) => typeof value[key] === 'string' ? value[key].trim().slice(0, max) : '';
@@ -781,7 +809,9 @@ const server = http.createServer(async (req, res) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, 'bad_email');
       if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
       if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
-      const deviceId = String(body.deviceId || '');
+      const deviceProofResult = verifyDeviceProof(body, email);
+      if (deviceProofResult.invalid) return fail(403, 'device_proof_invalid');
+      const deviceId = deviceProofResult.deviceId;
       if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
       if (password.length < 7) return fail(400, 'short_password');
       if (!name) return fail(400, 'no_name');
@@ -815,7 +845,9 @@ const server = http.createServer(async (req, res) => {
       const email = String(body.email || '').trim().toLowerCase();
       if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
       if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
-      const deviceId = String(body.deviceId || '');
+      const deviceProofResult = verifyDeviceProof(body, email);
+      if (deviceProofResult.invalid) return fail(403, 'device_proof_invalid');
+      const deviceId = deviceProofResult.deviceId;
       if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
       const user = findByEmail(email);
       if (!user || !checkPassword(user, String(body.password || ''))) {
