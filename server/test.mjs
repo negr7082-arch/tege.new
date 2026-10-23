@@ -263,7 +263,7 @@ try {
   cs.ws.close();
   console.log('✓ immediate account deletion and token revocation');
 
-  // A new IP plus an unseen install/device ID starts a 24-hour security review.
+  // A new IP plus an unseen install/device ID freezes the account for 24 hours and alerts staff.
   const riskUser = (await post('/api/register', {
     email: 'risk-check@x.io', password: 'password9', name: 'Risk Check',
     username: '@riskcheck', deviceId: 'risk-device-origin-000000000000'
@@ -276,12 +276,14 @@ try {
     email: 'risk-check@x.io', password: 'password9', deviceId: 'risk-device-new-000000000000000'
   }, '203.0.113.201');
   assert.equal(suspiciousLogin.error, 'security_review_pending');
-  assert.equal((await post('/api/login', { email: 'risk-check@x.io', password: 'password9' }, '203.0.113.202')).error, 'security_review_pending');
+  assert.equal((await post('/api/login', { email: 'risk-check@x.io', password: 'password9' }, '203.0.113.202')).error, 'account_suspended');
   const riskEvents = await post('/api/security/admin/overview', { token: a.token }, '203.0.113.203');
   const riskAccount = riskEvents.accounts.find((u) => u.id === riskUser.id);
-  assert.equal(riskAccount.suspended, false);
+  assert.equal(riskAccount.suspended, true);
   assert.ok(riskAccount.securityReviewUntil > Date.now());
-  console.log('✓ new IP + new device starts a 24-hour quarantine before account freeze');
+  assert.ok(riskAccount.securityReviewUntil > Date.now());
+  assert.ok(riskAccount.recentSecurityEvents.some((event) => event.type === 'account_frozen_for_review'));
+  console.log('✓ high-risk login freezes the account for 24 hours and records the review');
 
   const badDeviceProof = await post('/api/register', {
     email: 'bad-proof@x.io', password: 'password9', name: 'Bad Proof',
