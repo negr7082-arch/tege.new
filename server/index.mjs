@@ -50,7 +50,7 @@ if (process.env.DATABASE_URL) {
     connectionString: url,
     max: 3,
     connectionTimeoutMillis: 15000,
-    ssl: local ? false : { rejectUnauthorized: false }
+    ssl: local ? false : { rejectUnauthorized: true }
   });
   pool.on('error', (e) => console.error('pg pool error:', e.message));
   try {
@@ -514,11 +514,24 @@ const server = http.createServer(async (req, res) => {
 
 // ───────────────────────── WebSocket ─────────────────────────
 function joinChats(userId, chatIds) {
-  for (const id of chatIds.map(Number)) {
+  let changed = false;
+  for (const rawId of chatIds) {
+    const id = Number(rawId);
+    if (!Number.isSafeInteger(id)) continue;
+    const group = db.groups[id];
+    const channel = db.channels[id];
+    const chat = group || channel;
+    if (!chat) continue;
+
     const list = (db.members[id] ||= []);
-    if (!list.includes(userId)) list.push(userId);
+    const alreadyMember = list.includes(userId);
+    const isStaff = chat.ownerId === userId || (chat.admins || []).some((a) => a.id === userId);
+    const isPrivate = group ? Boolean(group.isPrivate) : channel ? channel.isPublic === false : true;
+    // Private chats can only be joined by existing members or their owner/admin.
+    if (isPrivate && !alreadyMember && !isStaff) continue;
+    if (!alreadyMember) { list.push(userId); changed = true; }
   }
-  save();
+  if (changed) save();
 }
 
 function handleSend(user, conn, payload) {
@@ -559,13 +572,17 @@ function handleSend(user, conn, payload) {
     return ok();
   }
 
-  // group / channel
+  // group / channel: require a real registry entry and server-side membership.
   const registry = chatType === 'channel' ? db.channels[out.chatId] : db.groups[out.chatId];
-  if (chatType === 'channel' && registry) {
+  if (!registry) return no('chat_not_found');
+  const members = db.members[out.chatId] || [];
+  if (!members.includes(user.id) && registry.ownerId !== user.id &&
+      !(registry.admins || []).some((a) => a.id === user.id)) return no('not_member');
+  if (chatType === 'channel') {
     const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
     if (!isStaff) return no('forbidden');
   }
-  const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
+  const recipients = members.filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
   return ok({ delivered: recipients.length });
 }
