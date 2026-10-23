@@ -161,7 +161,8 @@ data class Chat(
     val subscribersCount: Int = 0,
     val membersCount: Int = 0,
     val activeVideoChat: GroupVideoChatInfo? = null,
-    val isOwner: Boolean = false
+    val isOwner: Boolean = false,
+    val isAdmin: Boolean = false
 )
 
 data class Channel(
