@@ -1,5 +1,6 @@
 package org.tege.messenger.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,9 @@ import kotlinx.coroutines.launch
 import org.tege.messenger.data.SampleData
 import org.tege.messenger.model.*
 import org.tege.messenger.service.StreakManager
+import org.tege.messenger.service.BackendClient
+import org.tege.messenger.service.TegeSocketListener
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -16,6 +20,12 @@ class TegeViewModel : ViewModel() {
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     private val _accounts = MutableStateFlow<List<UserAccount>>(SampleData.defaultAccounts)
+    private val _contacts = MutableStateFlow<List<ContactUser>>(SampleData.defaultAccounts.map { ContactUser(id = it.id, name = it.name, username = it.username, bio = it.bio, phone = it.phone, avatarUri = it.avatarUri) })
+    val contacts: StateFlow<List<ContactUser>> = _contacts.asStateFlow()
+    private val _connectionState = MutableStateFlow("Не подключено")
+    val connectionState: StateFlow<String> = _connectionState.asStateFlow()
+    private var activeServerUrl: String = BackendClient.DEFAULT_BASE_URL
+    private var activeToken: String? = null
     val accounts: StateFlow<List<UserAccount>> = _accounts.asStateFlow()
 
     private val _currentAccount = MutableStateFlow<UserAccount?>(SampleData.defaultAccounts.firstOrNull())
