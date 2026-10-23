@@ -2,6 +2,7 @@ package org.tege.messenger.service
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -187,13 +188,39 @@ object BackendClient {
             .put("ids", org.json.JSONArray().put(deliveryId)).toString())
     }
 
-    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String): Boolean {
+    suspend fun uploadProfileMedia(baseUrl: String, token: String, kind: String, mime: String, bytes: ByteArray): String? = withContext(Dispatchers.IO) {
+        val normalized = normalizeBaseUrl(baseUrl) ?: return@withContext null
+        if (kind !in setOf("avatar", "banner") || mime !in setOf("image/png", "image/jpeg", "image/webp") || bytes.isEmpty() || bytes.size > 3 * 1024 * 1024) return@withContext null
+        val body = JSONObject()
+            .put("token", token)
+            .put("kind", kind)
+            .put("mime", mime)
+            .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+        val request = Request.Builder()
+            .url("$normalized/api/profile-media")
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val parsed = JSONObject(response.body?.string().orEmpty().ifBlank { "{}" })
+                if (response.isSuccessful && parsed.optBoolean("ok")) parsed.optString("url").takeIf { it.isNotBlank() } else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String, avatarUri: String? = null, bannerUri: String? = null, themeColor: String = "#2AABEE", fontFamily: String = "system"): Boolean {
         socket ?: return false
         val user = JSONObject()
             .put("name", name)
             .put("username", username)
             .put("bio", bio)
             .put("phone", phone)
+            .put("themeColor", themeColor)
+            .put("fontFamily", fontFamily)
+        if (avatarUri != null) user.put("avatarUri", avatarUri)
+        if (bannerUri != null) user.put("bannerUri", bannerUri)
         return socket.send(JSONObject().put("type", "profile").put("user", user).toString())
     }
 }
