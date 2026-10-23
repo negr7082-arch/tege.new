@@ -1,6 +1,7 @@
 // Tege Messenger server — accounts, directory, real-time message routing.
 // Zero dependencies. Run:  node server/index.mjs   (PORT=3001 DATA_DIR=./data)
 import http from 'node:http';
+import { isIP } from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -311,8 +312,10 @@ function rateLimited(ip) {
 
 // Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
 function clientIp(req) {
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.socket.remoteAddress || '';
+  // Reverse proxies append the observed client address; use the rightmost forwarded address
+  // rather than trusting a client-supplied leftmost X-Forwarded-For value.
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',').map((v) => v.trim()).filter(Boolean);
+  return forwarded.length ? forwarded[forwarded.length - 1] : req.socket.remoteAddress || '';
 }
 const normaliseIp = (value) => String(value || '').trim().replace(/^::ffff:/, '');
 const securityDeviceHash = (value) => crypto.createHash('sha256').update(String(value || '').trim().slice(0, 200)).digest('hex');
@@ -691,7 +694,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (action === 'block_ip' || action === 'unblock_ip') {
         const targetIp = normaliseIp(body.ip);
-        if (!targetIp || targetIp.length > 64 || /[^0-9a-fA-F:.%]/.test(targetIp)) return fail(400, 'bad_ip');
+        if (!targetIp || !isIP(targetIp)) return fail(400, 'bad_ip');
         db.securityBlockedIps ||= [];
         db.securityBlockedIps = action === 'block_ip' ? [...new Set([...db.securityBlockedIps, targetIp])] : db.securityBlockedIps.filter((v) => v !== targetIp);
         if (action === 'block_ip') {
