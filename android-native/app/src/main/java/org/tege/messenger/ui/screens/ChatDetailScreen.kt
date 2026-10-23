@@ -523,6 +523,88 @@ fun ChatDetailScreen(
             }
         )
     }
+
+
+    if (showCommunitySettings) {
+        AlertDialog(
+            onDismissRequest = { showCommunitySettings = false },
+            title = { Text("Управление: ${chat.name}") },
+            text = {
+                Column(modifier = Modifier.heightIn(max = 440.dp)) {
+                    Text("Эти права будут сохранены на сервере и обновятся у участников.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMessages, onCheckedChange = { allowCommunityMessages = it })
+                        Text("Участники могут отправлять сообщения")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMedia, onCheckedChange = { allowCommunityMedia = it })
+                        Text("Отправлять фото и файлы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMembers, onCheckedChange = { allowCommunityMembers = it })
+                        Text("Добавлять участников")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityTopics, onCheckedChange = { allowCommunityTopics = it })
+                        Text("Создавать темы и опросы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityPins, onCheckedChange = { allowCommunityPins = it })
+                        Text("Закреплять сообщения")
+                    }
+                    if (chat.isOwner) {
+                        TextButton(onClick = { showCommunityAdmins = true }) { Text("Назначить администраторов") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityPermissions(chat.id, chat.type, allowCommunityMessages, allowCommunityMedia, allowCommunityMembers, allowCommunityTopics, allowCommunityPins)
+                    showCommunitySettings = false
+                }) { Text("Сохранить на сервере") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunitySettings = false }) { Text("Отмена") } }
+        )
+    }
+
+    if (showCommunityAdmins) {
+        AlertDialog(
+            onDismissRequest = { showCommunityAdmins = false },
+            title = { Text("Администраторы") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(contacts, key = { it.id }) { contact ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.remove(contact.id)
+                                else selectedCommunityAdmins.add(contact.id)
+                            }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedCommunityAdmins.contains(contact.id),
+                                onCheckedChange = { checked ->
+                                    if (checked && !selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.add(contact.id)
+                                    if (!checked) selectedCommunityAdmins.remove(contact.id)
+                                }
+                            )
+                            Column {
+                                Text(contact.name)
+                                Text("@${contact.username}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityAdmins(chat.id, chat.type, contacts.filter { selectedCommunityAdmins.contains(it.id) })
+                    showCommunityAdmins = false
+                }) { Text("Сохранить администраторов") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunityAdmins = false }) { Text("Отмена") } }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -817,87 +899,7 @@ fun MessageBubble(
         }
     }
 
-    if (showCommunitySettings) {
-        AlertDialog(
-            onDismissRequest = { showCommunitySettings = false },
-            title = { Text("Управление: ${chat.name}") },
-            text = {
-                Column(modifier = Modifier.heightIn(max = 440.dp)) {
-                    Text("Эти права будут сохранены на сервере и обновятся у участников.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowCommunityMessages, onCheckedChange = { allowCommunityMessages = it })
-                        Text("Участники могут отправлять сообщения")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowCommunityMedia, onCheckedChange = { allowCommunityMedia = it })
-                        Text("Отправлять фото и файлы")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowCommunityMembers, onCheckedChange = { allowCommunityMembers = it })
-                        Text("Добавлять участников")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowCommunityTopics, onCheckedChange = { allowCommunityTopics = it })
-                        Text("Создавать темы и опросы")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowCommunityPins, onCheckedChange = { allowCommunityPins = it })
-                        Text("Закреплять сообщения")
-                    }
-                    if (chat.isOwner) {
-                        TextButton(onClick = { showCommunityAdmins = true }) { Text("Назначить администраторов") }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.updateCommunityPermissions(chat.id, chat.type, allowCommunityMessages, allowCommunityMedia, allowCommunityMembers, allowCommunityTopics, allowCommunityPins)
-                    showCommunitySettings = false
-                }) { Text("Сохранить на сервере") }
-            },
-            dismissButton = { TextButton(onClick = { showCommunitySettings = false }) { Text("Отмена") } }
-        )
-    }
 
-    if (showCommunityAdmins) {
-        AlertDialog(
-            onDismissRequest = { showCommunityAdmins = false },
-            title = { Text("Администраторы") },
-            text = {
-                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                    items(contacts, key = { it.id }) { contact ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                if (selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.remove(contact.id)
-                                else selectedCommunityAdmins.add(contact.id)
-                            }.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = selectedCommunityAdmins.contains(contact.id),
-                                onCheckedChange = { checked ->
-                                    if (checked && !selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.add(contact.id)
-                                    if (!checked) selectedCommunityAdmins.remove(contact.id)
-                                }
-                            )
-                            Column {
-                                Text(contact.name)
-                                Text("@${contact.username}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.updateCommunityAdmins(chat.id, chat.type, contacts.filter { selectedCommunityAdmins.contains(it.id) })
-                    showCommunityAdmins = false
-                }) { Text("Сохранить администраторов") }
-            },
-            dismissButton = { TextButton(onClick = { showCommunityAdmins = false }) { Text("Отмена") } }
-        )
-    }
-}
 
 @Composable
 fun PollWidget(
