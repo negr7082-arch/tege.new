@@ -91,9 +91,9 @@ No application can guarantee that an attacker is blocked forever across VPNs, ne
 The server records recent successful-login IPs and install/device signals. A login is automatically frozen for Security review when a password-authenticated login combines a previously unseen IP with a previously unseen device ID, or when the account appears from 3 or more distinct IPs within 24 hours. The account's sessions are revoked and the reason is recorded as **«ПП/взломан или продан — автоматическая блокировка по признакам риска; требуется проверка»**. An IP change alone is logged for review, not treated as proof of compromise, because mobile networks and VPNs can change addresses legitimately. A security administrator must review and unfreeze the account. Device IDs are client-generated and can be reset or copied, so they are risk signals rather than hardware identity.
 
 
-### 24-hour suspicious-login quarantine
+### 24-hour account freeze for suspicious logins
 
-A login combining a previously unseen IP and device signal, or 3+ distinct IPs in 24 hours, starts a 24-hour Security review. The suspicious new login is denied while the review is pending; the account is not immediately marked permanently suspended. If the review remains unresolved for 24 hours, the server freezes the account, revokes sessions and records the signals. A Security administrator can clear the review when restoring a legitimate owner. A single IP or carrier change is not sufficient proof of compromise. Device and carrier metadata are risk signals, not definitive proof of a physical person's identity.
+A login combining a previously unseen IP and device signal, or 3+ distinct IPs in 24 hours, immediately freezes the account for 24 hours and revokes its sessions. A security alert is recorded and sent to configured volunteers, senior volunteers and volunteer leads. After 24 hours, the temporary freeze expires; the same signal is not allowed to immediately re-freeze the account during the following 24 hours. A single IP or carrier change is not sufficient proof of compromise. Device and carrier metadata are risk signals, not definitive proof of a physical person's identity.
 
 
 ### Native Android security and FAQ
