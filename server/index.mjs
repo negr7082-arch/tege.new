@@ -694,6 +694,15 @@ const server = http.createServer(async (req, res) => {
         if (!targetIp || targetIp.length > 64 || /[^0-9a-fA-F:.%]/.test(targetIp)) return fail(400, 'bad_ip');
         db.securityBlockedIps ||= [];
         db.securityBlockedIps = action === 'block_ip' ? [...new Set([...db.securityBlockedIps, targetIp])] : db.securityBlockedIps.filter((v) => v !== targetIp);
+        if (action === 'block_ip') {
+          for (const [token, meta] of Object.entries(db.sessions)) {
+            if (normaliseIp(meta.ip) !== targetIp) continue;
+            delete db.tokens[token]; delete db.sessions[token];
+            const sockets = sessionConnections.get(token);
+            if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+            sessionConnections.delete(token);
+          }
+        }
         save();
         return reply(200, { ok: true, ip: targetIp, blocked: action === 'block_ip' });
       }
@@ -715,6 +724,15 @@ const server = http.createServer(async (req, res) => {
         const deviceHash = securityDeviceHash(deviceId);
         db.securityBlockedDevices ||= [];
         db.securityBlockedDevices = action === 'block_device' ? [...new Set([...db.securityBlockedDevices, deviceHash])] : db.securityBlockedDevices.filter((v) => v !== deviceHash);
+        if (action === 'block_device') {
+          for (const [token, meta] of Object.entries(db.sessions)) {
+            if (meta.deviceIdHash !== deviceHash) continue;
+            delete db.tokens[token]; delete db.sessions[token];
+            const sockets = sessionConnections.get(token);
+            if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+            sessionConnections.delete(token);
+          }
+        }
         save();
         return reply(200, { ok: true, deviceBlocked: action === 'block_device' });
       }
