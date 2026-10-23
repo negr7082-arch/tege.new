@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -114,6 +115,7 @@ fun ProfileScreen(
                     AsyncImage(
                         model = banner,
                         contentDescription = "Баннер профиля",
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                     Box(
@@ -167,6 +169,7 @@ fun ProfileScreen(
                             AsyncImage(
                                 model = account?.avatarUri,
                                 contentDescription = "Фото профиля",
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape)
                             )
                         } else {
