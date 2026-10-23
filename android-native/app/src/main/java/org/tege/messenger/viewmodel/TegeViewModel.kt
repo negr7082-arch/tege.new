@@ -382,7 +382,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         error == "bad_username" -> "Username должен содержать 3–32 символа: латиницу, цифры или подчёркивание."
         error == "bad_credentials" -> "Неверная почта или пароль."
         error == "too_many_requests" -> "Слишком много попыток. Попробуй позже."
-        error == "connection_failed" -> "Не удалось связаться с сервером. Проверь адрес и интернет."
+        error == "server_timeout" -> "Сервер долго просыпается. Подожди немного и попробуй войти ещё раз."
+        error == "connection_failed" -> "Нет соединения с сервером. Проверь интернет и повтори попытку."
         else -> "Не удалось выполнить вход. Проверь данные и попробуй ещё раз."
     }
 
