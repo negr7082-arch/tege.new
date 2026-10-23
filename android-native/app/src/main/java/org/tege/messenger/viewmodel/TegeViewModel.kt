@@ -457,9 +457,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 val groupArray = event.optJSONArray("groups") ?: JSONArray()
-                groupArray.forEachJson { item ->
+                for (index in 0 until groupArray.length()) {
+                    val item = groupArray.optJSONObject(index) ?: continue
                     val id = item.optLong("id")
-                    if (id == 0L) return@forEachJson
+                    if (id == 0L) continue
                     val ownerId = item.optLong("ownerId")
                     val groupChat = Chat(
                         id = id,
