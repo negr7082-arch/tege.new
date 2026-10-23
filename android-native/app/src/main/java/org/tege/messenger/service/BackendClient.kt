@@ -30,10 +30,10 @@ object BackendClient {
     // Keep REST requests alive long enough for a cold start instead of showing a
     // misleading "no server connection" error after 12–25 seconds.
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        .callTimeout(80, TimeUnit.SECONDS)
+        .callTimeout(150, TimeUnit.SECONDS)
         .build()
     private val webSocketClient = client.newBuilder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -88,6 +88,19 @@ object BackendClient {
             .build()
 
         try {
+            // Wake a sleeping Render instance with a cheap health request first.
+            // The first request can be delayed by a free-instance cold start; once
+            // health responds, the actual authentication request should be fast.
+            val healthRequest = Request.Builder()
+                .url("$normalizedUrl/api/health")
+                .get()
+                .build()
+            client.newCall(healthRequest).execute().use { health ->
+                if (!health.isSuccessful) {
+                    return@withContext AuthResponse(error = "connection_failed")
+                }
+                health.body?.string()
+            }
             client.newCall(request).execute().use { response ->
                 val parsed = JSONObject(response.body?.string().orEmpty().ifBlank { "{}" })
                 if (!response.isSuccessful || !parsed.optBoolean("ok")) {
