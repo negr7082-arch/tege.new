@@ -1243,4 +1243,21 @@ attachWebSocket(server, (conn, url) => {
   };
 });
 
+// Freeze unresolved high-risk accounts after the 24-hour review window.
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const user of Object.values(db.users)) {
+    if (!user.securitySuspended && user.securityReviewUntil && now >= Number(user.securityReviewUntil)) {
+      user.securitySuspended = true;
+      user.securitySuspensionReason = 'ПП/подозрение на взлом или продажу аккаунта — проверка не завершена за 24 часа';
+      user.securitySuspendedAt = now;
+      revokeUserSessions(user.id);
+      recordSecurityEvent(user.id, { type: 'account_auto_frozen', reason: user.securitySuspensionReason, permanent: true, riskSignals: user.securityReviewSignals || [] });
+      changed = true;
+    }
+  }
+  if (changed) save();
+}, 60_000).unref();
+
 server.listen(PORT, () => console.log(`Tege server on :${PORT}  (data: ${DATA_DIR})`));
