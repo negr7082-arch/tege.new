@@ -925,6 +925,71 @@ attachWebSocket(server, (conn, url) => {
         break;
       }
 
+      case 'security_report_list': {
+        const role = volunteerRoleFor(user);
+        if (!role) {
+          conn.send({ type: 'security_report_list_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        db.securityReports ||= [];
+        const reports = db.securityReports
+          .filter((r) => role === 'chief_volunteer' || isOwner(user) || r.status !== 'resolved')
+          .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+          .slice(0, 100)
+          .map((r) => ({
+            id: r.id, targetUserId: r.targetUserId, category: r.category,
+            details: r.details, status: r.status, createdAt: r.createdAt,
+            assignedTo: r.assignedTo, reviewedAt: r.reviewedAt,
+            reporterId: role === 'chief_volunteer' || isOwner(user) ? r.reporterId : undefined
+          }));
+        conn.send({ type: 'security_report_list_result', ok: true, reports });
+        break;
+      }
+
+      case 'security_report_review': {
+        const role = volunteerRoleFor(user);
+        if (!role) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const reportId = String(msg.reportId || '');
+        const action = String(msg.action || '');
+        db.securityReports ||= [];
+        const report = db.securityReports.find((r) => r.id === reportId);
+        const allowedActions = new Set(['claim', 'escalate', 'resolve', 'dismiss']);
+        if (!report || !allowedActions.has(action)) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        if ((action === 'resolve' || action === 'dismiss') && role !== 'chief_volunteer' && !isOwner(user)) {
+          conn.send({ type: 'security_report_review_result', ok: false, error: 'chief_required' });
+          break;
+        }
+        if (action === 'claim') {
+          if (report.assignedTo && report.assignedTo !== user.id) {
+            conn.send({ type: 'security_report_review_result', ok: false, error: 'already_claimed' });
+            break;
+          }
+          report.assignedTo = user.id;
+          report.status = 'in_review';
+        } else if (action === 'escalate') {
+          report.status = 'escalated';
+          report.escalatedBy = user.id;
+        } else {
+          report.status = action === 'resolve' ? 'resolved' : 'dismissed';
+          report.resolution = String(msg.note || '').trim().slice(0, 500);
+          report.reviewedAt = Date.now();
+          report.reviewedBy = user.id;
+        }
+        report.updatedAt = Date.now();
+        db.securityAudit ||= [];
+        db.securityAudit.push({ id: crypto.randomUUID(), actorId: user.id, event: 'report_' + action, targetId: report.targetUserId, reportId: report.id, at: Date.now() });
+        if (db.securityAudit.length > 10000) db.securityAudit.splice(0, db.securityAudit.length - 10000);
+        save();
+        conn.send({ type: 'security_report_review_result', ok: true, reportId: report.id, status: report.status, assignedTo: report.assignedTo });
+        break;
+      }
+
       case 'volunteer_apply': {
         const existing = db.volunteerApplications?.[String(user.id)];
         if (existing?.status === 'pending' || existing?.status === 'practice' || existing?.status === 'escalated') {
