@@ -273,10 +273,13 @@ function clearLoginFailures(ip, email) {
   loginFailures.delete(loginFailureKey(ip, email));
 }
 
-// Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
+// Render appends the observed client address to X-Forwarded-For; do not trust the client-supplied first entry.
 function clientIp(req) {
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.socket.remoteAddress || '';
+  const forwarded = String(req.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return forwarded.at(-1) || req.socket.remoteAddress || '';
 }
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
 const checks = new Map(); // ip -> [timestamps]
