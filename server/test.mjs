@@ -207,6 +207,8 @@ try {
   ca.send({ type: 'send', payload: { id: 9, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'edit', targetId: 8001, message: { id: 8001, text: 'edited text', time: '' } } });
   const ed = await cb3.waitFor((m) => m.type === 'message' && m.payload.action === 'edit');
   assert.equal(ed.payload.targetId, 8001); assert.equal(ed.payload.message.text, 'edited text'); assert.equal(ed.payload.fromUser.id, a.id);
+  cb3.send({ type: 'send', payload: { id: 91, chatId: b.id, chatType: 'direct', toUserId: a.id, action: 'delete', targetId: 8001, message: { id: 8001, text: '', time: '' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 91)).reason, 'not_message_author');
   ca.send({ type: 'send', payload: { id: 10, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'delete', targetId: 8001, fromUser: { id: 999 }, message: { id: 8001, text: '', time: '' } } });
   const del = await cb3.waitFor((m) => m.type === 'message' && m.payload.action === 'delete');
   assert.equal(del.payload.targetId, 8001); assert.equal(del.payload.fromUser.id, a.id, 'author must come from token');
