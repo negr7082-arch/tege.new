@@ -48,6 +48,7 @@ try {
   const owner = (await post('/api/register', { email: 'negr7082@gmail.com', password: 'password1', name: 'Tege Owner', username: '@orig_manager_creator_tege.new' })).user;
   assert.equal(owner.isVerified, true, 'owner account receives verified flag');
   assert.equal(owner.role, 'Главный волонтёр', 'owner account receives volunteer role');
+  assert.equal((await post('/api/register', { email: 'impostor2@x.io', password: 'password1', name: 'Owner renamed', username: '@some_new_username' })).user.isVerified, false, 'username alone cannot grant owner badge');
   assert.equal((await post('/api/register', { email: 'c2@x.io', password: 'password1', name: 'x', username: '@orig_manager_creator_tege.new' })).error, 'username_taken');
   const impostor = (await post('/api/register', { email: 'impostor@x.io', password: 'password1', name: 'Impostor', username: '@another_owner' })).user;
   assert.equal(impostor.isVerified, false, 'ordinary account is not verified');
