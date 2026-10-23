@@ -8,7 +8,7 @@ interface ChangePasswordModalProps {
   currentPasswordHash: string;
   language: Language;
   onClose: () => void;
-  onSavePassword: (newPassword: string) => void;
+  onSavePassword: (currentPassword: string, newPassword: string) => void;
 }
 
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
@@ -59,7 +59,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       return;
     }
 
-    onSavePassword(newPassword);
+    onSavePassword(oldPassword, newPassword);
     setSuccess(true);
     setTimeout(() => {
       setSuccess(false);
