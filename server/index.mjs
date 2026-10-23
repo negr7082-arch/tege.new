@@ -699,11 +699,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (action === 'block_email' || action === 'unblock_email') {
         const email = String(body.email || '').trim().toLowerCase();
-        if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return fail(400, 'bad_email');
-      if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
-      const deviceId = String(body.deviceId || '');
-      if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
-      if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, 'bad_email');
         db.securityBlockedEmails ||= [];
         db.securityBlockedEmails = action === 'block_email' ? [...new Set([...db.securityBlockedEmails, email])] : db.securityBlockedEmails.filter((v) => v !== email);
         if (action === 'block_email') {
@@ -745,6 +741,10 @@ const server = http.createServer(async (req, res) => {
       const password = String(body.password || '');
       const name = String(body.name || '').trim().slice(0, 64);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, 'bad_email');
+      if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
+      if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
+      const deviceId = String(body.deviceId || '');
+      if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
       if (password.length < 7) return fail(400, 'short_password');
       if (!name) return fail(400, 'no_name');
       if (findByEmail(email)) return fail(409, 'email_taken');
