@@ -146,7 +146,17 @@ const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
+// Public staff badges are derived from a server-side allowlist, never client profile input.
+const CHIEF_VOLUNTEER_EMAIL = String(process.env.TEGE_CHIEF_VOLUNTEER_EMAIL || '').trim().toLowerCase();
+const volunteerRoleFor = (u) => {
+  if (!u?.email) return null;
+  return CHIEF_VOLUNTEER_EMAIL && u.email.toLowerCase() === CHIEF_VOLUNTEER_EMAIL
+    ? 'chief_volunteer'
+    : (u.volunteerRole === 'volunteer' ? 'volunteer' : null);
+};
 const publicUser = (u) => ({
+  volunteerRole: volunteerRoleFor(u),
+  isVerified: volunteerRoleFor(u) !== null,
   id: u.id,
   name: u.name,
   username: u.username,
@@ -159,6 +169,8 @@ const publicUser = (u) => ({
   lastSeenAt: u.lastSeenAt || null
 });
 const selfUser = (u, token) => ({
+  volunteerRole: volunteerRoleFor(u),
+  isVerified: volunteerRoleFor(u) !== null,
   id: u.id,
   email: u.email,
   name: u.name,
