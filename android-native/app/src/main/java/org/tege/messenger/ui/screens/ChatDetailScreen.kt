@@ -60,6 +60,7 @@ fun ChatDetailScreen(
     val chats by viewModel.chats.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val currentAccount by viewModel.currentAccount.collectAsState()
+    val contacts by viewModel.contacts.collectAsState()
     val messageError by viewModel.messageError.collectAsState()
     val currentUserId = currentAccount?.id ?: 0L
     val chat = chats.find { it.id == chatId } ?: return
@@ -80,6 +81,14 @@ fun ChatDetailScreen(
     var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showCommunitySettings by remember { mutableStateOf(false) }
+    var allowCommunityMessages by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityMedia by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityMembers by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityTopics by remember(chatId) { mutableStateOf(true) }
+    var allowCommunityPins by remember(chatId) { mutableStateOf(false) }
+    val selectedCommunityAdmins = remember(chatId) { mutableStateListOf<Long>() }
+    var showCommunityAdmins by remember(chatId) { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var editingMessageId by remember { mutableStateOf<Long?>(null) }
     var deletingMessageId by remember { mutableStateOf<Long?>(null) }
@@ -200,6 +209,13 @@ fun ChatDetailScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        if ((chat.type == ChatType.GROUP || chat.type == ChatType.CHANNEL) && (chat.isOwner || chat.isAdmin)) {
+                            DropdownMenuItem(
+                                text = { Text("Управление группой/каналом") },
+                                leadingIcon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null) },
+                                onClick = { showMenu = false; showCommunitySettings = true }
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
                             onClick = {
@@ -799,6 +815,87 @@ fun MessageBubble(
                 }
             }
         }
+    }
+
+    if (showCommunitySettings) {
+        AlertDialog(
+            onDismissRequest = { showCommunitySettings = false },
+            title = { Text("Управление: ${chat.name}") },
+            text = {
+                Column(modifier = Modifier.heightIn(max = 440.dp)) {
+                    Text("Эти права будут сохранены на сервере и обновятся у участников.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMessages, onCheckedChange = { allowCommunityMessages = it })
+                        Text("Участники могут отправлять сообщения")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMedia, onCheckedChange = { allowCommunityMedia = it })
+                        Text("Отправлять фото и файлы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityMembers, onCheckedChange = { allowCommunityMembers = it })
+                        Text("Добавлять участников")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityTopics, onCheckedChange = { allowCommunityTopics = it })
+                        Text("Создавать темы и опросы")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = allowCommunityPins, onCheckedChange = { allowCommunityPins = it })
+                        Text("Закреплять сообщения")
+                    }
+                    if (chat.isOwner) {
+                        TextButton(onClick = { showCommunityAdmins = true }) { Text("Назначить администраторов") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityPermissions(chat.id, chat.type, allowCommunityMessages, allowCommunityMedia, allowCommunityMembers, allowCommunityTopics, allowCommunityPins)
+                    showCommunitySettings = false
+                }) { Text("Сохранить на сервере") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunitySettings = false }) { Text("Отмена") } }
+        )
+    }
+
+    if (showCommunityAdmins) {
+        AlertDialog(
+            onDismissRequest = { showCommunityAdmins = false },
+            title = { Text("Администраторы") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(contacts, key = { it.id }) { contact ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.remove(contact.id)
+                                else selectedCommunityAdmins.add(contact.id)
+                            }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedCommunityAdmins.contains(contact.id),
+                                onCheckedChange = { checked ->
+                                    if (checked && !selectedCommunityAdmins.contains(contact.id)) selectedCommunityAdmins.add(contact.id)
+                                    if (!checked) selectedCommunityAdmins.remove(contact.id)
+                                }
+                            )
+                            Column {
+                                Text(contact.name)
+                                Text("@${contact.username}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateCommunityAdmins(chat.id, chat.type, contacts.filter { selectedCommunityAdmins.contains(it.id) })
+                    showCommunityAdmins = false
+                }) { Text("Сохранить администраторов") }
+            },
+            dismissButton = { TextButton(onClick = { showCommunityAdmins = false }) { Text("Отмена") } }
+        )
     }
 }
 
