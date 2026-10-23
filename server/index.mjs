@@ -781,9 +781,7 @@ const server = http.createServer(async (req, res) => {
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
         registrationDate: new Date().toLocaleDateString('ru-RU'),
-        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null,
-        securityLoginIpHistory: [{ ip, at: Date.now() }],
-        securityKnownDeviceHashes: deviceId ? [securityDeviceHash(deviceId)] : []
+        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
@@ -809,43 +807,12 @@ const server = http.createServer(async (req, res) => {
       clearLoginFailures(email, ip);
       const ua = String(req.headers['user-agent'] || '').slice(0, 200);
       const priorSessions = Object.values(db.sessions).filter((meta) => meta.userId === user.id);
+      if (priorSessions.length && !priorSessions.some((meta) => meta.ip === ip)) {
+        recordSecurityEvent(user.id, { type: 'login_new_ip', reason: 'Успешный вход с нового IP-адреса', ip, createdAt: Date.now(), risk: 'review' });
+      }
       const deviceHash = deviceId ? securityDeviceHash(deviceId) : null;
-      const knownIps = (user.securityLoginIpHistory || []).filter((entry) => Date.now() - Number(entry.at || 0) < 7 * 24 * 60 * 60_000);
-      const newIp = knownIps.length > 0 && !knownIps.some((entry) => entry.ip === ip);
-      const newDevice = Boolean(deviceHash && (priorSessions.length || knownIps.length) &&
-        !priorSessions.some((meta) => meta.deviceIdHash === deviceHash) &&
-        !(user.securityKnownDeviceHashes || []).includes(deviceHash));
-      if (newIp) {
-        recordSecurityEvent(user.id, { type: 'login_new_ip', reason: 'Вход с нового IP-адреса; требуется оценка риска', ip, risk: 'review' });
-      }
-      if (newDevice) {
-        recordSecurityEvent(user.id, { type: 'login_new_device', reason: 'Вход с нового идентификатора устройства', ip, deviceId: deviceHash, risk: 'review' });
-      }
-      user.securityLoginIpHistory = knownIps;
-      if (!knownIps.some((entry) => entry.ip === ip)) user.securityLoginIpHistory.push({ ip, at: Date.now() });
-      user.securityLoginIpHistory = user.securityLoginIpHistory.slice(-30);
-      if (deviceHash && !(user.securityKnownDeviceHashes || []).includes(deviceHash)) {
-        user.securityKnownDeviceHashes = [...(user.securityKnownDeviceHashes || []), deviceHash].slice(-20);
-      }
-      const distinctRecentIps = new Set(user.securityLoginIpHistory
-        .filter((entry) => Date.now() - Number(entry.at || 0) < 24 * 60 * 60_000)
-        .map((entry) => entry.ip)).size;
-      // Do not freeze on an IP change alone: mobile networks and VPNs legitimately change IPs.
-      // Freeze immediately on the combined signal (new IP + new device), or on 3+ distinct IPs/24h.
-      if ((newIp && newDevice) || distinctRecentIps >= 3) {
-        user.securitySuspended = true;
-        user.securitySuspensionReason = 'ПП/возможный взлом или продажа — автоматическая блокировка по признакам риска; требуется проверка';
-        user.securitySuspendedAt = Date.now();
-        revokeUserSessions(user.id);
-        recordSecurityEvent(user.id, {
-          type: 'account_auto_frozen',
-          reason: user.securitySuspensionReason,
-          ip,
-          permanent: true,
-          riskSignals: [newIp ? 'new_ip' : null, newDevice ? 'new_device' : null, distinctRecentIps >= 3 ? 'multiple_ips_24h' : null].filter(Boolean)
-        });
-        save();
-        return fail(403, 'account_suspended_security_review');
+      if (priorSessions.length && deviceHash && !priorSessions.some((meta) => meta.deviceIdHash === deviceHash)) {
+        recordSecurityEvent(user.id, { type: 'login_new_device', reason: 'Успешный вход с нового идентификатора устройства', ip, deviceId: deviceHash, risk: 'review' });
       }
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
@@ -1231,3 +1198,12 @@ attachWebSocket(server, (conn, url) => {
       case 'ping':
         // A live client heartbeat counts as activity; otherwise an open, idle session
         // could be deleted by the inactivity policy while the user is still online.
+        user.lastActiveAt = Date.now();
+        conn.send({ type: 'pong' });
+        save();
+        break;
+    }
+  };
+});
+
+server.listen(PORT, () => console.log(`Tege server on :${PORT}  (data: ${DATA_DIR})`));
