@@ -169,7 +169,6 @@ const publicUser = (u) => ({
   bio: u.bio || '',
   phone: u.phone,
   country: u.country,
-  registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
   online: online.has(u.id),
   lastSeenAt: u.lastSeenAt || null
@@ -828,6 +827,42 @@ attachWebSocket(server, (conn, url) => {
         conn.send({ type: 'volunteer_apply_result', ok: true, status: 'pending', track: application.track });
         break;
       }
+      case 'volunteer_user_info': {
+        // Detailed account metadata is private to the owner and chief volunteers only.
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_user_info_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || !target) {
+          conn.send({ type: 'volunteer_user_info_result', ok: false, error: 'user_not_found' });
+          break;
+        }
+        const registeredAt = Number(target.registeredAt || 0);
+        const events = (db.moderationHistory?.[String(targetId)] || []).map((event) => ({
+          type: String(event.type || 'unknown'),
+          createdAt: Number(event.createdAt || 0),
+          expiresAt: event.expiresAt ? Number(event.expiresAt) : null,
+          status: String(event.status || 'active')
+        }));
+        conn.send({
+          type: 'volunteer_user_info_result',
+          ok: true,
+          user: {
+            id: target.id,
+            username: target.username,
+            displayName: target.name,
+            registrationDate: registeredAt ? new Date(registeredAt).toISOString() : null,
+            accountAgeDays: registeredAt ? Math.max(0, Math.floor((Date.now() - registeredAt) / 86400000)) : null,
+            moderationHistory: events,
+            moderationHistoryAvailable: Array.isArray(db.moderationHistory?.[String(targetId])),
+            lastSeenAt: target.lastSeenAt || null
+          }
+        });
+        break;
+      }
+
       case 'volunteer_application_list': {
         if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
           conn.send({ type: 'volunteer_application_list_result', ok: false, error: 'forbidden' });
