@@ -936,6 +936,67 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
  
+    private val _cloudPasswordEnabled = MutableStateFlow(false)
+    val cloudPasswordEnabled: StateFlow<Boolean> = _cloudPasswordEnabled.asStateFlow()
+    private val _cloudRecoveryCodes = MutableStateFlow<List<String>>(emptyList())
+    val cloudRecoveryCodes: StateFlow<List<String>> = _cloudRecoveryCodes.asStateFlow()
+    private val _cloudPasswordBusy = MutableStateFlow(false)
+    val cloudPasswordBusy: StateFlow<Boolean> = _cloudPasswordBusy.asStateFlow()
+
+    fun refreshCloudPasswordStatus() {
+        val token = savedToken ?: return
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "status", token)
+            if (result.optBoolean("ok")) _cloudPasswordEnabled.value = result.optBoolean("enabled")
+            else _messageError.value = "Не удалось проверить облачный пароль: " + result.optString("error")
+            _cloudPasswordBusy.value = false
+        }
+    }
+
+    fun enableCloudPassword(password: String, currentPassword: String = "") {
+        val token = savedToken ?: run { _messageError.value = "Войди в аккаунт заново."; return }
+        if (password.length < 12 || password.length > 128) {
+            _messageError.value = "Облачный пароль должен содержать минимум 12 символов."
+            return
+        }
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val fields = JSONObject().put("cloudPassword", password)
+            if (currentPassword.isNotBlank()) fields.put("currentPassword", currentPassword)
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "set", token, fields)
+            if (result.optBoolean("ok")) {
+                val codes = result.optJSONArray("recoveryCodes")
+                _cloudRecoveryCodes.value = (0 until (codes?.length() ?: 0)).mapNotNull { codes?.optString(it)?.takeIf(String::isNotBlank) }
+                _cloudPasswordEnabled.value = true
+                _messageError.value = "Сохрани коды восстановления сейчас. Повторно показать их нельзя."
+            } else _messageError.value = when (result.optString("error")) {
+                "bad_cloud_password" -> "Неверный текущий облачный пароль."
+                "short_password" -> "Пароль слишком короткий."
+                else -> "Не удалось включить облачный пароль: " + result.optString("error")
+            }
+            _cloudPasswordBusy.value = false
+        }
+    }
+
+    fun clearCloudRecoveryCodesAfterSave() {
+        _cloudRecoveryCodes.value = emptyList()
+    }
+
+    fun disableCloudPassword(currentPassword: String) {
+        val token = savedToken ?: run { _messageError.value = "Войди в аккаунт заново."; return }
+        viewModelScope.launch {
+            _cloudPasswordBusy.value = true
+            val result = BackendClient.cloudPasswordRequest(savedServerUrl, "disable", token, JSONObject().put("currentPassword", currentPassword))
+            if (result.optBoolean("ok")) {
+                _cloudPasswordEnabled.value = false
+                _cloudRecoveryCodes.value = emptyList()
+                _messageError.value = "Облачный пароль отключён."
+            } else _messageError.value = "Не удалось отключить облачный пароль: " + result.optString("error")
+            _cloudPasswordBusy.value = false
+        }
+    }
+
     fun setMessage(message: String) {
         _messageError.value = message
     }
