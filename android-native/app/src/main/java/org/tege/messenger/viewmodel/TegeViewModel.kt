@@ -311,7 +311,6 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             val legacyToken = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
                 ?: return null
             if (tokenStore.write(legacyToken)) {
-                tokenStore.clear()
                 profilePrefs.edit().remove("auth_token").apply()
                 return legacyToken
             }
