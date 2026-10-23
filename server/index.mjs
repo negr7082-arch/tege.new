@@ -558,7 +558,12 @@ const server = http.createServer(async (req, res) => {
       };
       comments.push(comment);
       save();
-      broadcast({ type: 'channel_comment', channelId, postId, comment });
+      // Never broadcast private-channel comments to every connected account.
+      const commentEvent = { type: 'channel_comment', channelId, postId, comment };
+      for (const [recipientId, connections] of online) {
+        if (!canAccessChat(recipientId, channelId)) continue;
+        for (const recipientConn of connections) recipientConn.send(commentEvent);
+      }
       return reply(201, { ok: true, comment, comments });
     }
 
@@ -1186,8 +1191,9 @@ function handleSend(user, conn, payload) {
     channelOrGroupName: payload.channelOrGroupName,
     message: { ...payload.message, senderId: user.id }
   };
-  const messageKey = (messageId) => `${chatType}:${String(payload.chatId)}:${String(messageId)}`;
-  if (action && db.messageAuthors[messageKey(payload.targetId)] !== user.id) return no('not_message_author');
+  const messageKey = (messageId, directPeerId) => chatType === 'direct'
+    ? `direct:${[Number(user.id), Number(directPeerId)].sort((a, b) => a - b).join(':')}:${String(messageId)}`
+    : `${chatType}:${String(payload.chatId)}:${String(messageId)}`;
 
   if (chatType === 'direct') {
     const target =
@@ -1196,8 +1202,9 @@ function handleSend(user, conn, payload) {
     if (!target) return no('no_user');
     if (target.id === user.id) return no('self');
     if ((db.blocks[target.id] || []).some((b) => b.id === user.id)) return no('blocked');
+    if (action && db.messageAuthors[messageKey(payload.targetId, target.id)] !== user.id) return no('not_message_author');
     if (!action && payload.message.id !== undefined && payload.message.id !== null) {
-      const key = messageKey(payload.message.id);
+      const key = messageKey(payload.message.id, target.id);
       if (Object.hasOwn(db.messageAuthors, key) && db.messageAuthors[key] !== user.id) return no('duplicate_message_id');
       db.messageAuthors[key] = user.id;
     }
@@ -1214,6 +1221,7 @@ function handleSend(user, conn, payload) {
   } else if (registry.ownerId !== user.id && !(db.members[out.chatId] || []).includes(user.id)) {
     return no('not_a_member');
   }
+  if (action && db.messageAuthors[messageKey(payload.targetId)] !== user.id) return no('not_message_author');
   if (!action && payload.message.id !== undefined && payload.message.id !== null) {
     const key = messageKey(payload.message.id);
     if (Object.hasOwn(db.messageAuthors, key) && db.messageAuthors[key] !== user.id) return no('duplicate_message_id');
