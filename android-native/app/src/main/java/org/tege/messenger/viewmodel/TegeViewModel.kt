@@ -1013,6 +1013,20 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             .toString())
     }
 
+    fun submitSecurityReport(targetUserId: String, category: String, details: String): Boolean {
+        val socket = activeSocket ?: return false
+        val targetId = targetUserId.trim().toLongOrNull() ?: return false
+        val allowed = setOf("spam", "harassment", "scam", "impersonation", "other")
+        val description = details.trim().take(1500)
+        if (targetId <= 0L || description.isBlank() || category !in allowed) return false
+        return socket.send(JSONObject()
+            .put("type", "security_report_submit")
+            .put("targetUserId", targetId)
+            .put("category", category)
+            .put("details", description)
+            .toString())
+    }
+
     fun requestVolunteerUserInfo(userId: Long): Boolean {
         val socket = activeSocket ?: return false
         if (userId <= 0L) return false
