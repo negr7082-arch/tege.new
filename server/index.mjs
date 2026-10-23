@@ -565,11 +565,73 @@ const server = http.createServer(async (req, res) => {
 
 // ───────────────────────── WebSocket ─────────────────────────
 function joinChats(userId, chatIds) {
+  let changed = false;
   for (const id of chatIds.map(Number)) {
+    const group = db.groups[id];
+    const channel = db.channels[id];
+    const registry = group || channel;
+    if (!registry) continue;
     const list = (db.members[id] ||= []);
-    if (!list.includes(userId)) list.push(userId);
+    if (list.includes(userId)) continue;
+    if (channel && !channel.isPublic && !(channel.invitedUserIds || []).includes(userId) && channel.ownerId !== userId) continue;
+    list.push(userId);
+    changed = true;
+  }
+  if (changed) save();
+}
+
+function communityStaff(registry, userId) {
+  return !!registry && (registry.ownerId === userId || (registry.admins || []).some((a) => Number(a.id) === userId));
+}
+
+function cleanAdmins(admins, ownerId) {
+  if (!Array.isArray(admins)) return [];
+  return admins.filter((a) => a && Number.isFinite(Number(a.id)) && Number(a.id) !== ownerId)
+    .slice(0, 100).map((a) => ({
+      id: Number(a.id),
+      name: String(a.name || '').slice(0, 64),
+      username: String(a.username || '').slice(0, 64),
+      permissions: {
+        manageMessages: a.permissions?.manageMessages === true,
+        manageMembers: a.permissions?.manageMembers === true,
+        manageInfo: a.permissions?.manageInfo === true,
+        manageAdmins: a.permissions?.manageAdmins === true
+      }
+    }));
+}
+
+function updateCommunity(user, conn, msg) {
+  const id = Number(msg.chatId);
+  const registry = msg.chatType === 'channel' ? db.channels[id] : db.groups[id];
+  const result = (ok, reason) => conn.send({ type: 'community_update_result', chatId: id, chatType: msg.chatType, ok, ...(reason ? { reason } : {}) });
+  if (!Number.isFinite(id) || !registry) return result(false, 'chat_not_found');
+  if (!communityStaff(registry, user.id)) return result(false, 'forbidden');
+  if (msg.action === 'permissions') {
+    if (msg.chatType !== 'group' && msg.chatType !== 'channel') return result(false, 'bad_chat_type');
+    const p = msg.permissions || {};
+    registry.permissions = {
+      sendMessages: p.sendMessages !== false,
+      sendMedia: p.sendMedia !== false,
+      addMembers: p.addMembers === true,
+      createTopics: p.createTopics === true,
+      pinMessages: p.pinMessages === true
+    };
+  } else if (msg.action === 'admins') {
+    if (registry.ownerId !== user.id) return result(false, 'owner_only');
+    registry.admins = cleanAdmins(msg.admins, registry.ownerId);
+  } else if (msg.action === 'member_remove') {
+    if (registry.ownerId !== user.id && !(registry.admins || []).some((a) => Number(a.id) === user.id && a.permissions?.manageMembers)) return result(false, 'forbidden');
+    const memberId = Number(msg.userId);
+    if (!Number.isFinite(memberId) || memberId === registry.ownerId) return result(false, 'bad_user');
+    db.members[id] = (db.members[id] || []).filter((member) => member !== memberId);
+    sendToUser(memberId, { type: 'community_removed', chatId: id, chatType: msg.chatType });
+  } else {
+    return result(false, 'bad_action');
   }
   save();
+  const event = msg.chatType === 'channel' ? 'channel_upsert' : 'group_upsert';
+  broadcast({ type: event, [msg.chatType === 'channel' ? 'channel' : 'group']: registry });
+  result(true);
 }
 
 function handleSend(user, conn, payload) {
@@ -612,11 +674,18 @@ function handleSend(user, conn, payload) {
 
   // group / channel
   const registry = chatType === 'channel' ? db.channels[out.chatId] : db.groups[out.chatId];
-  if (chatType === 'channel' && registry) {
-    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
-    if (!isStaff) return no('forbidden');
+  if (!registry) return no('chat_not_found');
+  const members = db.members[out.chatId] || [];
+  if (!members.includes(user.id)) return no('not_member');
+  const isOwner = registry.ownerId === user.id;
+  const isAdmin = (registry.admins || []).some((a) => Number(a.id) === user.id);
+  if (chatType === 'channel' && !isOwner && !isAdmin) return no('forbidden');
+  if (chatType === 'group' && !isOwner && !isAdmin && registry.permissions?.sendMessages === false) return no('forbidden');
+  if (!isOwner && !isAdmin && registry.permissions?.sendMedia === false &&
+      (out.message.attachmentUri || out.message.videoUri || out.message.audioUri || out.message.fileUri || out.message.videoNoteUri)) {
+    return no('media_forbidden');
   }
-  const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
+  const recipients = members.filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
   return ok({ delivered: recipients.length });
 }
@@ -710,6 +779,10 @@ attachWebSocket(server, (conn, url) => {
 
       case 'join_chats':
         joinChats(user.id, Array.isArray(msg.chatIds) ? msg.chatIds.filter(Number.isFinite) : []);
+        break;
+
+      case 'community_update':
+        updateCommunity(user, conn, msg);
         break;
 
       case 'leave_chat':
