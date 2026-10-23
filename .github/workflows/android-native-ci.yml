@@ -14,6 +14,7 @@ on:
       - 'android/**'
     paths:
       - 'android-native/**'
+      - 'server/**'
       - '.github/workflows/android-native-ci.yml'
   workflow_dispatch:
 
