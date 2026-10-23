@@ -118,9 +118,12 @@ try {
   const G = 1122000777;
   ca.send({ type: 'register_group', group: { id: G, type: 'group', name: 'Team', ownerId: a.id, messages: [{ id: 1 }] } });
   ca.send({ type: 'join_chats', chatIds: [G] }); cb3.send({ type: 'join_chats', chatIds: [G] }); await sleep(150);
-  ca.send({ type: 'send', payload: { id: 5, chatId: G, chatType: 'group', channelOrGroupName: 'Team', message: { id: 5, text: 'hello team', time: '12:04' } } });
+  ca.send({ type: 'send', payload: { id: 5, chatId: G, chatType: 'group', channelOrGroupName: 'Fake Team', fromUser: { name: 'FAKE ADMIN' }, message: { id: 5, text: 'hello team', time: '12:04', senderName: 'FAKE SENDER' } } });
   const gm = await cb3.waitFor((m) => m.type === 'message' && m.payload.message.text === 'hello team');
   assert.equal(gm.payload.chatId, G);
+  assert.equal(gm.payload.fromUser.name, 'Alice', 'group sender identity must come from session');
+  assert.equal(gm.payload.message.senderName, 'Alice', 'message senderName must not be spoofable');
+  assert.equal(gm.payload.channelOrGroupName, 'Team', 'chat name must come from server registry');
   assert.ok(!ca.inbox.some((p) => p.message.text === 'hello team'), 'sender must not receive own group msg');
   console.log('✓ group fan-out to members only');
 
