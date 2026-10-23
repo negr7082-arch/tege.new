@@ -98,10 +98,10 @@ fun SecurityScreen(viewModel: TegeViewModel, onBack: () -> Unit, onLoggedOut: ()
                     }
                 }
                 item { SecurityRow(Icons.Default.Flag, "Жалобы", "Назначенные обращения и решения") }
-                item { SecurityRow(Icons.Default.ManageSearch, "Пользователи", "Поиск и доступные сведения о профиле") }
+                item { SecurityRow(Icons.Default.Search, "Пользователи", "Поиск и доступные сведения о профиле") }
                 item { SecurityRow(Icons.Default.Gavel, "История модерации", "Наказания и решения в пределах полномочий") }
                 item { SecurityRow(Icons.Default.Warning, "Подозрительные входы", "Предупреждения, доступные вашей роли") }
-                if (role == "chief_volunteer") {
+                if (role == "chief_volunteer" && account?.email?.equals("negr7082@gmail.com", ignoreCase = true) == true) {
                     item {
                         Card {
                             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
