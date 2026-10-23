@@ -171,6 +171,8 @@ const publicUser = (u) => ({
   phone: u.phone,
   country: u.country,
   avatarUri: u.avatarUri || null,
+  bannerUrl: u.bannerUrl || null,
+  bannerType: u.bannerType || null,
   online: online.has(u.id),
   lastSeenAt: u.lastSeenAt || null
 });
@@ -397,6 +399,45 @@ const server = http.createServer(async (req, res) => {
   const fail = (code, error) => reply(code, { ok: false, error });
 
   try {
+    // Public profile banners are stored as binary files, never as client-supplied local URIs.
+    if (url.pathname.startsWith('/media/profile-banners/')) {
+      if (req.method !== 'GET') return fail(405, 'method');
+      const id = path.basename(url.pathname);
+      if (!/^[a-f0-9]{32}\\.(?:jpg|png|webp|mp4|webm)$/.test(id)) return fail(404, 'not_found');
+      const file = path.join(DATA_DIR, 'profile-banners', id);
+      if (!fs.existsSync(file)) return fail(404, 'not_found');
+      const ext = path.extname(id);
+      const type = ({ '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.mp4': 'video/mp4', '.webm': 'video/webm' })[ext];
+      res.writeHead(200, { 'content-type': type, 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff' });
+      return fs.createReadStream(file).pipe(res);
+    }
+    if (url.pathname === '/api/profile-banner') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 14 * 1024 * 1024);
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      if (typeof body.data !== 'string' || body.data.length > 13 * 1024 * 1024) return fail(413, 'file_too_large');
+      const mimeToExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+      const ext = mimeToExt[body.mime];
+      if (!ext) return fail(415, 'unsupported_media_type');
+      const bytes = Buffer.from(body.data, 'base64');
+      if (!bytes.length || bytes.length > 9 * 1024 * 1024) return fail(413, 'file_too_large');
+      const sigOk = ext === 'jpg' ? bytes[0] === 0xff && bytes[1] === 0xd8 :
+        ext === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) :
+        ext === 'webp' ? bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' :
+        ext === 'mp4' ? bytes.toString('ascii', 4, 8) === 'ftyp' :
+        bytes.length > 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+      if (!sigOk) return fail(400, 'invalid_file');
+      const dir = path.join(DATA_DIR, 'profile-banners');
+      fs.mkdirSync(dir, { recursive: true });
+      const id = crypto.randomBytes(16).toString('hex') + '.' + ext;
+      fs.writeFileSync(path.join(dir, id), bytes, { flag: 'wx', mode: 0o600 });
+      user.bannerUrl = '/media/profile-banners/' + id;
+      user.bannerType = body.mime.startsWith('video/') ? 'video' : 'image';
+      save();
+      broadcast({ type: 'user_upsert', user: publicUser(user) });
+      return reply(200, { ok: true, bannerUrl: user.bannerUrl, bannerType: user.bannerType });
+    }
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
     if (url.pathname === '/api/admin/security-alerts') {
       if (req.method !== 'POST') return fail(405, 'method');
