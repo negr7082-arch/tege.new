@@ -91,9 +91,16 @@ fun TelegramDrawer(
             onCloseDrawer()
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        DrawerItem(icon = Icons.Default.Shield, label = "Безопасность") {
-            viewModel.navigateTo(ScreenRoute.Security)
-            onCloseDrawer()
+        if (currentAccount?.volunteerRole in setOf("junior_volunteer", "volunteer", "chief_volunteer")) {
+            DrawerItem(icon = Icons.Default.Shield, label = "Security") {
+                viewModel.navigateTo(ScreenRoute.Security)
+                onCloseDrawer()
+            }
+        } else {
+            DrawerItem(icon = Icons.Default.VolunteerActivism, label = "Стать волонтёром") {
+                viewModel.navigateTo(ScreenRoute.Security)
+                onCloseDrawer()
+            }
         }
         DrawerItem(icon = Icons.Default.Settings, label = "Настройки") {
             viewModel.navigateTo(ScreenRoute.Settings)
