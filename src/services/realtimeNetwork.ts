@@ -203,13 +203,13 @@ class RealtimeNetworkService {
     return { ok: Boolean(r.ok), error: r.error };
   }
 
-  public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
+  public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; device: string; createdAt: number; current: boolean }> }> {
     const r = await this.api('/api/sessions', { token });
     return { ok: Boolean(r.ok), sessions: Array.isArray(r.sessions) ? r.sessions : [] };
   }
 
-  public async revokeSession(token: string, sessionToken: string): Promise<boolean> {
-    const r = await this.api('/api/sessions/revoke', { token, sessionToken });
+  public async revokeSession(token: string, sessionId: string): Promise<boolean> {
+    const r = await this.api('/api/sessions/revoke', { token, sessionId });
     return Boolean(r.ok);
   }
 

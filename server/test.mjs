@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_USER_IDS: '1122103', TEGE_SENIOR_VOLUNTEER_USER_IDS: '1122105', TEGE_HEAD_VOLUNTEER_USER_IDS: '1122102', TEGE_VERIFIED_USER_IDS: '1122101', TEGE_SECURITY_ADMIN_USER_IDS: '1122101' }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_USER_IDS: '1122103', TEGE_SENIOR_VOLUNTEER_USER_IDS: '1122105', TEGE_HEAD_VOLUNTEER_USER_IDS: '1122102', TEGE_VERIFIED_USER_IDS: '1122101', TEGE_SECURITY_ADMIN_USER_IDS: '1122101', TEGE_MAX_REGISTRATIONS_PER_IP_HOUR: '1000' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,7 +87,9 @@ try {
   assert.equal(sessionsA.sessions.length, 2);
   assert.equal(sessionsA.sessions.filter((s) => s.current).length, 1);
   assert.ok(sessionsA.sessions.every((s) => s.device));
-  assert.equal((await post('/api/sessions/revoke', { token: a.token, sessionToken: a2.token })).ok, true);
+  assert.ok(sessionsA.sessions.every((s) => !('token' in s) && s.id), 'session list must never expose bearer tokens');
+  const otherSession = sessionsA.sessions.find((s) => !s.current);
+  assert.equal((await post('/api/sessions/revoke', { token: a.token, sessionId: otherSession.id })).ok, true);
   assert.equal((await post('/api/sessions', { token: a2.token })).error, 'bad_token');
   const a3 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
   assert.equal((await post('/api/sessions/revoke-others', { token: a.token })).ok, true);
@@ -252,7 +254,7 @@ try {
   console.log('✓ profile update broadcast, offline presence');
 
   // Volunteer assignment uses a private numeric-ID server allowlist; public directory profiles never expose email.
-  const volunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
+  const volunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Helper One', username: '@helper_one' })).user;
   assert.equal(volunteer.role, 'volunteer');
   const cv = new Client(volunteer.token); await cv.ready;
   const volunteerSnapshot = await cv.waitFor((m) => m.type === 'snapshot');
@@ -283,7 +285,7 @@ try {
   const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
   assert.equal(queue.ok, true);
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
-  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' }, '198.51.100.30')).user;
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Elder One', username: '@elder_one' }, '198.51.100.30')).user;
   assert.equal(senior.role, 'senior_volunteer');
   const spoofed = (await post('/api/register', { email: 'spoof@x.io', password: 'password6', name: 'Spoof', username: '@spoof', role: 'head_volunteer', verified: true }, '198.51.100.25')).user;
   assert.equal(spoofed.role, 'user', 'client-supplied role must be ignored');
@@ -358,6 +360,45 @@ try {
   assert.equal((await post('/api/login', { email: 'password-change@x.io', password: 'replacement-pass-2' }, '203.0.113.210')).ok, true);
   assert.equal((await post('/api/account/me', { token: passwordUser.token }, '203.0.113.214')).ok, true, 'current confirmed session remains active');
   console.log('✓ password change requires server-verified current password');
+
+  // ---- account / IP / bypass hardening ----
+  // Names that imitate the service or staff (also with Cyrillic look-alikes) are refused.
+  assert.equal((await post('/api/register', { email: 'fake1@x.io', password: 'password7', name: 'Security', username: '@fake_one' }, '198.51.100.40')).error, 'reserved_name');
+  assert.equal((await post('/api/register', { email: 'fake2@x.io', password: 'password7', name: 'Nice', username: '@suррort' }, '198.51.100.40')).error, 'bad_username');
+  assert.equal((await post('/api/register', { email: 'fake3@x.io', password: 'password7', name: 'Nice', username: '@support' }, '198.51.100.40')).error, 'reserved_name');
+  assert.equal((await post('/api/username', { username: '@admin' }, '198.51.100.40')).available, false);
+
+  // Email blocks cover plus-tags, gmail dots and googlemail.com aliases.
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'block_email', email: 'bad.person@gmail.com' }, '198.51.100.41')).ok, true);
+  for (const alias of ['badperson+x@gmail.com', 'b.a.d.p.e.r.s.o.n@googlemail.com']) {
+    assert.equal((await post('/api/register', { email: alias, password: 'password7', name: 'Evader', username: '@evader' + alias.length }, '198.51.100.42')).error, 'security_email_blocked', alias);
+  }
+
+  // One-step ban: account frozen, mailbox blocked, sessions revoked.
+  const victim = (await post('/api/register', { email: 'victim@x.io', password: 'password8', name: 'Victim', username: '@victim_one' }, '198.51.100.43')).user;
+  assert.equal((await post('/api/security/admin/action', { token: victim.token, action: 'ban_account', targetUserId: victim.id }, '198.51.100.44')).error, 'security_admin_required');
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'ban_account', targetUserId: victim.id, reason: 'test ban' }, '198.51.100.44')).ok, true);
+  assert.equal((await post('/api/sessions', { token: victim.token }, '198.51.100.45')).error, 'bad_token');
+  assert.equal((await post('/api/login', { email: 'victim@x.io', password: 'password8' }, '198.51.100.45')).error, 'security_email_blocked');
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'ban_account', targetUserId: a.id }, '198.51.100.44')).error, 'cannot_ban_admin');
+
+  // A deleted account's @username stays reserved.
+  const temp = (await post('/api/register', { email: 'temp@x.io', password: 'password9', name: 'Temp', username: '@temp_one' }, '198.51.100.46')).user;
+  assert.equal((await post('/api/account/delete', { token: temp.token, password: 'password9' }, '198.51.100.47')).ok, true);
+  assert.equal((await post('/api/register', { email: 'temp2@x.io', password: 'password9', name: 'Temp Two', username: '@temp_one' }, '198.51.100.48')).error, 'username_taken');
+
+  // Cloud-password guessing is limited per account across challenges.
+  const cp = (await post('/api/register', { email: 'cloud@x.io', password: 'password10', name: 'Cloudy', username: '@cloudy_one' }, '198.51.100.49')).user;
+  assert.equal((await post('/api/cloud-password/set', { token: cp.token, cloudPassword: 'cloudsecret1' }, '198.51.100.49')).ok, true);
+  for (let i = 0; i < 2; i++) { // two challenges x 5 wrong guesses = 10 failures on the account
+    const ch = (await post('/api/login', { email: 'cloud@x.io', password: 'password10' }, '198.51.100.49')).challenge;
+    assert.ok(ch, 'challenge issued');
+    for (let j = 0; j < 5; j++) await post('/api/login/cloud-password', { challenge: ch, cloudPassword: 'wrong-' + i + j }, '198.51.100.49');
+  }
+  const chFinal = (await post('/api/login', { email: 'cloud@x.io', password: 'password10' }, '198.51.100.49')).challenge;
+  assert.ok(chFinal, 'challenge issued after lockout threshold');
+  assert.equal((await post('/api/login/cloud-password', { challenge: chFinal, cloudPassword: 'cloudsecret1' }, '198.51.100.49')).error, 'challenge_locked', 'even the correct cloud password waits during lockout');
+  console.log('✓ reserved names, email-alias blocks, ban_account, retired usernames, cloud-password lockout');
 
   // persistence across restart
   console.log('\nALL TESTS PASSED');

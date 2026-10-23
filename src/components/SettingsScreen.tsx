@@ -691,7 +691,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 )}
                 <div className="space-y-2">
                   {activeSessions.map((session) => (
-                    <div key={session.token} className="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-zinc-800/70 p-3">
+                    <div key={session.id} className="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-zinc-800/70 p-3">
                       <Smartphone className="w-4 h-4 shrink-0 text-gray-500" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 truncate">{session.device}</p>
@@ -702,18 +702,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
                       {!session.current && (
                         <button
-                          disabled={revokingSession === session.token}
+                          disabled={revokingSession === session.id}
                           onClick={async () => {
                             if (!currentUser?.token) return;
-                            setRevokingSession(session.token);
-                            const ok = await realtimeNetwork.revokeSession(currentUser.token, session.token);
+                            setRevokingSession(session.id);
+                            const ok = await realtimeNetwork.revokeSession(currentUser.token, session.id);
                             setRevokingSession(null);
                             if (ok) await refreshSessions();
                             else setSessionsError(settings.language === 'ru' ? 'Не удалось завершить сеанс' : 'Could not terminate session');
                           }}
                           className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 disabled:opacity-50"
                         >
-                          {revokingSession === session.token ? '…' : (settings.language === 'ru' ? 'Выйти' : 'Sign out')}
+                          {revokingSession === session.id ? '…' : (settings.language === 'ru' ? 'Выйти' : 'Sign out')}
                         </button>
                       )}
                     </div>
