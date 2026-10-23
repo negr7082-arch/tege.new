@@ -1189,7 +1189,9 @@ function handleSend(user, conn, payload) {
     if (target.id === user.id) return no('self');
     if ((db.blocks[target.id] || []).some((b) => b.id === user.id)) return no('blocked');
     if (!action && payload.message.id !== undefined && payload.message.id !== null) {
-      db.messageAuthors[messageKey(payload.message.id)] = user.id;
+      const key = messageKey(payload.message.id);
+      if (Object.hasOwn(db.messageAuthors, key) && db.messageAuthors[key] !== user.id) return no('duplicate_message_id');
+      db.messageAuthors[key] = user.id;
     }
     enqueue(target.id, { ...out, toUserId: target.id, toUsername: target.username });
     return ok();
@@ -1205,7 +1207,9 @@ function handleSend(user, conn, payload) {
     return no('not_a_member');
   }
   if (!action && payload.message.id !== undefined && payload.message.id !== null) {
-    db.messageAuthors[messageKey(payload.message.id)] = user.id;
+    const key = messageKey(payload.message.id);
+    if (Object.hasOwn(db.messageAuthors, key) && db.messageAuthors[key] !== user.id) return no('duplicate_message_id');
+    db.messageAuthors[key] = user.id;
   }
   const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
