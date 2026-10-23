@@ -111,7 +111,11 @@ fun ProfileScreen(
                     .clip(RoundedCornerShape(22.dp))
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF192A56), Color(0xFF6C5CE7), Color(0xFF00B8A9))
+                            listOf(
+                                runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(Color(0xFF192A56)),
+                                Color(0xFF6C5CE7),
+                                Color(0xFF00B8A9)
+                            )
                         )
                     )
             ) {
