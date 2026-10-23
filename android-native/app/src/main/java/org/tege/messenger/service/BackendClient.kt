@@ -98,6 +98,22 @@ object BackendClient {
         }
     }
 
+    suspend fun cloudPasswordRequest(baseUrl: String, path: String, token: String, fields: JSONObject = JSONObject()): JSONObject = withContext(Dispatchers.IO) {
+        val normalized = normalizeBaseUrl(baseUrl) ?: return@withContext JSONObject().put("ok", false).put("error", "bad_server_url")
+        val body = JSONObject(fields.toString()).put("token", token)
+        val request = Request.Builder().url("$normalized/api/cloud-password/$path")
+            .post(body.toString().toRequestBody(jsonMediaType)).build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val parsed = JSONObject(response.body?.string().orEmpty().ifBlank { "{}" })
+                if (!response.isSuccessful && !parsed.has("error")) parsed.put("error", "http_${response.code}")
+                parsed
+            }
+        } catch (_: Exception) {
+            JSONObject().put("ok", false).put("error", "connection_failed")
+        }
+    }
+
     fun connect(baseUrl: String, token: String, listener: TegeSocketListener): WebSocket? {
         val normalizedUrl = normalizeBaseUrl(baseUrl) ?: return null
         val wsScheme = if (normalizedUrl.startsWith("https://")) "wss://" else "ws://"
