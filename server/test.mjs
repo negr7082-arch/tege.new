@@ -43,7 +43,15 @@ try {
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
+  assert.equal((await post('/api/register', { email: 'c2@x.io', password: 'password1', name: 'x', username: '@orig_manager_creator_tege.new' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
+  assert.equal((await post('/api/username', { username: 'orig_manager_creator_tege.new' })).reason, 'invalid');
+  const owner = (await post('/api/register', { email: 'negr7082@gmail.com', password: 'password1', name: 'Tege Owner', username: '@orig_manager_creator_tege.new' })).user;
+  assert.equal(owner.isVerified, true, 'owner account receives verified flag');
+  assert.equal(owner.role, 'Главный волонтёр', 'owner account receives volunteer role');
+  const impostor = (await post('/api/register', { email: 'impostor@x.io', password: 'password1', name: 'Impostor', username: '@another_owner' })).user;
+  assert.equal(impostor.isVerified, false, 'ordinary account is not verified');
+  assert.equal(impostor.role, undefined, 'ordinary account gets no staff role');
   assert.equal((await post('/api/username', { username: '@free_name' })).available, true);
   assert.equal((await post('/api/username', { username: 'a' })).reason, 'invalid');
   assert.equal((await post('/api/register', { email: 'd@x.io', password: 'password1', name: 'x', username: '@a b' })).error, 'bad_username');
