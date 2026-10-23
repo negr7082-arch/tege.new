@@ -1092,12 +1092,30 @@ const server = http.createServer(async (req, res) => {
 });
 
 // ───────────────────────── WebSocket ─────────────────────────
-function joinChats(userId, chatIds) {
-  for (const id of chatIds.map(Number)) {
-    const list = (db.members[id] ||= []);
-    if (!list.includes(userId)) list.push(userId);
+function canAccessChat(userId, chatId) {
+  const channel = db.channels[chatId];
+  if (channel) {
+    return channel.isPublic !== false || channel.ownerId === userId ||
+      (channel.admins || []).some((a) => Number(a.id) === Number(userId)) ||
+      (db.members[chatId] || []).includes(userId);
   }
-  save();
+  const group = db.groups[chatId];
+  if (group) {
+    return group.isPublic !== false || group.ownerId === userId ||
+      (db.members[chatId] || []).includes(userId);
+  }
+  return false;
+}
+
+function joinChats(userId, chatIds) {
+  let changed = false;
+  for (const rawId of chatIds) {
+    const id = Number(rawId);
+    if (!Number.isSafeInteger(id) || !canAccessChat(userId, id)) continue;
+    const list = (db.members[id] ||= []);
+    if (!list.includes(userId)) { list.push(userId); changed = true; }
+  }
+  if (changed) save();
 }
 
 function handleSend(user, conn, payload) {
@@ -1168,11 +1186,14 @@ function handleSend(user, conn, payload) {
     return ok();
   }
 
-  // group / channel
+  // Group/channel sends must target a real chat and pass server-side membership/role checks.
   const registry = chatType === 'channel' ? db.channels[out.chatId] : db.groups[out.chatId];
-  if (chatType === 'channel' && registry) {
-    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
+  if (!registry) return no('chat_not_found');
+  if (chatType === 'channel') {
+    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => Number(a.id) === Number(user.id));
     if (!isStaff) return no('forbidden');
+  } else if (registry.ownerId !== user.id && !(db.members[out.chatId] || []).includes(user.id)) {
+    return no('not_a_member');
   }
   const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
@@ -1202,8 +1223,8 @@ attachWebSocket(server, (conn, url) => {
     type: 'snapshot',
     me: selfUser(user, url.searchParams.get('token')),
     users: Object.values(db.users).map(publicUser),
-    channels: Object.values(db.channels),
-    groups: Object.values(db.groups),
+    channels: Object.values(db.channels).filter((chat) => canAccessChat(user.id, chat.id)),
+    groups: Object.values(db.groups).filter((chat) => canAccessChat(user.id, chat.id)),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
     videoChats: Object.fromEntries(activeVideo)
