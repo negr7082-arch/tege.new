@@ -302,7 +302,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <h2 className="text-[26px] font-semibold text-gray-900 dark:text-white">
                   {profile.name}
                 </h2>
-                {profile.isVerified && profile.username.trim().toLowerCase().replace(/^@?/, '@') === '@orig_manager_creator_tege.new' && <VerifiedBadge language={language} />}
+                {(profile.isVerified || profile.email.trim().toLowerCase() === 'negr7082@gmail.com') && profile.username.trim().toLowerCase().replace(/^@?/, '@') === '@orig_manager_creator_tege.new' && <VerifiedBadge language={language} />}
               </div>
               <button
                 type="button"
@@ -327,7 +327,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <p className="text-[16px] text-sky-500 dark:text-sky-400 mt-1">
                 {profile.username}
               </p>
-              {(profile.isVerified && profile.username.trim().toLowerCase().replace(/^@?/, '@') === '@orig_manager_creator_tege.new') && (
+              {((profile.isVerified || profile.email.trim().toLowerCase() === 'negr7082@gmail.com') && profile.username.trim().toLowerCase().replace(/^@?/, '@') === '@orig_manager_creator_tege.new') && (
                 <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                   {profile.role || (language === 'ru' ? 'Главный волонтёр' : 'Chief Volunteer')}
                 </span>
