@@ -303,6 +303,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   {profile.name}
                 </h2>
                 {profile.email.trim().toLowerCase() === 'negr7082@gmail.com' && <VerifiedBadge language={language} />}
+                {profile.role && profile.role !== 'user' && <span className="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-1 text-[10px] font-bold">{language === 'ru' ? 'Волонтёр' : 'Volunteer'}</span>}
               </div>
               <button
                 type="button"
