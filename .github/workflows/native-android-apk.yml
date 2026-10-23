@@ -7,7 +7,7 @@ on:
       - "android-native/**"
       - ".github/workflows/native-android-apk.yml"
   push:
-    branches: [main]
+    branches: [main, "android/**"]
     paths:
       - "android-native/**"
       - ".github/workflows/native-android-apk.yml"

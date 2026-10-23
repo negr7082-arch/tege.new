@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -15,9 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.tege.messenger.model.ContactUser
 import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -31,6 +35,7 @@ fun ContactsScreen(
 ) {
     val contacts by viewModel.contacts.collectAsState()
     var query by remember { mutableStateOf("") }
+    var selectedProfile by remember { mutableStateOf<ContactUser?>(null) }
     val visibleContacts = contacts
         .filter { it.name.contains(query, ignoreCase = true) || it.username.contains(query.removePrefix("@"), ignoreCase = true) }
         .sortedBy { it.name.lowercase() }
@@ -80,30 +85,51 @@ fun ContactsScreen(
                         )
                     }
                     items(visibleContacts, key = { it.id }) { contact ->
-                        ContactRow(contact = contact, onClick = {
-                            val chatId = viewModel.openDirectChat(contact)
-                            if (chatId >= 0L) viewModel.navigateTo(org.tege.messenger.model.ScreenRoute.ChatDetail(chatId))
-                        })
+                        ContactRow(
+                            contact = contact,
+                            viewModel = viewModel,
+                            onClick = {
+                                val chatId = viewModel.openDirectChat(contact)
+                                if (chatId >= 0L) viewModel.navigateTo(org.tege.messenger.model.ScreenRoute.ChatDetail(chatId))
+                            },
+                            onAvatarClick = { selectedProfile = contact }
+                        )
                     }
                 }
             }
         }
     }
+
+    selectedProfile?.let { contact ->
+        PublicProfileDialog(contact = contact, viewModel = viewModel, onDismiss = { selectedProfile = null })
+    }
 }
 
 @Composable
-private fun ContactRow(contact: ContactUser, onClick: () -> Unit) {
+private fun ContactRow(contact: ContactUser, viewModel: TegeViewModel, onClick: () -> Unit, onAvatarClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
-            TegeAvatar(
-                avatarUri = contact.avatarUri,
-                displayName = contact.name,
-                color = runCatching { Color(android.graphics.Color.parseColor(contact.color)) }.getOrDefault(TelegramBlue),
-                modifier = Modifier.size(52.dp)
-            )
+            Box(Modifier.size(52.dp).clickable(onClick = onAvatarClick)) {
+                val avatarUrl = viewModel.resolveMediaUrl(contact.avatarUri)
+                if (avatarUrl != null) {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "Фото профиля",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    TegeAvatar(
+                        avatarUri = null,
+                        displayName = contact.name,
+                        color = runCatching { Color(android.graphics.Color.parseColor(contact.themeColor)) }.getOrDefault(TelegramBlue),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
             if (contact.online) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(13.dp).clip(CircleShape)
@@ -124,4 +150,51 @@ private fun ContactRow(contact: ContactUser, onClick: () -> Unit) {
             )
         }
     }
+}
+
+@Composable
+private fun PublicProfileDialog(contact: ContactUser, viewModel: TegeViewModel, onDismiss: () -> Unit) {
+    val accent = runCatching { Color(android.graphics.Color.parseColor(contact.themeColor)) }.getOrDefault(TelegramBlue)
+    val font = when (contact.fontFamily) {
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        "sans-serif-rounded" -> FontFamily.SansSerif
+        "cursive" -> FontFamily.Cursive
+        else -> FontFamily.Default
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(18.dp))
+                        .background(accent.copy(alpha = 0.85f))
+                ) {
+                    viewModel.resolveMediaUrl(contact.bannerUri)?.let { url ->
+                        AsyncImage(
+                            model = url,
+                            contentDescription = "Баннер профиля",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                Box(Modifier.offset(y = (-28).dp).size(88.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface).padding(4.dp)) {
+                    val avatar = viewModel.resolveMediaUrl(contact.avatarUri)
+                    if (avatar != null) {
+                        AsyncImage(model = avatar, contentDescription = "Фото профиля", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
+                    } else {
+                        TegeAvatar(avatarUri = null, displayName = contact.name, color = accent, modifier = Modifier.fillMaxSize())
+                    }
+                }
+                Text(contact.name, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = accent, fontFamily = font, modifier = Modifier.offset(y = (-18).dp))
+                Text(contact.username.takeIf { it.isNotBlank() }?.let { if (it.startsWith("@")) it else "@$it" } ?: "", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                if (contact.bio.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(contact.bio, fontFamily = font, fontSize = 15.sp)
+                }
+            }
+        }
+    )
 }

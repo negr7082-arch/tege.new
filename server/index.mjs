@@ -13,6 +13,8 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data
 const DIST_DIR = path.resolve(process.env.DIST_DIR || path.join(__dirname, '..', 'dist'));
 const FIRST_USER_ID = 1122101;
 const INBOX_LIMIT = 300;
+const PROFILE_MEDIA_DIR = path.join(DATA_DIR, 'profile-media');
+fs.mkdirSync(PROFILE_MEDIA_DIR, { recursive: true });
 
 // ───────────────────────── storage (single JSON file, atomic + debounced) ─────────────────────────
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -155,6 +157,9 @@ const publicUser = (u) => ({
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
+  bannerUri: u.bannerUri || null,
+  themeColor: /^#[0-9a-fA-F]{6}$/.test(u.themeColor || '') ? u.themeColor : '#2AABEE',
+  fontFamily: ['system', 'serif', 'monospace', 'sans-serif-rounded', 'cursive'].includes(u.fontFamily) ? u.fontFamily : 'system',
   online: online.has(u.id),
   lastSeenAt: u.lastSeenAt || null
 });
@@ -168,6 +173,9 @@ const selfUser = (u, token) => ({
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
+  bannerUri: u.bannerUri || null,
+  themeColor: /^#[0-9a-fA-F]{6}$/.test(u.themeColor || '') ? u.themeColor : '#2AABEE',
+  fontFamily: ['system', 'serif', 'monospace', 'sans-serif-rounded', 'cursive'].includes(u.fontFamily) ? u.fontFamily : 'system',
   token
 });
 
@@ -290,6 +298,17 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   const url = new URL(req.url, 'http://x');
+  if (url.pathname.startsWith('/profile-media/')) {
+    const name = path.basename(url.pathname);
+    if (!/^\d+-(?:avatar|banner)-[a-f0-9]{24}\.(?:png|jpg|webp)$/.test(name)) {
+      res.writeHead(404); return res.end();
+    }
+    const file = path.join(PROFILE_MEDIA_DIR, name);
+    if (!fs.existsSync(file)) { res.writeHead(404); return res.end(); }
+    const ext = path.extname(file);
+    res.writeHead(200, { 'content-type': ext === '.jpg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png', 'cache-control': 'public, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' });
+    return fs.createReadStream(file).pipe(res);
+  }
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res);
 
   const reply = (code, obj) => {
@@ -299,6 +318,31 @@ const server = http.createServer(async (req, res) => {
   const fail = (code, error) => reply(code, { ok: false, error });
 
   try {
+    if (url.pathname === '/api/profile-media') {
+      const body = await readJson(req, 5_000_000);
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const kind = body.kind === 'banner' ? 'banner' : body.kind === 'avatar' ? 'avatar' : null;
+      if (!kind) return fail(400, 'bad_media_kind');
+      const mime = String(body.mime || '');
+      const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' })[mime];
+      if (!extension || typeof body.data !== 'string') return fail(400, 'bad_image');
+      const data = body.data.replace(/^data:image\/(?:png|jpeg|webp);base64,/i, '');
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return fail(400, 'bad_image');
+      const bytes = Buffer.from(data, 'base64');
+      if (!bytes.length || bytes.length > 3 * 1024 * 1024) return fail(413, 'image_too_large');
+      const expected = mime === 'image/png' ? '89504e470d0a1a0a' : mime === 'image/jpeg' ? 'ffd8ff' : '52494646';
+      if (bytes.subarray(0, expected.length / 2).toString('hex') !== expected) return fail(400, 'image_type_mismatch');
+      const filename = `${user.id}-${kind}-${crypto.randomBytes(12).toString('hex')}.${extension}`;
+      fs.writeFileSync(path.join(PROFILE_MEDIA_DIR, filename), bytes, { flag: 'wx', mode: 0o644 });
+      const mediaUrl = `/profile-media/${filename}`;
+      if (kind === 'banner') user.bannerUri = mediaUrl;
+      else user.avatarUri = mediaUrl;
+      save();
+      broadcast({ type: 'user_upsert', user: publicUser(user) });
+      return reply(200, { ok: true, url: mediaUrl, user: publicUser(user) });
+    }
+
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
     if (req.method !== 'POST') return fail(405, 'method');
 
@@ -646,7 +690,10 @@ attachWebSocket(server, (conn, url) => {
         if (typeof p.bio === 'string') user.bio = p.bio.slice(0, 300);
         if (typeof p.phone === 'string') user.phone = p.phone.slice(0, 32);
         if (typeof p.country === 'string') user.country = p.country.slice(0, 64);
-        if ('avatarUri' in p) user.avatarUri = p.avatarUri || null;
+        if ('avatarUri' in p && (!p.avatarUri || (typeof p.avatarUri === 'string' && p.avatarUri.startsWith('/profile-media/')))) user.avatarUri = p.avatarUri || null;
+        if ('bannerUri' in p && (!p.bannerUri || (typeof p.bannerUri === 'string' && p.bannerUri.startsWith('/profile-media/')))) user.bannerUri = p.bannerUri || null;
+        if (typeof p.themeColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.themeColor)) user.themeColor = p.themeColor;
+        if (typeof p.fontFamily === 'string' && ['system', 'serif', 'monospace', 'sans-serif-rounded', 'cursive'].includes(p.fontFamily)) user.fontFamily = p.fontFamily;
         if (typeof p.username === 'string' && normUsername(p.username) !== normUsername(user.username)) {
           const other = findByUsername(p.username);
           if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
