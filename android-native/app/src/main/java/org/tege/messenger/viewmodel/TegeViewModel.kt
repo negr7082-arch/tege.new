@@ -420,6 +420,17 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleServerEvent(event: JSONObject) {
         when (event.optString("type")) {
+            "volunteer_apply_result" -> {
+                _messageError.value = when (event.optString("error")) {
+                    "already_pending" -> "Заявка уже находится на рассмотрении."
+                    "account_too_new" -> "Для заявки аккаунту должно быть не меньше года."
+                    "requirements_incomplete" -> "Подтверди все пункты заявки."
+                    else -> if (event.optBoolean("ok")) "Заявка отправлена на сервер и ожидает проверки." else "Сервер отклонил заявку."
+                }
+            }
+            "volunteer_role_update_result" -> {
+                _messageError.value = if (event.optBoolean("ok")) "Роль обновлена сервером." else "Сервер отказал в изменении роли: " + event.optString("error")
+            }
             "snapshot" -> {
                 val users = event.optJSONArray("users") ?: JSONArray()
                 val selfId = _currentAccount.value?.id
@@ -912,6 +923,18 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
  
+    fun applyForVolunteer(age16Plus: Boolean, identityReady: Boolean, conductOk: Boolean, accountAgeAcknowledged: Boolean): Boolean {
+        val socket = activeSocket ?: return false
+        return socket.send(JSONObject()
+            .put("type", "volunteer_apply")
+            .put("checks", JSONObject()
+                .put("age16PlusSelfAttested", age16Plus)
+                .put("identityReadyForManualReview", identityReady)
+                .put("conductSelfAttested", conductOk)
+                .put("accountAgeAcknowledged", accountAgeAcknowledged))
+            .toString())
+    }
+
     fun requestVolunteerUserInfo(userId: Long): Boolean {
         val socket = activeSocket ?: return false
         if (userId <= 0L) return false
