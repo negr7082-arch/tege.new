@@ -287,6 +287,7 @@ export interface Story {
 export interface UserProfile {
   id: number;
   email: string;
+  token?: string;
   name: string;
   username: string;
   bio: string;
