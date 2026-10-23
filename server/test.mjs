@@ -224,13 +224,13 @@ try {
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
   const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
   assert.equal(senior.role, 'senior_volunteer');
-  const spoofed = (await post('/api/register', { email: 'spoof@x.io', password: 'password6', name: 'Spoof', username: '@spoof', role: 'head_volunteer', verified: true })).user;
+  const spoofed = (await post('/api/register', { email: 'spoof@x.io', password: 'password6', name: 'Spoof', username: '@spoof', role: 'head_volunteer', verified: true }, '198.51.100.25')).user;
   assert.equal(spoofed.role, 'user', 'client-supplied role must be ignored');
   assert.equal(spoofed.verified, false, 'client-supplied verification must be ignored');
 
-  const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
+  const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' }, '198.51.100.26');
   assert.equal(allowedUnmute.ok, true);
-  assert.equal((await post('/api/security/moderation/list', { token: senior.token })).mutedUsers.some((u) => u.id === spammer.id), false);
+  assert.equal((await post('/api/security/moderation/list', { token: senior.token }, '198.51.100.27')).mutedUsers.some((u) => u.id === spammer.id), false);
   console.log('✓ volunteer moderation queue and senior-only unmute enforcement');
 
   // Immediate account deletion verifies the password and invalidates the bearer token.
