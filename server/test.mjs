@@ -210,6 +210,18 @@ try {
   assert.equal((await post('/api/channels/comments/add', { token: b.token, channelId: C, postId: 7, text: '   ' })).error, 'bad_comment');
   console.log('✓ channel comments persist and load per post');
 
+  // Private-channel comment events must not be broadcast to non-members.
+  const PRIVATE_CHANNEL = 1122000777;
+  ca.send({ type: 'register_channel', channel: { id: PRIVATE_CHANNEL, name: 'Private news', ownerId: a.id, isPublic: false } });
+  await sleep(100);
+  const eventCountBeforePrivateComment = cb3.events.length;
+  const privateComment = await post('/api/channels/comments/add', { token: a.token, channelId: PRIVATE_CHANNEL, postId: 9, text: 'secret comment' });
+  assert.equal(privateComment.ok, true);
+  await sleep(100);
+  assert.equal(cb3.events.slice(eventCountBeforePrivateComment).some((m) => m.type === 'channel_comment' && m.channelId === PRIVATE_CHANNEL), false, 'private comments must not reach non-members');
+  assert.equal((await post('/api/channels/comments/list', { token: b.token, channelId: PRIVATE_CHANNEL, postId: 9 })).error, 'forbidden');
+  console.log('✓ private channel comments are not leaked to non-members');
+
 
   // delete / edit of an already sent message is relayed (author comes from the token, push stays silent)
   ca.send({ type: 'send', payload: { id: 8, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 8001, text: 'to edit', time: '12:07' } } });
