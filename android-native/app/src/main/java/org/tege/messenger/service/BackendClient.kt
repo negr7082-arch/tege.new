@@ -215,13 +215,15 @@ object BackendClient {
         }
     }
 
-    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String): Boolean {
+    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String, themeColor: String? = null, fontFamily: String? = null): Boolean {
         socket ?: return false
         val user = JSONObject()
             .put("name", name)
             .put("username", username)
             .put("bio", bio)
             .put("phone", phone)
+        if (themeColor != null) user.put("themeColor", themeColor)
+        if (fontFamily != null) user.put("fontFamily", fontFamily)
         return socket.send(JSONObject().put("type", "profile").put("user", user).toString())
     }
 }
