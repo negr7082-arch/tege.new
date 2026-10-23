@@ -164,7 +164,8 @@ fun AuthScreen(
                                     password = password,
                                     displayName = displayName,
                                     username = username,
-                                    register = isRegister
+                                    register = isRegister,
+                                    context = context
                                 )
                                 if (result == null) onSuccess() else error = result
                             } catch (_: Exception) {
