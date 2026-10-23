@@ -538,10 +538,29 @@ const server = http.createServer(async (req, res) => {
       }
       const user = db.users[pending.userId];
       if (!user || !user.cloudPasswordHash || !user.cloudPasswordSalt) return fail(401, 'bad_credentials');
-      const attempt = hashPassword(String(body.cloudPassword || ''), user.cloudPasswordSalt).hash;
-      const a = Buffer.from(attempt, 'hex');
-      const b = Buffer.from(user.cloudPasswordHash, 'hex');
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      const supplied = String(body.cloudPassword || '');
+      let accepted = false;
+      if (user.cloudRecoveryCodes && Array.isArray(user.cloudRecoveryCodes)) {
+        const recoveryIndex = user.cloudRecoveryCodes.findIndex((entry) => {
+          if (!entry || entry.usedAt) return false;
+          const candidate = hashPassword(supplied, entry.salt).hash;
+          const a = Buffer.from(candidate, 'hex');
+          const b = Buffer.from(entry.hash || '', 'hex');
+          return a.length === b.length && crypto.timingSafeEqual(a, b);
+        });
+        if (recoveryIndex >= 0) {
+          user.cloudRecoveryCodes[recoveryIndex].usedAt = Date.now();
+          accepted = true;
+          save();
+        }
+      }
+      if (!accepted) {
+        const attempt = hashPassword(supplied, user.cloudPasswordSalt).hash;
+        const a = Buffer.from(attempt, 'hex');
+        const b = Buffer.from(user.cloudPasswordHash, 'hex');
+        accepted = a.length === b.length && crypto.timingSafeEqual(a, b);
+      }
+      if (!accepted) {
         pending.attempts = (pending.attempts || 0) + 1;
         if (pending.attempts >= 5) twoFactorChallenges.delete(challenge);
         return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
@@ -574,8 +593,18 @@ const server = http.createServer(async (req, res) => {
       const hashed = hashPassword(password);
       user.cloudPasswordSalt = hashed.salt;
       user.cloudPasswordHash = hashed.hash;
+      // Three one-time recovery codes; show plaintext only in this response.
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const recoveryCodes = Array.from({ length: 3 }, () => {
+        const bytes = crypto.randomBytes(12);
+        const suffix = [...bytes].map((b) => alphabet[b % alphabet.length]).join('');
+        const code = 'TEGE-1636' + suffix.slice(0, 4) + '-' + suffix.slice(4, 8) + suffix.slice(8, 12);
+        const stored = hashPassword(code);
+        return { code, salt: stored.salt, hash: stored.hash, usedAt: null };
+      });
+      user.cloudRecoveryCodes = recoveryCodes.map(({ salt, hash, usedAt }) => ({ salt, hash, usedAt }));
       save();
-      return reply(200, { ok: true, enabled: true });
+      return reply(200, { ok: true, enabled: true, recoveryCodes: recoveryCodes.map((entry) => entry.code) });
     }
 
     if (url.pathname === '/api/cloud-password/disable') {
@@ -587,6 +616,7 @@ const server = http.createServer(async (req, res) => {
       if (currentHash !== user.cloudPasswordHash) return fail(401, 'bad_cloud_password');
       delete user.cloudPasswordHash;
       delete user.cloudPasswordSalt;
+      delete user.cloudRecoveryCodes;
       save();
       return reply(200, { ok: true, enabled: false });
     }
