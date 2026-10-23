@@ -35,6 +35,7 @@ import { StoryCreatorModal } from './components/StoryCreatorModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import { TelegramDrawer } from './components/TelegramDrawer';
 import { AddAccountModal } from './components/AddAccountModal';
+import { VolunteerScreen } from './components/VolunteerScreen';
 import { getT } from './translations';
 import { refreshPush } from './services/pushService';
 
@@ -1561,19 +1562,7 @@ export const App: React.FC = () => {
           )}
 
           {currentRoute.type === 'volunteer' && account.role && account.role !== 'user' && (
-            <section className="flex-1 overflow-y-auto p-5 bg-gray-50 dark:bg-zinc-950">
-              <div className="max-w-2xl mx-auto">
-                <button onClick={navigateBack} className="mb-4 text-sm font-semibold text-sky-600">← {settings.language === 'ru' ? 'Назад' : 'Back'}</button>
-                <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                  <h1 className="text-xl font-bold mb-1">{settings.language === 'ru' ? 'Меню волонтёра' : 'Volunteer menu'}</h1>
-                  <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">{settings.language === 'ru' ? 'Доступ разрешён только аккаунтам с ролью волонтёра.' : 'Access is limited to accounts with a volunteer role.'}</p>
-                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 p-3">
-                    <div className="font-bold text-emerald-800 dark:text-emerald-300">{settings.language === 'ru' ? 'Ваша роль' : 'Your role'}: {account.role === 'head_volunteer' ? (settings.language === 'ru' ? 'Главный волонтёр' : 'Head volunteer') : account.role === 'senior_volunteer' ? (settings.language === 'ru' ? 'Старший волонтёр' : 'Senior volunteer') : (settings.language === 'ru' ? 'Волонтёр' : 'Volunteer')}</div>
-                  </div>
-                  <p className="text-sm mt-4 text-gray-600 dark:text-zinc-300">{settings.language === 'ru' ? 'Модерация жалоб и действия по жалобам защищены сервером. Полный рабочий список жалоб нужно подключить к этому экрану отдельным API-клиентом.' : 'Report moderation actions are protected by the server. The live report queue still needs to be connected to this screen through an API client.'}</p>
-                </div>
-              </div>
-            </section>
+            <VolunteerScreen user={account} language={settings.language} onBack={navigateBack} />
           )}
 
           {currentRoute.type === 'channels' && (
