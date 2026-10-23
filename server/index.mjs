@@ -31,6 +31,9 @@ const db = {
   pushSubs: {}, // userId -> PushSubscription[]
   vapid: null, // {publicKey, privateKey}
   securityEvents: {}, // userId -> [{id,type,createdAt,until,reason}]
+  securityBlockedIps: [],
+  securityBlockedEmails: [],
+  securityBlockedDevices: [],
   channelComments: {} // `${channelId}:${postId}` -> Comment[]
 };
 try {
@@ -209,6 +212,7 @@ const volunteerIds = configuredIds(process.env.TEGE_VOLUNTEER_USER_IDS);
 const seniorVolunteerIds = configuredIds(process.env.TEGE_SENIOR_VOLUNTEER_USER_IDS);
 const headVolunteerIds = configuredIds(process.env.TEGE_HEAD_VOLUNTEER_USER_IDS);
 const verifiedUserIds = configuredIds(process.env.TEGE_VERIFIED_USER_IDS);
+const securityAdminIds = configuredIds(process.env.TEGE_SECURITY_ADMIN_USER_IDS);
 const isVerifiedUser = (u) => verifiedUserIds.has(Number(u.id));
 const staffRole = (u) => {
   if (headVolunteerIds.has(Number(u.id))) return 'head_volunteer';
@@ -265,7 +269,7 @@ const findByUsername = (username) => {
   const n = normUsername(username);
   return n ? Object.values(db.users).find((u) => normUsername(u.username) === n) : undefined;
 };
-const userFromToken = (token) => (token && db.tokens[token] ? db.users[db.tokens[token]] : null);
+const userFromToken = (token) => { const user = token && db.tokens[token] ? db.users[db.tokens[token]] : null; return user && !user.securitySuspended ? user : null; };
 
 function sendToUser(userId, obj, exceptConn) {
   const set = online.get(userId);
@@ -310,6 +314,44 @@ function clientIp(req) {
   const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || req.socket.remoteAddress || '';
 }
+const normaliseIp = (value) => String(value || '').trim().replace(/^::ffff:/, '');
+const securityDeviceHash = (value) => crypto.createHash('sha256').update(String(value || '').trim().slice(0, 200)).digest('hex');
+const securityLoginFailures = new Map();
+const securityIpLockouts = new Map();
+const SECURITY_FAILURE_WINDOW_MS = 15 * 60_000;
+const SECURITY_FAILURE_LIMIT = 10;
+function isSecurityIpBlocked(ip) {
+  const normal = normaliseIp(ip);
+  const until = Number(securityIpLockouts.get(normal) || 0);
+  if (until <= Date.now()) { securityIpLockouts.delete(normal); return (db.securityBlockedIps || []).includes(normal); }
+  return true;
+}
+function recordLoginFailure(email, ip) {
+  const now = Date.now();
+  const normalIp = normaliseIp(ip);
+  const key = normalIp + '|' + String(email || '').trim().toLowerCase();
+  const entries = (securityLoginFailures.get(key) || []).filter((t) => now - t < SECURITY_FAILURE_WINDOW_MS);
+  entries.push(now);
+  securityLoginFailures.set(key, entries);
+  if (entries.length >= SECURITY_FAILURE_LIMIT) {
+    securityIpLockouts.set(normalIp, now + SECURITY_FAILURE_WINDOW_MS);
+    return true;
+  }
+  return false;
+}
+function clearLoginFailures(email, ip) {
+  securityLoginFailures.delete(normaliseIp(ip) + '|' + String(email || '').trim().toLowerCase());
+}
+function revokeUserSessions(userId) {
+  for (const [token, id] of Object.entries(db.tokens)) {
+    if (id !== userId) continue;
+    delete db.tokens[token]; delete db.sessions[token];
+    const sockets = sessionConnections.get(token);
+    if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+    sessionConnections.delete(token);
+  }
+}
+
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
 const checks = new Map(); // ip -> [timestamps]
 function checkLimited(ip) {
@@ -376,7 +418,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
     if (req.method !== 'POST') return fail(405, 'method');
 
-    const ip = clientIp(req);
+    const ip = normaliseIp(clientIp(req));
 
     // Live "is this @username free?" check while typing (own, more generous limiter).
     if (url.pathname === '/api/username') {
@@ -388,6 +430,7 @@ const server = http.createServer(async (req, res) => {
       return reply(200, { ok: true, available: !owner, reason: owner ? 'taken' : undefined });
     }
 
+    if (url.pathname !== '/api/login' && url.pathname !== '/api/register' && isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
     if (rateLimited(ip)) return fail(429, 'too_many_requests');
     const body = await readJson(req);
 
@@ -624,6 +667,79 @@ const server = http.createServer(async (req, res) => {
       return reply(200, { ok: true });
     }
 
+    if (url.pathname === '/api/security/admin/action') {
+      const actor = userFromToken(body.token);
+      if (!actor || !securityAdminIds.has(Number(actor.id))) return fail(403, 'security_admin_required');
+      const action = String(body.action || '');
+      const now = Date.now();
+      if (action === 'freeze_account' || action === 'unfreeze_account') {
+        const target = db.users[Number(body.targetUserId)];
+        if (!target) return fail(404, 'user_not_found');
+        if (target.id === actor.id && action === 'freeze_account') return fail(400, 'cannot_freeze_self');
+        if (action === 'freeze_account') {
+          target.securitySuspended = true;
+          target.securitySuspensionReason = String(body.reason || 'Заморожен администратором Security').trim().slice(0, 300);
+          target.securitySuspendedAt = now;
+          revokeUserSessions(target.id);
+          recordSecurityEvent(target.id, { type: 'account_frozen', reason: target.securitySuspensionReason, actorId: actor.id, permanent: true });
+        } else {
+          delete target.securitySuspended; delete target.securitySuspensionReason; delete target.securitySuspendedAt;
+          recordSecurityEvent(target.id, { type: 'account_unfrozen', reason: String(body.reason || 'Разморожен администратором Security').slice(0, 300), actorId: actor.id });
+        }
+        save();
+        return reply(200, { ok: true, targetUserId: target.id, suspended: Boolean(target.securitySuspended) });
+      }
+      if (action === 'block_ip' || action === 'unblock_ip') {
+        const targetIp = normaliseIp(body.ip);
+        if (!targetIp || targetIp.length > 64 || /[^0-9a-fA-F:.%]/.test(targetIp)) return fail(400, 'bad_ip');
+        db.securityBlockedIps ||= [];
+        db.securityBlockedIps = action === 'block_ip' ? [...new Set([...db.securityBlockedIps, targetIp])] : db.securityBlockedIps.filter((v) => v !== targetIp);
+        save();
+        return reply(200, { ok: true, ip: targetIp, blocked: action === 'block_ip' });
+      }
+      if (action === 'block_email' || action === 'unblock_email') {
+        const email = String(body.email || '').trim().toLowerCase();
+        if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return fail(400, 'bad_email');
+      if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
+      const deviceId = String(body.deviceId || '');
+      if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
+      if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
+        db.securityBlockedEmails ||= [];
+        db.securityBlockedEmails = action === 'block_email' ? [...new Set([...db.securityBlockedEmails, email])] : db.securityBlockedEmails.filter((v) => v !== email);
+        if (action === 'block_email') {
+          const target = findByEmail(email);
+          if (target) { target.securitySuspended = true; target.securitySuspensionReason = String(body.reason || 'Email заблокирован Security').slice(0, 300); target.securitySuspendedAt = now; revokeUserSessions(target.id); recordSecurityEvent(target.id, { type: 'email_blocked', reason: target.securitySuspensionReason, actorId: actor.id, permanent: true }); }
+        }
+        save();
+        return reply(200, { ok: true, email, blocked: action === 'block_email' });
+      }
+      if (action === 'block_device' || action === 'unblock_device') {
+        const deviceId = String(body.deviceId || '').trim();
+        if (deviceId.length < 16 || deviceId.length > 200) return fail(400, 'bad_device_id');
+        const deviceHash = securityDeviceHash(deviceId);
+        db.securityBlockedDevices ||= [];
+        db.securityBlockedDevices = action === 'block_device' ? [...new Set([...db.securityBlockedDevices, deviceHash])] : db.securityBlockedDevices.filter((v) => v !== deviceHash);
+        save();
+        return reply(200, { ok: true, deviceBlocked: action === 'block_device' });
+      }
+      return fail(400, 'bad_action');
+    }
+
+    if (url.pathname === '/api/security/admin/overview') {
+      const actor = userFromToken(body.token);
+      if (!actor || !securityAdminIds.has(Number(actor.id))) return fail(403, 'security_admin_required');
+      const accounts = Object.values(db.users).map((u) => ({
+        id: u.id, email: u.email, name: u.name, username: u.username,
+        suspended: Boolean(u.securitySuspended), suspensionReason: u.securitySuspensionReason || null,
+        recentSecurityEvents: securityEventsFor(u.id).slice(0, 20),
+        recentSessions: Object.entries(db.sessions).filter(([, meta]) => meta.userId === u.id).map(([token, meta]) => ({
+          id: token.slice(0, 12), device: meta.device || 'Unknown device', createdAt: meta.createdAt || 0,
+          ip: meta.ip || null, deviceId: meta.deviceId || null, userAgent: meta.userAgent || null
+        })).slice(0, 20)
+      }));
+      return reply(200, { ok: true, accounts, blockedIps: db.securityBlockedIps || [], blockedEmails: db.securityBlockedEmails || [], blockedDeviceCount: (db.securityBlockedDevices || []).length });
+    }
+
     if (url.pathname === '/api/register') {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
@@ -649,15 +765,34 @@ const server = http.createServer(async (req, res) => {
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = id;
-      db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
+      db.sessions[token] = { userId: id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
       save();
       broadcast({ type: 'user_upsert', user: publicUser(user) });
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
 
     if (url.pathname === '/api/login') {
-      const user = findByEmail(body.email);
-      if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      const email = String(body.email || '').trim().toLowerCase();
+      if (isSecurityIpBlocked(ip)) return fail(403, 'security_ip_blocked');
+      if ((db.securityBlockedEmails || []).includes(email)) return fail(403, 'security_email_blocked');
+      const deviceId = String(body.deviceId || '');
+      if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
+      const user = findByEmail(email);
+      if (!user || !checkPassword(user, String(body.password || ''))) {
+        const locked = recordLoginFailure(email, ip);
+        return locked ? fail(429, 'security_temporarily_locked') : fail(401, 'bad_credentials');
+      }
+      if (user.securitySuspended) return fail(403, 'account_suspended');
+      clearLoginFailures(email, ip);
+      const ua = String(req.headers['user-agent'] || '').slice(0, 200);
+      const priorSessions = Object.values(db.sessions).filter((meta) => meta.userId === user.id);
+      if (priorSessions.length && !priorSessions.some((meta) => meta.ip === ip)) {
+        recordSecurityEvent(user.id, { type: 'login_new_ip', reason: 'Успешный вход с нового IP-адреса', ip, createdAt: Date.now(), risk: 'review' });
+      }
+      const deviceHash = deviceId ? securityDeviceHash(deviceId) : null;
+      if (priorSessions.length && deviceHash && !priorSessions.some((meta) => meta.deviceIdHash === deviceHash)) {
+        recordSecurityEvent(user.id, { type: 'login_new_device', reason: 'Успешный вход с нового идентификатора устройства', ip, deviceId: deviceHash, risk: 'review' });
+      }
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
         twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
@@ -666,7 +801,7 @@ const server = http.createServer(async (req, res) => {
       user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
-      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
+      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, userAgent: ua };
       save();
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
@@ -689,10 +824,13 @@ const server = http.createServer(async (req, res) => {
         return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
       }
       twoFactorChallenges.delete(challenge);
+      if (user.securitySuspended) return fail(403, 'account_suspended');
+      const deviceId = String(body.deviceId || '');
+      if (deviceId && (db.securityBlockedDevices || []).includes(securityDeviceHash(deviceId))) return fail(403, 'security_device_blocked');
       user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
-      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
+      db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120), ip, deviceId: deviceId || null, deviceIdHash: deviceId ? securityDeviceHash(deviceId) : null, userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
       save();
       return reply(200, { ok: true, user: selfUser(user, token) });
     }
