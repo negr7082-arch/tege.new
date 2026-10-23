@@ -18,6 +18,11 @@ fun SecurityScreen(viewModel: TegeViewModel, onBack: () -> Unit, onLoggedOut: ()
     var showLogoutDialog by remember { mutableStateOf(false) }
     val account by viewModel.currentAccount.collectAsState()
     val messageError by viewModel.messageError.collectAsState()
+    val cloudEnabled by viewModel.cloudPasswordEnabled.collectAsState()
+    val recoveryCodes by viewModel.cloudRecoveryCodes.collectAsState()
+    val cloudBusy by viewModel.cloudPasswordBusy.collectAsState()
+    var cloudPassword by remember { mutableStateOf("") }
+    var currentCloudPassword by remember { mutableStateOf("") }
     var targetEmail by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf("volunteer") }
     var age16Plus by remember { mutableStateOf(false) }
@@ -40,6 +45,41 @@ fun SecurityScreen(viewModel: TegeViewModel, onBack: () -> Unit, onLoggedOut: ()
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                LaunchedEffect(account?.id) { if (account != null) viewModel.refreshCloudPasswordStatus() }
+                Card {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Облачный пароль Tege", style = MaterialTheme.typography.titleMedium)
+                        Text(if (cloudEnabled) "Включён — проверяется сервером" else "Дополнительная защита входа")
+                        if (recoveryCodes.isEmpty()) {
+                            OutlinedTextField(value = cloudPassword, onValueChange = { cloudPassword = it },
+                                label = { Text("Пароль (минимум 12 символов)") },
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                singleLine = true, modifier = Modifier.fillMaxWidth())
+                            if (cloudEnabled) {
+                                OutlinedTextField(value = currentCloudPassword, onValueChange = { currentCloudPassword = it },
+                                    label = { Text("Текущий облачный пароль") },
+                                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                                OutlinedButton(onClick = { viewModel.disableCloudPassword(currentCloudPassword) },
+                                    enabled = currentCloudPassword.isNotBlank() && !cloudBusy, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Отключить")
+                                }
+                            }
+                            Button(onClick = { viewModel.enableCloudPassword(cloudPassword, currentCloudPassword) },
+                                enabled = cloudPassword.length >= 12 && !cloudBusy, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (cloudEnabled) "Заменить пароль и коды" else "Включить облачный пароль")
+                            }
+                        } else {
+                            Text("Сохрани эти коды сейчас. Каждый используется только один раз.", color = MaterialTheme.colorScheme.error)
+                            recoveryCodes.forEach { Text(it, style = MaterialTheme.typography.titleMedium) }
+                            Button(onClick = { viewModel.clearCloudRecoveryCodesAfterSave(); cloudPassword = ""; currentCloudPassword = "" },
+                                modifier = Modifier.fillMaxWidth()) { Text("Я сохранил коды") }
+                        }
+                        if (cloudBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
+                }
+            }
             if (!isVolunteer) {
                 item {
                     Text("Стать волонтёром", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
