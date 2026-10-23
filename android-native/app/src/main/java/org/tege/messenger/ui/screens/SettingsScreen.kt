@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.tege.messenger.model.ScreenRoute
 import org.tege.messenger.model.TextSize
 import org.tege.messenger.model.WallpaperId
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -197,6 +198,13 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
+                )
+
+                SettingsClickableRow(
+                    icon = Icons.Default.Security,
+                    title = "Безопасность",
+                    subtitle = "Защита сессии и выход из аккаунта",
+                    onClick = { viewModel.navigateTo(ScreenRoute.Security) }
                 )
 
                 SettingsClickableRow(
