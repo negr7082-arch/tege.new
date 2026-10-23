@@ -147,12 +147,15 @@ const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt
 const activeVideo = new Map(); // chatId -> info
 
 // Public staff badges are derived from a server-side allowlist, never client profile input.
+const TEGE_OWNER_EMAIL = String(process.env.TEGE_OWNER_EMAIL || '').trim().toLowerCase();
 const CHIEF_VOLUNTEER_EMAIL = String(process.env.TEGE_CHIEF_VOLUNTEER_EMAIL || '').trim().toLowerCase();
+const VOLUNTEER_ROLES = new Set(['junior_volunteer', 'volunteer', 'chief_volunteer']);
 const volunteerRoleFor = (u) => {
   if (!u?.email) return null;
-  return CHIEF_VOLUNTEER_EMAIL && u.email.toLowerCase() === CHIEF_VOLUNTEER_EMAIL
-    ? 'chief_volunteer'
-    : (u.volunteerRole === 'volunteer' ? 'volunteer' : null);
+  // Deployment allowlists override stored role; ordinary profile updates cannot grant badges.
+  if (TEGE_OWNER_EMAIL && u.email.toLowerCase() === TEGE_OWNER_EMAIL) return 'chief_volunteer';
+  if (CHIEF_VOLUNTEER_EMAIL && u.email.toLowerCase() === CHIEF_VOLUNTEER_EMAIL) return 'chief_volunteer';
+  return VOLUNTEER_ROLES.has(u.volunteerRole) ? u.volunteerRole : null;
 };
 const publicUser = (u) => ({
   volunteerRole: volunteerRoleFor(u),
@@ -778,6 +781,34 @@ attachWebSocket(server, (conn, url) => {
           db.inbox[user.id] = box.filter((m) => !ids.has(m.deliveryId));
           save();
         }
+        break;
+      }
+
+      case 'volunteer_role_update': {
+        // Only the explicitly configured owner account can issue or revoke volunteer roles.
+        if (!TEGE_OWNER_EMAIL || user.email?.toLowerCase() !== TEGE_OWNER_EMAIL) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetEmail = String(msg.email || '').trim().toLowerCase();
+        const role = msg.role === null || msg.role === '' ? null : String(msg.role);
+        if (!targetEmail || (role !== null && !VOLUNTEER_ROLES.has(role))) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        const target = Object.values(db.users).find((candidate) => candidate.email?.toLowerCase() === targetEmail);
+        if (!target) {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'user_not_found' });
+          break;
+        }
+        if (TEGE_OWNER_EMAIL && target.email.toLowerCase() === TEGE_OWNER_EMAIL && role !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'owner_role_protected' });
+          break;
+        }
+        target.volunteerRole = role;
+        save();
+        broadcast({ type: 'user_upsert', user: publicUser(target) });
+        conn.send({ type: 'volunteer_role_update_result', ok: true, user: publicUser(target) });
         break;
       }
 
