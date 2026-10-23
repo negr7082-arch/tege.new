@@ -91,6 +91,10 @@ fun TelegramDrawer(
             onCloseDrawer()
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        DrawerItem(icon = Icons.Default.Shield, label = "Безопасность") {
+            viewModel.navigateTo(ScreenRoute.Security)
+            onCloseDrawer()
+        }
         DrawerItem(icon = Icons.Default.Settings, label = "Настройки") {
             viewModel.navigateTo(ScreenRoute.Settings)
             onCloseDrawer()
