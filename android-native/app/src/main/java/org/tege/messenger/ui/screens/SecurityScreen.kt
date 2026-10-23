@@ -25,7 +25,7 @@ fun SecurityScreen(viewModel: TegeViewModel, onBack: () -> Unit, onLoggedOut: ()
     var conductOk by remember { mutableStateOf(false) }
     var accountAgeAcknowledged by remember { mutableStateOf(false) }
     val role = account?.volunteerRole
-    val isVolunteer = role in setOf("junior_volunteer", "volunteer", "chief_volunteer")
+    val isVolunteer = role?.let { it in setOf("junior_volunteer", "volunteer", "chief_volunteer") } == true
 
     Scaffold(topBar = {
         TopAppBar(
