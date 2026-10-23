@@ -824,15 +824,32 @@ const server = http.createServer(async (req, res) => {
         user.securityKnownDeviceHashes = [...(user.securityKnownDeviceHashes || []), deviceHash].slice(-20);
       }
       const ips24h = new Set(user.securityLoginIpHistory.filter((entry) => Date.now() - Number(entry.at || 0) < 24 * 60 * 60_000).map((entry) => entry.ip)).size;
-      // IP alone can change on mobile/VPN; combine signals to avoid freezing innocent users.
-      if ((newIp && newDevice) || ips24h >= 3) {
-        user.securitySuspended = true;
-        user.securitySuspensionReason = 'ПП/подозрение на взлом или продажу аккаунта — нужна проверка Security';
-        user.securitySuspendedAt = Date.now();
-        revokeUserSessions(user.id);
-        recordSecurityEvent(user.id, { type: 'account_auto_frozen', reason: user.securitySuspensionReason, ip, permanent: true, riskSignals: [newIp ? 'new_ip' : null, newDevice ? 'new_device' : null, ips24h >= 3 ? 'multiple_ips_24h' : null].filter(Boolean) });
+      // IP alone can change on mobile/VPN. Start a 24-hour review only when several signals combine.
+      const riskSignals = [newIp ? 'new_ip' : null, newDevice ? 'new_device' : null, ips24h >= 3 ? 'multiple_ips_24h' : null].filter(Boolean);
+      const highRiskLogin = (newIp && newDevice) || ips24h >= 3;
+      if (highRiskLogin) {
+        const now = Date.now();
+        if (!user.securityReviewUntil) {
+          user.securityReviewStartedAt = now;
+          user.securityReviewUntil = now + 24 * 60 * 60_000;
+          user.securityReviewSignals = riskSignals;
+          user.securityReviewReason = 'ПП/подозрение на взлом или продажу аккаунта — проверка в течение 24 часов';
+          recordSecurityEvent(user.id, { type: 'account_security_review_started', reason: user.securityReviewReason, ip, riskSignals, reviewUntil: user.securityReviewUntil });
+          save();
+          return fail(403, 'security_review_pending');
+        }
+        if (now >= Number(user.securityReviewUntil)) {
+          user.securitySuspended = true;
+          user.securitySuspensionReason = 'ПП/подозрение на взлом или продажу аккаунта — риск не снят за 24 часа';
+          user.securitySuspendedAt = now;
+          revokeUserSessions(user.id);
+          recordSecurityEvent(user.id, { type: 'account_auto_frozen', reason: user.securitySuspensionReason, ip, permanent: true, riskSignals: [...new Set([...(user.securityReviewSignals || []), ...riskSignals])] });
+          save();
+          return fail(403, 'account_suspended_security_review');
+        }
+        recordSecurityEvent(user.id, { type: 'account_security_review_repeat_signal', reason: 'Повторный подозрительный вход во время проверки', ip, riskSignals, reviewUntil: user.securityReviewUntil });
         save();
-        return fail(403, 'account_suspended_security_review');
+        return fail(403, 'security_review_pending');
       }
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
