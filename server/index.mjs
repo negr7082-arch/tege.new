@@ -147,7 +147,7 @@ const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
-const isVerifiedVolunteerOwner = (u) => normUsername(u.username) === '@orig_manager_creator_tege.new';
+const isVerifiedVolunteerOwner = (u) => String(u.email || '').trim().toLowerCase() === 'negr7082@gmail.com' && normUsername(u.username) === '@orig_manager_creator_tege.new';
 const publicUser = (u) => ({
   id: u.id,
   name: u.name,
