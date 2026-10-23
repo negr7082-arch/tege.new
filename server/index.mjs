@@ -55,6 +55,7 @@ if (process.env.DATABASE_URL) {
   pool.on('error', (e) => console.error('pg pool error:', e.message));
   try {
     await pool.query('create table if not exists kv (k text primary key, v text not null)');
+    await pool.query('create table if not exists profile_media (id text primary key, user_id bigint not null, kind text not null, mime text not null, data bytea not null, created_at timestamptz not null default now())');
     const r = await pool.query("select v from kv where k = 'db'");
     if (r.rows[0]) Object.assign(db, JSON.parse(r.rows[0].v));
   } catch (e) {
@@ -301,6 +302,17 @@ const server = http.createServer(async (req, res) => {
     if (!/^[0-9]+-(avatar|banner)-[a-f0-9]+\\.(jpg|png|webp)$/.test(name)) {
       res.writeHead(404); return res.end();
     }
+    if (pool) {
+      try {
+        const result = await pool.query('select mime, data from profile_media where id = $1', [name]);
+        if (!result.rows[0]) { res.writeHead(404); return res.end(); }
+        res.writeHead(200, { 'content-type': result.rows[0].mime, 'cache-control': 'public, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' });
+        return res.end(result.rows[0].data);
+      } catch (e) {
+        console.error('profile media read failed:', e.message);
+        res.writeHead(503); return res.end();
+      }
+    }
     const file = path.join(DATA_DIR, 'profile-media', name);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end(); }
     const ext = path.extname(name).toLowerCase();
@@ -335,9 +347,16 @@ const server = http.createServer(async (req, res) => {
       if (!bytes.length || bytes.length > 4 * 1024 * 1024) return fail(413, 'image_too_large');
       const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/png' ? 'png' : 'webp';
       const dir = path.join(DATA_DIR, 'profile-media');
-      fs.mkdirSync(dir, { recursive: true });
       const filename = `${user.id}-${kind}-${crypto.randomBytes(12).toString('hex')}.${ext}`;
-      fs.writeFileSync(path.join(dir, filename), bytes, { flag: 'wx' });
+      if (pool) {
+        await pool.query(
+          'insert into profile_media (id, user_id, kind, mime, data) values ($1, $2, $3, $4, $5)',
+          [filename, user.id, kind, mime, bytes]
+        );
+      } else {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, filename), bytes, { flag: 'wx' });
+      }
       const uri = `/profile-media/${filename}`;
       if (kind === 'banner') user.bannerUri = uri;
       else user.avatarUri = uri;
