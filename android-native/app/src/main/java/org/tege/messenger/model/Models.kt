@@ -217,4 +217,5 @@ sealed class ScreenRoute {
     object Contacts : ScreenRoute()
     object Calls : ScreenRoute()
     object Settings : ScreenRoute()
+    object Security : ScreenRoute()
 }
