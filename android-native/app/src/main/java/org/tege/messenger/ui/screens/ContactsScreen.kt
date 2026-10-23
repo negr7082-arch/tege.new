@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -15,9 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.tege.messenger.model.ContactUser
 import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
@@ -31,6 +35,7 @@ fun ContactsScreen(
 ) {
     val contacts by viewModel.contacts.collectAsState()
     var query by remember { mutableStateOf("") }
+    var selectedContact by remember { mutableStateOf<ContactUser?>(null) }
     val visibleContacts = contacts
         .filter { it.name.contains(query, ignoreCase = true) || it.username.contains(query.removePrefix("@"), ignoreCase = true) }
         .sortedBy { it.name.lowercase() }
@@ -83,27 +88,59 @@ fun ContactsScreen(
                         ContactRow(contact = contact, onClick = {
                             val chatId = viewModel.openDirectChat(contact)
                             if (chatId >= 0L) viewModel.navigateTo(org.tege.messenger.model.ScreenRoute.ChatDetail(chatId))
-                        })
+                        }, onOpenProfile = { selectedContact = contact })
                     }
                 }
             }
         }
     }
+
+    selectedContact?.let { contact ->
+        AlertDialog(
+            onDismissRequest = { selectedContact = null },
+            title = { Text("Профиль пользователя") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.fillMaxWidth().height(112.dp).clip(RoundedCornerShape(16.dp))
+                            .background(runCatching { Color(android.graphics.Color.parseColor(contact.themeColor)) }.getOrDefault(TelegramBlue))
+                    ) {
+                        contact.bannerUri?.let { AsyncImage(model = it, contentDescription = "Баннер профиля", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    TegeAvatar(avatarUri = contact.avatarUri, displayName = contact.name, color = runCatching { Color(android.graphics.Color.parseColor(contact.themeColor)) }.getOrDefault(TelegramBlue), modifier = Modifier.size(76.dp))
+                    Text(contact.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = when (contact.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif })
+                    Text("@${contact.username.removePrefix("@")}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (contact.bio.isNotBlank()) Text(contact.bio, modifier = Modifier.padding(top = 8.dp), fontFamily = when (contact.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif })
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedContact = null }) { Text("Закрыть") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    val chatId = viewModel.openDirectChat(contact)
+                    selectedContact = null
+                    if (chatId >= 0L) viewModel.navigateTo(org.tege.messenger.model.ScreenRoute.ChatDetail(chatId))
+                }) { Text("Написать") }
+            }
+        )
+    }
 }
 
 @Composable
-private fun ContactRow(contact: ContactUser, onClick: () -> Unit) {
+private fun ContactRow(contact: ContactUser, onClick: () -> Unit, onOpenProfile: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
-            TegeAvatar(
-                avatarUri = contact.avatarUri,
-                displayName = contact.name,
-                color = runCatching { Color(android.graphics.Color.parseColor(contact.color)) }.getOrDefault(TelegramBlue),
-                modifier = Modifier.size(52.dp)
-            )
+            Box(Modifier.clickable(onClick = onOpenProfile)) {
+                TegeAvatar(
+                    avatarUri = contact.avatarUri,
+                    displayName = contact.name,
+                    color = runCatching { Color(android.graphics.Color.parseColor(contact.themeColor)) }.getOrDefault(TelegramBlue),
+                    modifier = Modifier.size(52.dp)
+                )
+            }
             if (contact.online) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(13.dp).clip(CircleShape)
@@ -115,7 +152,7 @@ private fun ContactRow(contact: ContactUser, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(contact.name, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
+            Text(contact.name, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1, fontFamily = when (contact.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif })
             Text(
                 if (contact.online) "в сети" else contact.username.takeIf { it.isNotBlank() }?.let { "@${it.removePrefix("@")}" } ?: "не в сети",
                 color = if (contact.online) Color(0xFF35A853) else MaterialTheme.colorScheme.onSurfaceVariant,

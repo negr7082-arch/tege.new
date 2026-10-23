@@ -3,6 +3,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { UserProfile, Language, Channel, Story } from '../types';
 import { getT } from '../translations';
 import { TelegramAvatar } from './TelegramAvatar';
+import { getServerUrl } from '../services/realtimeNetwork';
 import {
   Camera,
   ArrowLeft,
@@ -74,11 +75,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(profile.username);
   const [bio, setBio] = useState(profile.bio);
+  const [themeColor, setThemeColor] = useState(profile.themeColor || "#2AABEE");
+  const [fontFamily, setFontFamily] = useState<"sans-serif" | "serif" | "monospace" | "cursive">(profile.fontFamily || "sans-serif");
+  const [mediaError, setMediaError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const channelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedChannelForPhoto, setSelectedChannelForPhoto] = useState<number | null>(null);
   const t = getT(language);
+  const profileMediaUrl = (uri?: string | null) => uri ? (uri.startsWith("http") ? uri : new URL(uri, getServerUrl()).toString()) : undefined;
 
   // Filter channels created by this user
   const userChannels = channels.filter(
@@ -99,15 +105,56 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setIsEditing(false);
   };
 
+  const uploadProfileMedia = async (file: File, kind: "avatar" | "banner") => {
+    setMediaError("");
+    if (!profile.token) {
+      setMediaError(language === "ru" ? "Нет активной серверной сессии. Войди в аккаунт заново." : "No server session. Please sign in again.");
+      return;
+    }
+    try {
+      const image = await createImageBitmap(file);
+      const scale = Math.min(1, 1800 / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      image.close();
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((value) => value ? resolve(value) : reject(new Error("encode")), "image/jpeg", 0.86);
+      });
+      if (blob.size > 4 * 1024 * 1024) throw new Error("large");
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("read"));
+        reader.readAsDataURL(blob);
+      });
+      const response = await fetch(`${getServerUrl()}/api/profile-media`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${profile.token}` },
+        body: JSON.stringify({ kind, dataUrl })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok || typeof result.uri !== "string") throw new Error(result.error || "upload");
+      const imageUrl = result.uri.startsWith("http") ? result.uri : `${getServerUrl()}${result.uri}`;
+      onUpdateProfile(kind === "avatar" ? { avatarUri: imageUrl } : { bannerUri: imageUrl });
+    } catch {
+      setMediaError(language === "ru" ? "Не удалось загрузить изображение. Попробуй JPG/PNG меньшего размера." : "Could not upload image. Try a smaller JPG/PNG.");
+    }
+  };
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        onUpdateProfile({ avatarUri: event.target?.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
+    if (file) void uploadProfileMedia(file, "avatar");
+    e.target.value = "";
+  };
+
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void uploadProfileMedia(file, "banner");
+    e.target.value = "";
   };
 
   const handleRemoveAvatar = () => {
@@ -146,6 +193,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{language === 'ru' ? 'Профиль' : 'Profile'}</h1>
       </div>
 
+      {/* Server-backed profile image picker */}
+      <input type="file" ref={bannerInputRef} onChange={handleBannerChange} accept="image/*" className="hidden" />
+
       {/* Hidden file input for channel photo updates */}
       <input
         type="file"
@@ -156,8 +206,51 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       />
 
       <div className="max-w-lg mx-auto w-full p-4 pb-28 space-y-4">
-        {/* Header card with Avatar & ID & Stories ring */}
-        <div className="flex flex-col items-center text-center">
+        {/* Server-synced profile banner */ }
+        <div className="relative h-40 sm:h-48 rounded-2xl overflow-hidden shadow-sm" style={{ background: `linear-gradient(135deg, ${themeColor}, #7c3aed, #00b8a9)` }}>
+          {profile.bannerUri && <img src={profileMediaUrl(profile.bannerUri)} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+          <span className="absolute left-4 top-3 text-white/60 font-black tracking-widest">TEGE</span>
+          <button type="button" onClick={() => bannerInputRef.current?.click()} className="absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-2 text-sm text-white hover:bg-black/75">
+            <Camera className="inline w-4 h-4 mr-1" />{language === "ru" ? (profile.bannerUri ? "Изменить баннер" : "Добавить баннер") : (profile.bannerUri ? "Change banner" : "Add banner")}
+          </button>
+        </div>
+
+        <section className="rounded-2xl bg-white dark:bg-[#17212b] border border-black/5 dark:border-white/5 p-4 space-y-4">
+          <h2 className="font-semibold text-gray-900 dark:text-white">{language === "ru" ? "Кастомизация профиля" : "Profile customization"}</h2>
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">{language === "ru" ? "Цвет оформления" : "Theme color"}</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {["#2AABEE", "#FE2C55", "#25F4EE", "#7C3AED", "#16A34A", "#F59E0B", "#EC4899", "#111827", "#FFFFFF"].map((color) => (
+                <button key={color} type="button" onClick={() => setThemeColor(color)} aria-label={color}
+                  className={`w-8 h-8 rounded-full border-2 ${themeColor.toUpperCase() === color ? "border-sky-500 ring-2 ring-sky-300" : "border-gray-300 dark:border-gray-600"}`}
+                  style={{ backgroundColor: color }} />
+              ))}
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(themeColor) ? themeColor : "#2AABEE"} onChange={(e) => setThemeColor(e.target.value.toUpperCase())} className="w-9 h-9 rounded cursor-pointer" />
+                {language === "ru" ? "Любой цвет" : "Custom color"}
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">{language === "ru" ? "Каталог шрифтов" : "Font catalog"}</label>
+            <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value as typeof fontFamily)} className="w-full rounded-xl border border-gray-300 dark:border-white/10 bg-transparent px-3 py-3 text-gray-900 dark:text-white">
+              <option value="sans-serif">{language === "ru" ? "Современный — Sans-serif" : "Modern — Sans-serif"}</option>
+              <option value="serif">{language === "ru" ? "Классический — Serif" : "Classic — Serif"}</option>
+              <option value="monospace">{language === "ru" ? "Технический — Monospace" : "Technical — Monospace"}</option>
+              <option value="cursive">{language === "ru" ? "Рукописный — Cursive" : "Handwritten — Cursive"}</option>
+            </select>
+            <p className="mt-2 text-sm text-gray-500" style={{ fontFamily }}>{language === "ru" ? "Пример выбранного шрифта: Tege — мой стиль" : "Font preview: Tege — my style"}</p>
+          </div>
+          <button type="button" onClick={() => onUpdateProfile({ themeColor, fontFamily })} className="w-full rounded-xl px-4 py-3 text-white font-semibold" style={{ backgroundColor: themeColor }}>
+            {language === "ru" ? "Сохранить оформление для всех" : "Save appearance for everyone"}
+          </button>
+          {mediaError && <p role="alert" className="text-sm text-rose-500">{mediaError}</p>}
+          <p className="text-xs text-gray-500">{language === "ru" ? "Баннер и фото загружаются на сервер, поэтому их смогут видеть другие пользователи." : "Banner and avatar are uploaded to the server so other users can see them."}</p>
+        </section>
+
+        {/* Header card with Avatar & ID & Stories ring */ }
+        <div className="flex flex-col items-center text-center" style={{ fontFamily }}>
           <div className="relative mb-3 group">
             {/* If user has active stories, show gradient stories ring */}
             <div
@@ -177,7 +270,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {profile.avatarUri ? (
                 <div className="relative">
                   <img
-                    src={profile.avatarUri}
+                    src={profileMediaUrl(profile.avatarUri)}
                     alt={profile.name}
                     className="w-28 h-28 sm:w-30 sm:h-30 rounded-full object-cover"
                   />

@@ -487,6 +487,9 @@ class RealtimeNetworkService {
       username: user.username,
       bio: (user as UserAccount).bio ?? known?.bio ?? '',
       avatarUri: user.avatarUri || null,
+      bannerUri: (user as UserAccount).bannerUri || null,
+      themeColor: (user as UserAccount).themeColor || "#2AABEE",
+      fontFamily: (user as UserAccount).fontFamily || "sans-serif",
       phone: user.phone,
       country: user.country
     };
@@ -496,6 +499,9 @@ class RealtimeNetworkService {
       known.username === next.username &&
       (known.bio || '') === next.bio &&
       (known.avatarUri || null) === next.avatarUri &&
+      (known.bannerUri || null) === next.bannerUri &&
+      (known.themeColor || "#2AABEE") === next.themeColor &&
+      (known.fontFamily || "sans-serif") === next.fontFamily &&
       known.phone === next.phone &&
       known.country === next.country
     ) {

@@ -2,6 +2,9 @@ package org.tege.messenger.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.WebSocket
 import org.tege.messenger.service.BackendClient
 import org.tege.messenger.service.TegeSocketListener
@@ -43,6 +48,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             country = profilePrefs.getString("country", "").orEmpty(),
             registrationDate = profilePrefs.getString("created_at", "").orEmpty(),
             avatarUri = profilePrefs.getString("avatar_uri", null),
+            bannerUri = profilePrefs.getString("banner_uri", null),
+            themeColor = profilePrefs.getString("theme_color", "#2AABEE") ?: "#2AABEE",
+            fontFamily = profilePrefs.getString("font_family", "sans-serif") ?: "sans-serif",
             isOnline = false
         )
     }
@@ -60,6 +68,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             .putString("phone", account.phone)
             .putString("country", account.country)
             .putString("avatar_uri", account.avatarUri)
+            .putString("banner_uri", account.bannerUri)
+            .putString("theme_color", account.themeColor)
+            .putString("font_family", account.fontFamily)
             .putString("created_at", account.registrationDate)
             .apply()
     }
@@ -341,7 +352,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             phone = json.optString("phone"),
             country = json.optString("country"),
             registrationDate = json.optString("registrationDate"),
-            avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
+            avatarUri = absoluteMediaUri(json.optString("avatarUri")),
+            bannerUri = absoluteMediaUri(json.optString("bannerUri")),
+            themeColor = json.optString("themeColor", "#2AABEE").takeIf { it.matches(Regex("#[0-9A-Fa-f]{6}")) } ?: "#2AABEE",
+            fontFamily = json.optString("fontFamily", "sans-serif").takeIf { it in setOf("sans-serif", "serif", "monospace", "cursive") } ?: "sans-serif",
             isOnline = true
         )
         val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
@@ -421,7 +435,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         country = user.optString("country"),
                         registrationDate = user.optString("registrationDate"),
                         online = user.optBoolean("online"),
-                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                        avatarUri = absoluteMediaUri(user.optString("avatarUri")),
+                        bannerUri = absoluteMediaUri(user.optString("bannerUri")),
+                        themeColor = user.optString("themeColor", "#2AABEE"),
+                        fontFamily = user.optString("fontFamily", "sans-serif")
                     )
                 }.sortedBy { it.name.lowercase(Locale.ROOT) }
                 _connectionState.value = "Подключено"
@@ -438,7 +455,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         bio = user.optString("bio", current.bio),
                         phone = user.optString("phone", current.phone),
                         country = user.optString("country", current.country),
-                        avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() },
+                        avatarUri = absoluteMediaUri(user.optString("avatarUri")),
+                        bannerUri = absoluteMediaUri(user.optString("bannerUri")),
+                        themeColor = user.optString("themeColor", current.themeColor).takeIf { it.matches(Regex("#[0-9A-Fa-f]{6}")) } ?: current.themeColor,
+                        fontFamily = user.optString("fontFamily", current.fontFamily).takeIf { it in setOf("sans-serif", "serif", "monospace", "cursive") } ?: current.fontFamily,
                         isOnline = user.optBoolean("online")
                     )
                     _currentAccount.value = updated
@@ -452,7 +472,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     phone = user.optString("phone"), country = user.optString("country"),
                     registrationDate = user.optString("registrationDate"),
                     online = user.optBoolean("online"),
-                    avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                    avatarUri = absoluteMediaUri(user.optString("avatarUri")),
+                    bannerUri = absoluteMediaUri(user.optString("bannerUri")),
+                    themeColor = user.optString("themeColor", "#2AABEE"),
+                    fontFamily = user.optString("fontFamily", "sans-serif")
                 )
                 _contacts.value = (_contacts.value.filterNot { it.id == id } + contact)
                     .sortedBy { it.name.lowercase(Locale.ROOT) }
@@ -737,6 +760,72 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _accounts.value.find { it.id == accountId }?.let {
             _currentAccount.value = it
             persistLocalAccount(it)
+        }
+    }
+
+    private fun absoluteMediaUri(value: String?): String? {
+        val uri = value?.takeIf { it.isNotBlank() } ?: return null
+        return if (uri.startsWith("/profile-media/")) savedServerUrl.trimEnd('/') + uri else uri
+    }
+
+    fun updateProfileCustomization(themeColor: String, fontFamily: String) {
+        val current = _currentAccount.value ?: return
+        val safeColor = themeColor.takeIf { it.matches(Regex("#[0-9A-Fa-f]{6}")) } ?: "#2AABEE"
+        val safeFont = fontFamily.takeIf { it in setOf("sans-serif", "serif", "monospace", "cursive") } ?: "sans-serif"
+        val sent = activeSocket?.send(
+            JSONObject().put("type", "profile").put("user", JSONObject()
+                .put("themeColor", safeColor).put("fontFamily", safeFont)).toString()
+        ) ?: false
+        if (!sent) {
+            _messageError.value = "Нет соединения с сервером. Оформление не отправлено."
+            return
+        }
+        val updated = current.copy(themeColor = safeColor, fontFamily = safeFont)
+        _currentAccount.value = updated
+        _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+        persistLocalAccount(updated)
+    }
+
+    fun updateProfileMedia(context: Context, kind: String, uri: Uri) {
+        val token = savedToken ?: run {
+            _messageError.value = "Войди в аккаунт, чтобы загрузить фото на сервер."
+            return
+        }
+        if (kind !in setOf("avatar", "banner")) return
+        viewModelScope.launch {
+            val uploaded = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                    var sample = 1
+                    while (bounds.outWidth / (sample * 2) > 1800 || bounds.outHeight / (sample * 2) > 1800) sample *= 2
+                    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                    val decoded = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                        ?: return@runCatching null
+                    val scale = minOf(1f, 1800f / maxOf(decoded.width, decoded.height))
+                    val bitmap = if (scale < 1f) Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt().coerceAtLeast(1), (decoded.height * scale).toInt().coerceAtLeast(1), true) else decoded
+                    val output = java.io.ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 86, output)
+                    if (bitmap !== decoded) bitmap.recycle()
+                    decoded.recycle()
+                    output.toByteArray().takeIf { it.isNotEmpty() && it.size <= 4 * 1024 * 1024 }
+                }.getOrNull()
+            }
+            if (uploaded == null) {
+                _messageError.value = "Не удалось обработать фото. Выбери другое изображение."
+                return@launch
+            }
+            val serverUri = BackendClient.uploadProfileMedia(savedServerUrl, token, kind, uploaded)
+            if (serverUri == null) {
+                _messageError.value = "Не удалось загрузить изображение на сервер."
+                return@launch
+            }
+            val current = _currentAccount.value ?: return@launch
+            val updated = if (kind == "banner") current.copy(bannerUri = serverUri) else current.copy(avatarUri = serverUri)
+            _currentAccount.value = updated
+            _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+            persistLocalAccount(updated)
         }
     }
 

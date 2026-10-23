@@ -172,6 +172,9 @@ export interface ContactUser {
   online: boolean;
   lastSeenAt?: number | null;
   avatarUri?: string | null;
+  bannerUri?: string | null;
+  themeColor?: string;
+  fontFamily?: "sans-serif" | "serif" | "monospace" | "cursive";
   color?: string;
 }
 
@@ -258,6 +261,9 @@ export interface UserAccount {
   country?: string;
   registrationDate?: string;
   avatarUri?: string | null;
+  bannerUri?: string | null;
+  themeColor?: string;
+  fontFamily?: "sans-serif" | "serif" | "monospace" | "cursive";
   isOnline?: boolean;
 }
 
@@ -281,6 +287,7 @@ export interface Story {
 export interface UserProfile {
   id: number;
   email: string;
+  token?: string;
   name: string;
   username: string;
   bio: string;
@@ -288,6 +295,9 @@ export interface UserProfile {
   country?: string;
   registrationDate?: string;
   avatarUri?: string | null;
+  bannerUri?: string | null;
+  themeColor?: string;
+  fontFamily?: "sans-serif" | "serif" | "monospace" | "cursive";
   isOnline?: boolean;
 }
 

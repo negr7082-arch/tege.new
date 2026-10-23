@@ -187,13 +187,43 @@ object BackendClient {
             .put("ids", org.json.JSONArray().put(deliveryId)).toString())
     }
 
-    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String): Boolean {
+    suspend fun uploadProfileMedia(
+        baseUrl: String,
+        token: String,
+        kind: String,
+        jpegBytes: ByteArray
+    ): String? = withContext(Dispatchers.IO) {
+        val normalizedUrl = normalizeBaseUrl(baseUrl) ?: return@withContext null
+        if (kind !in setOf("avatar", "banner") || jpegBytes.isEmpty() || jpegBytes.size > 4 * 1024 * 1024) {
+            return@withContext null
+        }
+        val dataUrl = "data:image/jpeg;base64," + android.util.Base64.encodeToString(jpegBytes, android.util.Base64.NO_WRAP)
+        val body = JSONObject().put("kind", kind).put("dataUrl", dataUrl)
+        val request = Request.Builder()
+            .url("$normalizedUrl/api/profile-media")
+            .header("Authorization", "Bearer $token")
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val parsed = JSONObject(response.body?.string().orEmpty().ifBlank { "{}" })
+                if (!response.isSuccessful || !parsed.optBoolean("ok")) null
+                else parsed.optString("uri").takeIf { it.startsWith("/profile-media/") }?.let { "$normalizedUrl$it" }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun updateProfile(socket: WebSocket?, name: String, username: String, bio: String, phone: String, themeColor: String? = null, fontFamily: String? = null): Boolean {
         socket ?: return false
         val user = JSONObject()
             .put("name", name)
             .put("username", username)
             .put("bio", bio)
             .put("phone", phone)
+        if (themeColor != null) user.put("themeColor", themeColor)
+        if (fontFamily != null) user.put("fontFamily", fontFamily)
         return socket.send(JSONObject().put("type", "profile").put("user", user).toString())
     }
 }

@@ -1,10 +1,14 @@
 package org.tege.messenger.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,11 +16,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
@@ -28,11 +37,36 @@ fun ProfileScreen(
     onBack: () -> Unit
 ) {
     val account by viewModel.currentAccount.collectAsState()
+    val context = LocalContext.current
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editUsername by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
     var editPhone by remember { mutableStateOf("") }
+    var themeColor by remember(account?.themeColor) { mutableStateOf(account?.themeColor ?: "#2AABEE") }
+    var fontFamily by remember(account?.fontFamily) { mutableStateOf(account?.fontFamily ?: "sans-serif") }
+    var showFontCatalog by remember { mutableStateOf(false) }
+    var pickingBanner by remember { mutableStateOf(false) }
+    var mediaPickerError by remember { mutableStateOf<String?>(null) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            if (pickingBanner) {
+                viewModel.updateProfileMedia(context, "banner", uri)
+            } else {
+                viewModel.updateProfileMedia(context, "avatar", uri)
+            }
+            mediaPickerError = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -40,7 +74,7 @@ fun ProfileScreen(
                 title = { Text("Профиль", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 actions = {
@@ -54,7 +88,7 @@ fun ProfileScreen(
                         Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(onClick = { viewModel.logout() }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -67,40 +101,199 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Profile Header
+            // TikTok-inspired profile cover: wide image with the avatar overlapping its lower edge.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(vertical = 20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TegeAvatar(
-                        avatarUri = account?.avatarUri,
-                        displayName = account?.name ?: "TEGE",
-                        color = TelegramBlue,
-                        modifier = Modifier.size(80.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = account?.name ?: "Пользователь",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    account?.username?.takeIf { it.isNotBlank() }?.let { username ->
-                        Text(
-                            text = if (username.startsWith("@")) username else "@$username",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp)
+                    .height(184.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(Color(0xFF192A56)),
+                                Color(0xFF6C5CE7),
+                                Color(0xFF00B8A9)
+                            )
                         )
-                    }
+                    )
+            ) {
+                account?.bannerUri?.let { banner ->
+                    AsyncImage(
+                        model = banner,
+                        contentDescription = "Баннер профиля",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color(0x66000000))
+                            )
+                        )
+                    )
+                }
+                Text(
+                    text = "TEGE",
+                    color = Color.White.copy(alpha = 0.16f),
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                FilledTonalButton(
+                    onClick = {
+                        pickingBanner = true
+                        imagePicker.launch(arrayOf("image/*"))
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color.Black.copy(alpha = 0.55f),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (account?.bannerUri == null) "Добавить баннер" else "Изменить баннер")
                 }
             }
 
-            // Info rows
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.offset(y = (-34).dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(104.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(4.dp)
+                    ) {
+                        if (!account?.avatarUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = account?.avatarUri,
+                                contentDescription = "Фото профиля",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            TegeAvatar(
+                                avatarUri = null,
+                                displayName = account?.name ?: "TEGE",
+                                color = TelegramBlue,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    FilledIconButton(
+                        onClick = {
+                            pickingBanner = false
+                            imagePicker.launch(arrayOf("image/*"))
+                        },
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Изменить фото профиля", modifier = Modifier.size(18.dp))
+                    }
+                }
+                Text(
+                    text = account?.name ?: "Пользователь",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.offset(y = (-24).dp)
+                )
+                account?.username?.takeIf { it.isNotBlank() }?.let { username ->
+                    Text(
+                        text = if (username.startsWith("@")) username else "@$username",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp,
+                        fontFamily = when (account?.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif },
+                        modifier = Modifier.offset(y = (-20).dp)
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        pickingBanner = true
+                        imagePicker.launch(arrayOf("image/*"))
+                    },
+                    modifier = Modifier.offset(y = (-14).dp)
+                ) {
+                    Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Оформить профиль")
+                }
+            }
+
+            mediaPickerError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Text(
+                    text = "Оформление профиля",
+                    color = runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(TelegramBlue),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text("Цвет профиля", style = MaterialTheme.typography.labelLarge)
+                val palette = listOf("#2AABEE", "#FE2C55", "#25F4EE", "#7C3AED", "#16A34A", "#F59E0B", "#EC4899", "#111827", "#FFFFFF")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    palette.take(5).forEach { hex ->
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(hex)))
+                                .clickable { themeColor = hex }
+                                .then(if (themeColor.equals(hex, true)) Modifier.padding(3.dp).background(MaterialTheme.colorScheme.surface, CircleShape) else Modifier),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (themeColor.equals(hex, true)) Icon(Icons.Default.Check, contentDescription = "Выбран", tint = if (hex == "#FFFFFF") Color.Black else Color.White, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    palette.drop(5).forEach { hex ->
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(hex)))
+                                .clickable { themeColor = hex },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (themeColor.equals(hex, true)) Icon(Icons.Default.Check, contentDescription = "Выбран", tint = if (hex == "#FFFFFF" || hex == "#111827") Color.Gray else Color.White, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = themeColor,
+                    onValueChange = { value -> if (value.matches(Regex("#?[0-9a-fA-F]{0,6}"))) themeColor = if (value.startsWith("#")) value else "#$value" },
+                    label = { Text("Свой цвет HEX, например #7C3AED") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Каталог шрифтов", style = MaterialTheme.typography.labelLarge)
+                OutlinedButton(onClick = { showFontCatalog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = when (fontFamily) {
+                            "serif" -> "Serif — классический"
+                            "monospace" -> "Monospace — технический"
+                            "cursive" -> "Cursive — рукописный"
+                            else -> "Sans-serif — современный"
+                        },
+                        fontFamily = when (fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif }
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Открыть каталог")
+                }
+                Button(
+                    onClick = { viewModel.updateProfileCustomization(themeColor, fontFamily) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(TelegramBlue))
+                ) { Text("Сохранить оформление") }
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = "Учётная запись",
                     color = TelegramBlue,
@@ -108,32 +301,61 @@ fun ProfileScreen(
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-
                 ProfileInfoRow(
                     icon = Icons.Default.Phone,
                     title = account?.phone?.takeIf { it.isNotBlank() } ?: "Не указан",
                     subtitle = "Номер телефона"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.AlternateEmail,
                     title = account?.username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "Не указан",
                     subtitle = "Имя пользователя"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.Info,
                     title = account?.bio?.takeIf { it.isNotBlank() } ?: "Не указано",
                     subtitle = "О себе"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.CalendarToday,
                     title = account?.registrationDate?.takeIf { it.isNotBlank() } ?: "Не указана",
                     subtitle = "Профиль создан"
                 )
+                Text(
+                    "Фото и баннер пока сохраняются на этом устройстве.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 24.dp)
+                )
             }
         }
+    }
+
+    if (showFontCatalog) {
+        AlertDialog(
+            onDismissRequest = { showFontCatalog = false },
+            title = { Text("Каталог шрифтов") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "sans-serif" to "Sans-serif — современный",
+                        "serif" to "Serif — классический",
+                        "monospace" to "Monospace — технический",
+                        "cursive" to "Cursive — рукописный"
+                    ).forEach { (id, label) ->
+                        TextButton(
+                            onClick = { fontFamily = id; showFontCatalog = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(label, fontFamily = when (id) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif })
+                            Spacer(Modifier.weight(1f))
+                            if (fontFamily == id) Icon(Icons.Default.Check, contentDescription = "Выбран")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showFontCatalog = false }) { Text("Закрыть") } }
+        )
     }
 
     if (showEditDialog) {
@@ -168,9 +390,7 @@ fun ProfileInfoRow(
     subtitle: String
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(

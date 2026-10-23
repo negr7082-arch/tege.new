@@ -1493,10 +1493,14 @@ export const App: React.FC = () => {
               profile={{
                 id: account.id,
                 email: account.email,
+                token: account.token,
                 name: account.name,
                 username: account.username,
                 bio: account.bio,
                 avatarUri: account.avatarUri,
+                bannerUri: account.bannerUri,
+                themeColor: account.themeColor,
+                fontFamily: account.fontFamily,
                 isOnline: account.isOnline
               }}
               language={settings.language}
