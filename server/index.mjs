@@ -462,9 +462,19 @@ const MIME = {
   '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.map': 'application/json'
 };
 function serveStatic(req, res) {
-  let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  let file = path.join(DIST_DIR, rel);
-  if (!file.startsWith(DIST_DIR)) { res.writeHead(403); return res.end(); }
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('bad_path');
+  }
+  const file = path.resolve(DIST_DIR, '.' + pathname);
+  const relative = path.relative(DIST_DIR, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+    res.writeHead(403);
+    return res.end();
+  } }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST_DIR, 'index.html');
   if (!fs.existsSync(file)) {
     res.writeHead(404, { 'content-type': 'text/plain' });
