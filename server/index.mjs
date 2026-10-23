@@ -252,6 +252,13 @@ const staffRole = (u) => {
   if (volunteerIds.has(Number(u.id))) return 'volunteer';
   return 'user';
 };
+// Volunteers must not see IPs, device ids or risk signals from a user's security log,
+// and junior volunteers must not learn who filed a report (protects reporters from retaliation).
+const staffSafeEvent = (e) => ({
+  id: e.id, type: e.type, reason: e.reason, createdAt: e.createdAt,
+  until: e.until ?? null, permanent: Boolean(e.permanent), actorRole: e.actorRole || null
+});
+const reportForRole = (r, role) => (role === 'volunteer' ? { ...r, reporterId: null } : r);
 const publicUser = (u) => ({
   id: u.id,
   role: staffRole(u),
@@ -469,12 +476,12 @@ function serveStatic(req, res) {
     res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end('bad_path');
   }
-  const file = path.resolve(DIST_DIR, '.' + pathname);
+  let file = path.resolve(DIST_DIR, '.' + pathname);
   const relative = path.relative(DIST_DIR, file);
   if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
     res.writeHead(403);
     return res.end();
-  } }
+  }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST_DIR, 'index.html');
   if (!fs.existsSync(file)) {
     res.writeHead(404, { 'content-type': 'text/plain' });
@@ -632,13 +639,16 @@ const server = http.createServer(async (req, res) => {
       const reports = db.securityReports ||= [];
       const messageId = String(body.messageId || '').slice(0, 100);
       const duplicate = reports.find((r) => r.reporterId === reporter.id && r.targetUserId === target.id && r.messageId === messageId && r.status === 'open');
-      if (duplicate) return reply(200, { ok: true, report: duplicate, duplicate: true });
+      if (duplicate) return reply(200, { ok: true, report: reportForRole(duplicate, 'volunteer'), duplicate: true });
+      // Per-reporter limit so one account cannot flood the volunteer queue.
+      const hourAgo = Date.now() - 60 * 60_000;
+      if (reports.filter((r) => r.reporterId === reporter.id && r.createdAt > hourAgo).length >= 10) return fail(429, 'too_many_reports');
       const report = { id: crypto.randomUUID(), reporterId: reporter.id, targetUserId: target.id, messageId, messageText: String(body.messageText || '').slice(0, 2000), category, details: String(body.details || '').trim().slice(0, 500), status: 'open', assignedTo: null, createdAt: Date.now(), history: [] };
       reports.unshift(report);
       if (reports.length > 5000) reports.length = 5000;
       save();
       for (const u of Object.values(db.users)) if (['volunteer', 'senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_new', reportId: report.id, category });
-      return reply(201, { ok: true, report });
+      return reply(201, { ok: true, report: reportForRole(report, 'volunteer') });
     }
     if (url.pathname === '/api/security/reports/list') {
       const actor = userFromToken(body.token);
@@ -646,7 +656,7 @@ const server = http.createServer(async (req, res) => {
       const role = staffRole(actor);
       if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
       const reports = (db.securityReports || []).filter((r) => role === 'volunteer' ? ['open', 'reviewing'].includes(r.status) : true);
-      return reply(200, { ok: true, role, reports: reports.slice(0, 500) });
+      return reply(200, { ok: true, role, reports: reports.slice(0, 500).map((r) => reportForRole(r, role)) });
     }
     if (url.pathname === '/api/security/reports/action') {
       const actor = userFromToken(body.token);
@@ -662,6 +672,8 @@ const server = http.createServer(async (req, res) => {
         report.status = 'reviewing'; report.assignedTo = actor.id;
       } else if (action === 'forward') {
         if (role !== 'volunteer') return fail(403, 'junior_volunteer_only');
+        // Only an open report or one this volunteer is reviewing can be forwarded (no reopening resolved ones).
+        if (!(report.status === 'open' || (report.status === 'reviewing' && report.assignedTo === actor.id))) return fail(409, 'bad_report_state');
         report.status = 'forwarded'; report.assignedTo = 'senior_volunteers';
       } else if (action === 'resolve') {
         if (!['senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'senior_volunteer_required');
@@ -671,7 +683,7 @@ const server = http.createServer(async (req, res) => {
       report.history.unshift({ actorId: actor.id, actorRole: role, action, createdAt: Date.now(), note: String(body.note || '').slice(0, 300) });
       save();
       if (action === 'forward') for (const u of Object.values(db.users)) if (['senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_forwarded', reportId: report.id });
-      return reply(200, { ok: true, report });
+      return reply(200, { ok: true, report: reportForRole(report, role) });
     }
 
     if (url.pathname === '/api/security/moderation/list') {
@@ -686,7 +698,7 @@ const server = http.createServer(async (req, res) => {
           permanent: Boolean(u.spamMutedPermanently),
           until: u.spamMutedPermanently ? null : Number(u.spamMuteUntil || 0),
           reason: String(u.spamMuteReason || securityEventsFor(u.id).find((e) => e.type === 'spam_mute')?.reason || 'Spam detection'),
-          events: securityEventsFor(u.id).slice(0, 20)
+          events: securityEventsFor(u.id).slice(0, 20).map(staffSafeEvent)
         }));
       return reply(200, { ok: true, role: staffRole(actor), mutedUsers });
     }
@@ -1353,6 +1365,8 @@ attachWebSocket(server, (conn, url) => {
       case 'register_channel': {
         const ch = msg.channel;
         if (!ch || !Number.isFinite(ch.id)) break;
+        // Groups and channels share db.members, so an id must never exist in both namespaces.
+        if (db.groups[ch.id]) break;
         const existing = db.channels[ch.id];
         if (existing && existing.ownerId !== user.id && !(existing.admins || []).some((a) => a.id === user.id)) break;
         db.channels[ch.id] = { ...ch, ownerId: existing?.ownerId ?? user.id };
@@ -1377,6 +1391,7 @@ attachWebSocket(server, (conn, url) => {
       case 'register_group': {
         const g = stripMessages(msg.group);
         if (!g || !Number.isFinite(g.id) || g.type !== 'group') break;
+        if (db.channels[g.id]) break; // id already used by a channel (shared member list)
         const existing = db.groups[g.id];
         if (existing && existing.ownerId !== user.id) break;
         db.groups[g.id] = { ...g, ownerId: existing?.ownerId ?? user.id };

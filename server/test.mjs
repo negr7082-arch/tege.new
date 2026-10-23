@@ -213,7 +213,7 @@ try {
   console.log('✓ channel comments persist and load per post');
 
   // Private-channel comment events must not be broadcast to non-members.
-  const PRIVATE_CHANNEL = 1122000777;
+  const PRIVATE_CHANNEL = 1122000778;
   ca.send({ type: 'register_channel', channel: { id: PRIVATE_CHANNEL, name: 'Private news', ownerId: a.id, isPublic: false } });
   await sleep(100);
   const eventCountBeforePrivateComment = cb3.events.length;
@@ -283,11 +283,23 @@ try {
   const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
   assert.equal(queue.ok, true);
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
-  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' }, '198.51.100.30')).user;
   assert.equal(senior.role, 'senior_volunteer');
   const spoofed = (await post('/api/register', { email: 'spoof@x.io', password: 'password6', name: 'Spoof', username: '@spoof', role: 'head_volunteer', verified: true }, '198.51.100.25')).user;
   assert.equal(spoofed.role, 'user', 'client-supplied role must be ignored');
   assert.equal(spoofed.verified, false, 'client-supplied verification must be ignored');
+
+  // Reports: junior volunteers must not see who reported; ordinary users cannot read the queue; no IPs leak to staff.
+  const created = await post('/api/security/reports/create', { token: spoofed.token, targetUserId: spammer.id, category: 'spam', messageId: 'm1', messageText: 'x' }, '198.51.100.31');
+  assert.equal(created.ok, true);
+  assert.equal(created.report.reporterId, null);
+  assert.equal((await post('/api/security/reports/list', { token: spoofed.token }, '198.51.100.32')).error, 'staff_only');
+  const juniorList = await post('/api/security/reports/list', { token: ordinaryVolunteer.token }, '198.51.100.33');
+  assert.ok(juniorList.reports.length >= 1 && juniorList.reports.every((r) => r.reporterId === null), 'junior volunteers must not see reporters');
+  const seniorList = await post('/api/security/reports/list', { token: senior.token }, '198.51.100.34');
+  assert.ok(seniorList.reports.some((r) => r.reporterId === spoofed.id));
+  assert.ok(!JSON.stringify(queue).match(/"(ip|deviceId|riskSignals)"/), 'moderation queue must not expose IPs or device ids');
+  console.log('✓ reports hide reporter from junior volunteers; staff queue has no IPs');
 
   const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' }, '198.51.100.26');
   assert.equal(allowedUnmute.ok, true);
