@@ -354,7 +354,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             country = json.optString("country"),
             registrationDate = json.optString("registrationDate"),
             avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
-            isOnline = true
+            isOnline = true,
+            volunteerRole = json.optString("volunteerRole").takeIf { it.isNotBlank() && it != "null" },
+            isVerified = json.optBoolean("isVerified")
         )
         val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
         if (!tokenStore.write(token)) {
@@ -923,6 +925,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
  
+    fun setMessage(message: String) {
+        _messageError.value = message
+    }
+
     fun applyForVolunteer(age16Plus: Boolean, identityReady: Boolean, conductOk: Boolean, accountAgeAcknowledged: Boolean): Boolean {
         val socket = activeSocket ?: return false
         return socket.send(JSONObject()
