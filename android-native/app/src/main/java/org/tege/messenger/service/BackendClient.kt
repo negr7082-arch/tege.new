@@ -33,6 +33,7 @@ object BackendClient {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(80, TimeUnit.SECONDS)
         .build()
     private val webSocketClient = client.newBuilder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -98,6 +99,8 @@ object BackendClient {
                 }
             }
         } catch (_: java.net.SocketTimeoutException) {
+            AuthResponse(error = "server_timeout")
+        } catch (_: java.io.InterruptedIOException) {
             AuthResponse(error = "server_timeout")
         } catch (_: java.io.IOException) {
             AuthResponse(error = "connection_failed")
