@@ -472,7 +472,10 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     phone = user.optString("phone"), country = user.optString("country"),
                     registrationDate = user.optString("registrationDate"),
                     online = user.optBoolean("online"),
-                    avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
+                    avatarUri = absoluteMediaUri(user.optString("avatarUri")),
+                    bannerUri = absoluteMediaUri(user.optString("bannerUri")),
+                    themeColor = user.optString("themeColor", "#2AABEE"),
+                    fontFamily = user.optString("fontFamily", "sans-serif")
                 )
                 _contacts.value = (_contacts.value.filterNot { it.id == id } + contact)
                     .sortedBy { it.name.lowercase(Locale.ROOT) }
