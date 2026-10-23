@@ -43,6 +43,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             country = profilePrefs.getString("country", "").orEmpty(),
             registrationDate = profilePrefs.getString("created_at", "").orEmpty(),
             avatarUri = profilePrefs.getString("avatar_uri", null),
+            bannerUri = profilePrefs.getString("banner_uri", null),
             isOnline = false
         )
     }
@@ -60,6 +61,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             .putString("phone", account.phone)
             .putString("country", account.country)
             .putString("avatar_uri", account.avatarUri)
+            .putString("banner_uri", account.bannerUri)
             .putString("created_at", account.registrationDate)
             .apply()
     }
@@ -738,6 +740,14 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             _currentAccount.value = it
             persistLocalAccount(it)
         }
+    }
+
+    fun updateProfileMedia(avatarUri: String? = _currentAccount.value?.avatarUri, bannerUri: String? = _currentAccount.value?.bannerUri) {
+        val current = _currentAccount.value ?: return
+        val updated = current.copy(avatarUri = avatarUri, bannerUri = bannerUri)
+        _currentAccount.value = updated
+        _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+        persistLocalAccount(updated)
     }
 
     fun updateProfile(name: String, username: String, bio: String, phone: String) {
