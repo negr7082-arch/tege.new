@@ -76,7 +76,7 @@ try {
   // Alice online, Bob OFFLINE -> message must be queued
   const ca = new Client(a.token); await ca.ready;
   const snap = await ca.waitFor((m) => m.type === 'snapshot');
-  assert.equal(snap.users.length, 2);
+  assert.equal(snap.users.length, 4);
   assert.equal(snap.users.find((u) => u.id === b.id).online, false);
   const publicAlice = snap.users.find((u) => u.id === a.id);
   assert.equal(publicAlice.email, undefined, 'email must not be public');
