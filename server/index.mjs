@@ -29,6 +29,7 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
+  messageOwners: {}, // chat-scoped message ID -> { userId, createdAt }
   vapid: null // {publicKey, privateKey}
 };
 try {
@@ -219,6 +220,24 @@ function enqueue(userId, payload) {
 function stripMessages(chat) {
   const { messages, ...rest } = chat || {};
   return rest;
+}
+
+function messageKey(chatType, chatId, messageId) {
+  return JSON.stringify([chatType, String(chatId), String(messageId)]);
+}
+function ownsMessage(chatType, chatId, messageId, userId) {
+  const entry = db.messageOwners?.[messageKey(chatType, chatId, messageId)];
+  return Boolean(entry && entry.userId === userId);
+}
+function rememberMessageOwner(chatType, chatId, messageId, userId) {
+  if (messageId === undefined || messageId === null || String(messageId).length > 128) return;
+  db.messageOwners ||= {};
+  db.messageOwners[messageKey(chatType, chatId, messageId)] = { userId, createdAt: Date.now() };
+  const keys = Object.keys(db.messageOwners);
+  if (keys.length > 50000) {
+    keys.sort((a, b) => (db.messageOwners[a]?.createdAt || 0) - (db.messageOwners[b]?.createdAt || 0));
+    for (const key of keys.slice(0, keys.length - 50000)) delete db.messageOwners[key];
+  }
 }
 
 // ───────────────────────── HTTP ─────────────────────────
@@ -568,6 +587,11 @@ function handleSend(user, conn, payload) {
     if (!target) return no('no_user');
     if (target.id === user.id) return no('self');
     if ((db.blocks[target.id] || []).some((b) => b.id === user.id)) return no('blocked');
+    if (action) {
+      if (!ownsMessage(chatType, target.id, payload.targetId, user.id)) return no('not_message_author');
+    } else {
+      rememberMessageOwner(chatType, target.id, payload.message.id, user.id);
+    }
     enqueue(target.id, { ...out, toUserId: target.id, toUsername: target.username });
     return ok();
   }
@@ -581,6 +605,11 @@ function handleSend(user, conn, payload) {
   if (chatType === 'channel') {
     const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
     if (!isStaff) return no('forbidden');
+  }
+  if (action) {
+    if (!ownsMessage(chatType, out.chatId, payload.targetId, user.id)) return no('not_message_author');
+  } else {
+    rememberMessageOwner(chatType, out.chatId, payload.message.id, user.id);
   }
   const recipients = members.filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
