@@ -318,6 +318,21 @@ try {
   assert.equal(badDeviceProof.error, 'device_proof_invalid');
   console.log('✓ invalid Android device proof is rejected');
 
+  const passwordUser = (await post('/api/register', {
+    email: 'password-change@x.io', password: 'original-pass-1', name: 'Password Change',
+    username: '@passwordchange'
+  }, '203.0.113.210')).user;
+  assert.equal((await post('/api/password', {
+    token: passwordUser.token, currentPassword: 'wrong-pass', newPassword: 'replacement-pass-2'
+  }, '203.0.113.211')).error, 'bad_current_password');
+  assert.equal((await post('/api/password', {
+    token: passwordUser.token, currentPassword: 'original-pass-1', newPassword: 'replacement-pass-2'
+  }, '203.0.113.212')).ok, true);
+  assert.equal((await post('/api/login', { email: 'password-change@x.io', password: 'original-pass-1' }, '203.0.113.213')).error, 'bad_credentials');
+  assert.equal((await post('/api/login', { email: 'password-change@x.io', password: 'replacement-pass-2' }, '203.0.113.210')).ok, true);
+  assert.equal((await post('/api/account/me', { token: passwordUser.token }, '203.0.113.214')).ok, true, 'current confirmed session remains active');
+  console.log('✓ password change requires server-verified current password');
+
   // persistence across restart
   console.log('\nALL TESTS PASSED');
 } catch (e) {
