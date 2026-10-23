@@ -384,7 +384,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         error == "bad_email" -> "Проверь адрес электронной почты."
         error == "short_password" -> "Пароль должен содержать не меньше 7 символов."
         error == "no_name" -> "Введи имя."
-        error == "email_taken" -> "Этот адрес уже зарегистрирован. Войди в аккаунт."
+        error == "email_taken" -> "Данная почта уже занята. Войди в аккаунт."
         error == "username_taken" -> "Это имя пользователя уже занято."
         error == "bad_username" -> "Username должен содержать 3–32 символа: латиницу, цифры или подчёркивание."
         error == "bad_credentials" -> "Неверная почта или пароль."
