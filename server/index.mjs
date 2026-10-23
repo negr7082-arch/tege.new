@@ -1243,7 +1243,10 @@ attachWebSocket(server, (conn, url) => {
     groups: Object.values(db.groups).filter((chat) => canAccessChat(user.id, chat.id)),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
-    videoChats: Object.fromEntries(activeVideo)
+    videoChats: Object.fromEntries([...activeVideo].filter(([chatId]) => {
+      const group = db.groups[chatId];
+      return Boolean(group && (group.ownerId === user.id || (db.members[chatId] || []).includes(user.id)));
+    }))
   });
   // pending offline messages
   for (const item of db.inbox[user.id] || []) conn.send({ type: 'message', payload: item });
@@ -1372,12 +1375,31 @@ attachWebSocket(server, (conn, url) => {
       }
 
       case 'video_chat': {
-        const { chatId, info } = msg;
-        if (!Number.isFinite(chatId)) break;
-        if (info && info.isActive) activeVideo.set(chatId, info);
-        else activeVideo.delete(chatId);
-        const targets = new Set([...(db.members[chatId] || []), user.id]);
-        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: info || null }, conn);
+        const chatId = Number(msg.chatId);
+        const info = msg.info;
+        if (!Number.isSafeInteger(chatId)) break;
+        const group = db.groups[chatId];
+        // Video-call state is only valid for a real group and an actual member.
+        if (!group || (group.ownerId !== user.id && !(db.members[chatId] || []).includes(user.id))) break;
+        const current = activeVideo.get(chatId);
+        if (info && info.isActive === true) {
+          // Only the call starter or group owner can replace an existing call's state.
+          if (current && current.startedBy !== user.id && group.ownerId !== user.id) break;
+          const safeInfo = {
+            isActive: true,
+            startedBy: current?.startedBy ?? user.id,
+            startedAt: Number(current?.startedAt || Date.now()),
+            ...(typeof info.roomId === 'string' ? { roomId: info.roomId.slice(0, 120) } : {}),
+            ...(typeof info.mode === 'string' ? { mode: info.mode.slice(0, 32) } : {})
+          };
+          activeVideo.set(chatId, safeInfo);
+        } else {
+          if (current && current.startedBy !== user.id && group.ownerId !== user.id) break;
+          activeVideo.delete(chatId);
+        }
+        const safeInfo = activeVideo.get(chatId) || null;
+        const targets = new Set([...(db.members[chatId] || []), group.ownerId, user.id]);
+        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: safeInfo }, conn);
         break;
       }
 
