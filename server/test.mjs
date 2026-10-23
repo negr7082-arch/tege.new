@@ -121,6 +121,18 @@ try {
   assert.ok(!ca.inbox.some((p) => p.message.text === 'hello team'), 'sender must not receive own group msg');
   console.log('✓ group fan-out to members only');
 
+  // Community permissions are persisted and enforced by the server, not just UI toggles.
+  ca.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: false, sendMedia: false, addMembers: false, createTopics: false, pinMessages: false } });
+  const permissionUpdate = await ca.waitFor((m) => m.type === 'community_update_result' && m.chatId === G);
+  assert.equal(permissionUpdate.ok, true);
+  cb3.send({ type: 'send', payload: { id: 51, chatId: G, chatType: 'group', message: { id: 51, text: 'should be denied', time: '12:04' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 51)).reason, 'forbidden');
+  ca.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: true, sendMedia: true, addMembers: true, createTopics: true, pinMessages: true } });
+  assert.equal((await ca.waitFor((m) => m.type === 'community_update_result' && m.chatId === G)).ok, true);
+  cb3.send({ type: 'community_update', chatType: 'group', chatId: G, action: 'permissions', permissions: { sendMessages: false } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'community_update_result' && m.chatId === G)).reason, 'forbidden');
+  console.log('✓ group permissions enforced server-side; non-admin cannot change them');
+
   // channel: only owner may post
   const C = 1122000888;
   ca.send({ type: 'register_channel', channel: { id: C, name: 'News', ownerId: a.id, isPublic: true } });
