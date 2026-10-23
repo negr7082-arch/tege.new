@@ -135,6 +135,11 @@ class RealtimeNetworkService {
     return r.ok ? { ok: true, user: r.user ? { ...r.user, password: '' } : undefined } : { ok: false, error: r.error };
   }
 
+  public async getCurrentAccount(token: string): Promise<{ ok: boolean; user?: UserAccount; error?: string }> {
+    const r = await this.api('/api/account/me', { token });
+    return r.ok && r.user ? { ok: true, user: r.user as UserAccount } : { ok: false, error: r.error };
+  }
+
   public async getCloudPasswordStatus(token: string): Promise<{ ok: boolean; enabled: boolean }> {
     const r = await this.api('/api/cloud-password/status', { token });
     return { ok: Boolean(r.ok), enabled: Boolean(r.enabled) };
