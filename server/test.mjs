@@ -62,15 +62,6 @@ try {
   assert.equal((await post('/api/sessions', { token: a3.token })).error, 'bad_token');
   console.log('✓ register / login / active session revoke');
 
-  // Repeated bad passwords are throttled per IP + email without blocking other accounts.
-  await post('/api/register', { email: 'locked@x.io', password: 'password3', name: 'Locked' });
-  for (let i = 0; i < 5; i++) {
-    assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'wrong-password' })).error, 'bad_credentials');
-  }
-  assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'password3' })).error, 'too_many_requests');
-  assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' })).ok, true);
-  console.log('✓ repeated failed logins throttled per IP + email');
-
   // bad token
   const bad = new Client('deadbeef'); await bad.closed; console.log('✓ bad token rejected');
 
@@ -159,6 +150,15 @@ try {
   ca.ws.close();
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
+
+  // Failed-login throttling should not alter the existing account directory or sessions tests.
+  await post('/api/register', { email: 'locked@x.io', password: 'password3', name: 'Locked' });
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'wrong-password' })).error, 'bad_credentials');
+  }
+  assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'password3' })).error, 'too_many_requests');
+  assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' })).ok, true);
+  console.log('✓ repeated failed logins throttled per IP + email');
 
   // persistence across restart
   console.log('\nALL TESTS PASSED');
