@@ -782,10 +782,10 @@ export const App: React.FC = () => {
   };
 
   // Password change handler with multi-account & registry sync
-  const handleSavePassword = async (newPassword: string) => {
+  const handleSavePassword = async (currentPassword: string, newPassword: string) => {
     if (!account) return;
     if (account.token) {
-      const ok = await realtimeNetwork.changePassword(account.token, newPassword);
+      const ok = await realtimeNetwork.changePassword(account.token, currentPassword, newPassword);
       if (!ok) {
         showToast(settings.language === 'ru' ? 'Не удалось сменить пароль на сервере' : 'Could not change the password on the server');
         return;
