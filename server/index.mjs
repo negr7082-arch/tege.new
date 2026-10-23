@@ -203,7 +203,7 @@ enforceInactivityDeletion(); // chatId -> info
 
 const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const seniorVolunteerEmails = new Set(String(process.env.TEGE_SENIOR_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
-const headVolunteerEmails = new Set(String(process.env.TEGE_HEAD_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const headVolunteerEmails = new Set(String(process.env.TEGE_HEAD_VOLUNTEER_EMAILS || 'negr7082@gmail.com,mkiatkin1488@gmail.com').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const volunteerIds = new Set();
 const staffRole = (u) => {
   const email = String(u.email || '').toLowerCase();
