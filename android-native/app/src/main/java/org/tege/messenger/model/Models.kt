@@ -189,6 +189,7 @@ data class UserAccount(
     val country: String = "Russia",
     val registrationDate: String = "",
     val avatarUri: String? = null,
+    val bannerUri: String? = null,
     val isOnline: Boolean = true
 )
 
