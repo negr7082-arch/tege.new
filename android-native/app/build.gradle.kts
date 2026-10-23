@@ -11,8 +11,8 @@ android {
         applicationId = "org.tege.messenger"
         minSdk = 24
         targetSdk = 34
-        versionCode = 148878
-        versionName = "1.488.78"
+        versionCode = 23261488
+        versionName = "23.26.1488"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
