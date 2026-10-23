@@ -44,6 +44,11 @@ try {
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
   assert.equal(a.verified, true, 'verified status must come from the server ID allowlist');
   assert.equal(b.role, 'head_volunteer', 'head volunteer role must come from the server ID allowlist');
+  const serverAccount = await post('/api/account/me', { token: a.token, role: 'head_volunteer', verified: true });
+  assert.equal(serverAccount.ok, true);
+  assert.equal(serverAccount.user.role, 'user');
+  assert.equal(serverAccount.user.verified, true);
+  assert.equal((await post('/api/account/me', { token: 'forged-token' })).error, 'bad_token');
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
