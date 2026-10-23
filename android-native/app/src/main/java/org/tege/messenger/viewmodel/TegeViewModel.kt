@@ -439,7 +439,84 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
                     )
                 }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                val channelArray = event.optJSONArray("channels") ?: JSONArray()
+                _channels.value = (0 until channelArray.length()).mapNotNull { index ->
+                    val item = channelArray.optJSONObject(index) ?: return@mapNotNull null
+                    val ownerId = item.optLong("ownerId")
+                    Channel(
+                        id = item.optLong("id"),
+                        name = item.optString("name", "Канал"),
+                        description = item.optString("description"),
+                        subscribersCount = item.optInt("subscribersCount"),
+                        avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                        color = item.optString("color", "#2AABEE"),
+                        isSubscribed = (event.optJSONArray("groups")?.length() ?: 0) >= 0,
+                        isPublic = item.optBoolean("isPublic", true),
+                        channelLink = item.optString("channelLink"),
+                        isOwner = ownerId == selfId
+                    )
+                }
+                val groupArray = event.optJSONArray("groups") ?: JSONArray()
+                groupArray.forEachJson { item ->
+                    val id = item.optLong("id")
+                    if (id == 0L) return@forEachJson
+                    val ownerId = item.optLong("ownerId")
+                    val groupChat = Chat(
+                        id = id,
+                        type = ChatType.GROUP,
+                        name = item.optString("name", "Группа"),
+                        description = item.optString("description"),
+                        avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                        membersCount = item.optInt("membersCount", 1),
+                        isOwner = ownerId == selfId
+                    )
+                    _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
+                }
                 _connectionState.value = "Подключено"
+            }
+            "channel_upsert" -> {
+                val item = event.optJSONObject("channel") ?: return
+                val selfId = _currentAccount.value?.id
+                val channel = Channel(
+                    id = item.optLong("id"),
+                    name = item.optString("name", "Канал"),
+                    description = item.optString("description"),
+                    subscribersCount = item.optInt("subscribersCount"),
+                    avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                    color = item.optString("color", "#2AABEE"),
+                    isPublic = item.optBoolean("isPublic", true),
+                    channelLink = item.optString("channelLink"),
+                    isOwner = item.optLong("ownerId") == selfId
+                )
+                _channels.value = (_channels.value.filterNot { it.id == channel.id } + channel)
+            }
+            "group_upsert" -> {
+                val item = event.optJSONObject("group") ?: return
+                val id = item.optLong("id")
+                if (id == 0L) return
+                val groupChat = Chat(
+                    id = id, type = ChatType.GROUP,
+                    name = item.optString("name", "Группа"),
+                    description = item.optString("description"),
+                    avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
+                    membersCount = item.optInt("membersCount", 1),
+                    isOwner = item.optLong("ownerId") == _currentAccount.value?.id
+                )
+                _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
+            }
+            "community_removed" -> {
+                val id = event.optLong("chatId")
+                _chats.value = _chats.value.filterNot { it.id == id }
+                _channels.value = _channels.value.filterNot { it.id == id }
+            }
+            "community_update_result" -> {
+                if (!event.optBoolean("ok")) {
+                    _messageError.value = when (event.optString("reason")) {
+                        "forbidden", "owner_only" -> "Недостаточно прав для изменения сообщества"
+                        "chat_not_found" -> "Группа или канал не найдены на сервере"
+                        else -> "Не удалось сохранить настройки сообщества"
+                    }
+                }
             }
             "user_upsert" -> {
                 val user = event.optJSONObject("user") ?: return
@@ -823,6 +900,47 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         profilePrefs.edit().clear().apply()
         _chats.value = SampleData.getInitialChats()
         _searchQuery.value = ""
+    }
+
+ 
+    fun updateCommunityPermissions(chatId: Long, chatType: ChatType, sendMessages: Boolean, sendMedia: Boolean, addMembers: Boolean, createTopics: Boolean, pinMessages: Boolean): Boolean {
+        val socket = activeSocket ?: return false
+        val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
+        val payload = JSONObject()
+            .put("type", "community_update")
+            .put("chatId", chatId)
+            .put("chatType", type)
+            .put("action", "permissions")
+            .put("permissions", JSONObject()
+                .put("sendMessages", sendMessages)
+                .put("sendMedia", sendMedia)
+                .put("addMembers", addMembers)
+                .put("createTopics", createTopics)
+                .put("pinMessages", pinMessages))
+        return socket.send(payload.toString())
+    }
+
+    fun updateCommunityAdmins(chatId: Long, chatType: ChatType, admins: List<ContactUser>): Boolean {
+        val socket = activeSocket ?: return false
+        val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
+        val array = JSONArray()
+        admins.forEach { admin ->
+            array.put(JSONObject()
+                .put("id", admin.id)
+                .put("name", admin.name)
+                .put("username", admin.username)
+                .put("permissions", JSONObject()
+                    .put("manageMessages", true)
+                    .put("manageMembers", true)
+                    .put("manageInfo", false)
+                    .put("manageAdmins", false))
+        }
+        return socket.send(JSONObject()
+            .put("type", "community_update")
+            .put("chatId", chatId)
+            .put("chatType", type)
+            .put("action", "admins")
+            .put("admins", array).toString())
     }
 
     fun sendMessage(chatId: Long, text: String, replyTo: MessageReplyInfo? = null): Boolean {
