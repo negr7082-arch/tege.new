@@ -26,10 +26,13 @@ interface TegeSocketListener {
 object BackendClient {
     const val DEFAULT_BASE_URL = "https://tege-new.onrender.com"
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    // Render's free web services can sleep while idle and need time to wake up.
+    // Keep REST requests alive long enough for a cold start instead of showing a
+    // misleading "no server connection" error after 12–25 seconds.
     private val client = OkHttpClient.Builder()
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .writeTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
     private val webSocketClient = client.newBuilder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -94,6 +97,10 @@ object BackendClient {
                     AuthResponse(user = parsed.optJSONObject("user"), error = null)
                 }
             }
+        } catch (_: java.net.SocketTimeoutException) {
+            AuthResponse(error = "server_timeout")
+        } catch (_: java.io.IOException) {
+            AuthResponse(error = "connection_failed")
         } catch (_: Exception) {
             AuthResponse(error = "connection_failed")
         }
