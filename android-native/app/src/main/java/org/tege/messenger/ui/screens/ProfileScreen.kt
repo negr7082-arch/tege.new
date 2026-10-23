@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,9 @@ fun ProfileScreen(
     var editPhone by remember { mutableStateOf("") }
     var pickingBanner by remember { mutableStateOf(false) }
     var mediaPickerError by remember { mutableStateOf<String?>(null) }
+    var showStyleDialog by remember { mutableStateOf(false) }
+    var draftColor by remember(account?.themeColor) { mutableStateOf(account?.themeColor ?: "#2AABEE") }
+    var draftFont by remember(account?.fontFamily) { mutableStateOf(account?.fontFamily ?: "system") }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -107,13 +111,13 @@ fun ProfileScreen(
                     .clip(RoundedCornerShape(22.dp))
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF192A56), Color(0xFF6C5CE7), Color(0xFF00B8A9))
+                            listOf(runCatching { Color(android.graphics.Color.parseColor(account?.themeColor ?: "#2AABEE")) }.getOrDefault(Color(0xFF192A56)), runCatching { Color(android.graphics.Color.parseColor(account?.themeColor ?: "#2AABEE")) }.getOrDefault(Color(0xFF6C5CE7)).copy(alpha = 0.78f), Color(0xFF00B8A9))
                         )
                     )
             ) {
                 account?.bannerUri?.let { banner ->
                     AsyncImage(
-                        model = banner,
+                        model = viewModel.resolveMediaUrl(banner),
                         contentDescription = "Баннер профиля",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -167,7 +171,7 @@ fun ProfileScreen(
                     ) {
                         if (!account?.avatarUri.isNullOrBlank()) {
                             AsyncImage(
-                                model = account?.avatarUri,
+                                model = viewModel.resolveMediaUrl(account?.avatarUri),
                                 contentDescription = "Фото профиля",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape)
@@ -194,7 +198,8 @@ fun ProfileScreen(
                 }
                 Text(
                     text = account?.name ?: "Пользователь",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = runCatching { Color(android.graphics.Color.parseColor(account?.themeColor ?: "#2AABEE")) }.getOrDefault(MaterialTheme.colorScheme.onSurface),
+                    fontFamily = when (account?.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "sans-serif-rounded" -> FontFamily.SansSerif; "cursive" -> FontFamily.Cursive; else -> FontFamily.Default },
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.offset(y = (-24).dp)
@@ -209,12 +214,13 @@ fun ProfileScreen(
                 }
                 TextButton(
                     onClick = {
-                        pickingBanner = true
-                        imagePicker.launch(arrayOf("image/*"))
+                        draftColor = account?.themeColor ?: "#2AABEE"
+                        draftFont = account?.fontFamily ?: "system"
+                        showStyleDialog = true
                     },
                     modifier = Modifier.offset(y = (-14).dp)
                 ) {
-                    Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.Palette, contentDescription = null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Оформить профиль")
                 }
@@ -258,6 +264,79 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+
+
+    if (showStyleDialog) {
+        AlertDialog(
+            onDismissRequest = { showStyleDialog = false },
+            title = { Text("Оформление профиля") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Цвет оформления", fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = draftColor,
+                        onValueChange = { value ->
+                            val normalized = if (value.startsWith("#")) value else "#$value"
+                            if (normalized.length <= 7 && normalized.drop(1).all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) draftColor = normalized.uppercase()
+                        },
+                        label = { Text("HEX — любой цвет, например #FF4F81") },
+                        singleLine = true,
+                        isError = !Regex("^#[0-9A-Fa-f]{6}$").matches(draftColor)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        listOf("#2AABEE", "#FF4F81", "#8B5CF6", "#22C55E", "#F59E0B", "#111827").forEach { colorHex ->
+                            Box(
+                                modifier = Modifier.size(30.dp).clip(CircleShape)
+                                    .background(Color(android.graphics.Color.parseColor(colorHex)))
+                                    .clickable { draftColor = colorHex }
+                            )
+                        }
+                    }
+                    Text("Шрифт профиля", fontWeight = FontWeight.SemiBold)
+                    listOf(
+                        "system" to "Стандартный",
+                        "serif" to "Классический",
+                        "monospace" to "Моноширинный",
+                        "sans-serif-rounded" to "Округлый",
+                        "cursive" to "Рукописный"
+                    ).forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .clickable { draftFont = key }.padding(vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = draftFont == key, onClick = { draftFont = key })
+                            Text(
+                                text = label,
+                                fontFamily = when (key) {
+                                    "serif" -> FontFamily.Serif
+                                    "monospace" -> FontFamily.Monospace
+                                    "sans-serif-rounded" -> FontFamily.SansSerif
+                                    "cursive" -> FontFamily.Cursive
+                                    else -> FontFamily.Default
+                                },
+                                modifier = Modifier.padding(start = 6.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        "Цвет и шрифт сохраняются в профиле на сервере и доступны другим пользователям с поддержкой этих настроек.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (Regex("^#[0-9A-Fa-f]{6}$").matches(draftColor)) {
+                        viewModel.updateProfileStyle(draftColor, draftFont)
+                        showStyleDialog = false
+                    }
+                }) { Text("Сохранить для всех") }
+            },
+            dismissButton = { TextButton(onClick = { showStyleDialog = false }) { Text("Отмена") } }
+        )
     }
 
     if (showEditDialog) {
