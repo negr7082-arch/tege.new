@@ -116,7 +116,7 @@ class RealtimeNetworkService {
     phone?: string;
     bio?: string;
   }): Promise<AuthResult> {
-    const r = await this.api('/api/register', { ...data, device: this.getDeviceLabel() });
+    const r = await this.api('/api/register', { ...data, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: { ...r.user, password: data.password } } : { ok: false, error: r.error };
   }
 
@@ -126,12 +126,12 @@ class RealtimeNetworkService {
   }
 
   public async login(email: string, password: string): Promise<AuthResult> {
-    const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel() });
+    const r = await this.api('/api/login', { email, password, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: r.user ? { ...r.user, password } : undefined, requiresTwoFactor: Boolean(r.requiresTwoFactor), challenge: r.challenge } : { ok: false, error: r.error };
   }
 
   public async loginWithCloudPassword(challenge: string, cloudPassword: string): Promise<AuthResult> {
-    const r = await this.api('/api/login/cloud-password', { challenge, cloudPassword, device: this.getDeviceLabel() });
+    const r = await this.api('/api/login/cloud-password', { challenge, cloudPassword, device: this.getDeviceLabel(), deviceId: this.getDeviceId() });
     return r.ok ? { ok: true, user: r.user ? { ...r.user, password: '' } : undefined } : { ok: false, error: r.error };
   }
 
@@ -216,6 +216,24 @@ class RealtimeNetworkService {
   public async revokeOtherSessions(token: string): Promise<boolean> {
     const r = await this.api('/api/sessions/revoke-others', { token });
     return Boolean(r.ok);
+  }
+
+  private getDeviceId(): string {
+    // Persistent random install identifier is a risk signal, not a hardware fingerprint.
+    // It can be reset or copied, so server-side authorization never relies on it alone.
+    const key = 'tege_security_device_id';
+    try {
+      let id = window.localStorage.getItem(key);
+      if (!id || id.length < 32) {
+        id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID() + crypto.randomUUID()
+          : Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        window.localStorage.setItem(key, id);
+      }
+      return id;
+    } catch {
+      return '';
+    }
   }
 
   private getDeviceLabel(): string {
