@@ -80,6 +80,9 @@ fun ChatDetailScreen(
     var inputText by remember { mutableStateOf("") }
     var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var reportCategory by remember { mutableStateOf("spam") }
+    var reportDetails by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
     var showCommunitySettings by remember { mutableStateOf(false) }
     var allowCommunityMessages by remember(chatId) { mutableStateOf(true) }
@@ -214,6 +217,18 @@ fun ChatDetailScreen(
                                 text = { Text("Управление группой/каналом") },
                                 leadingIcon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null) },
                                 onClick = { showMenu = false; showCommunitySettings = true }
+                            )
+                        }
+                        if (chat.type == ChatType.DIRECT && chat.userId != null && chat.userId != currentUserId) {
+                            DropdownMenuItem(
+                                text = { Text("Пожаловаться на пользователя") },
+                                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    reportCategory = "spam"
+                                    reportDetails = ""
+                                    showReportDialog = true
+                                }
                             )
                         }
                         DropdownMenuItem(
@@ -512,6 +527,56 @@ fun ChatDetailScreen(
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deletingMessageId = null }) { Text("Отмена") } }
+        )
+    }
+
+    if (showReportDialog) {
+        val reportCategories = listOf(
+            "spam" to "Спам",
+            "harassment" to "Травля или угрозы",
+            "scam" to "Мошенничество",
+            "impersonation" to "Выдаёт себя за другого",
+            "other" to "Другое"
+        )
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = { Text("Пожаловаться на ${chat.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Выберите причину")
+                    reportCategories.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { reportCategory = key },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = reportCategory == key, onClick = { reportCategory = key })
+                            Text(label)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reportDetails,
+                        onValueChange = { reportDetails = it.take(1500) },
+                        label = { Text("Подробности (необязательно)") },
+                        minLines = 2,
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val sent = viewModel.submitSecurityReport(chat.userId.toString(), reportCategory, reportDetails.ifBlank { "Без дополнительных подробностей" })
+                    if (sent) {
+                        Toast.makeText(context, "Жалоба отправлена на сервер", Toast.LENGTH_SHORT).show()
+                        showReportDialog = false
+                    } else {
+                        Toast.makeText(context, "Не удалось отправить жалобу. Проверьте подключение.", Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Отправить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportDialog = false }) { Text("Отмена") }
+            }
         )
     }
 
