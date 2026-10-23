@@ -105,6 +105,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [securityEvents, setSecurityEvents] = useState<Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }>>([]);
   const [securityMute, setSecurityMute] = useState<{ permanent: boolean; until: number | null } | null>(null);
+  const [moderationRole, setModerationRole] = useState<string | null>(null);
+  const [mutedUsers, setMutedUsers] = useState<Array<{ id: number; name: string; username: string; permanent: boolean; until: number | null; reason: string; events: Array<{ id: string; type: string; reason?: string; createdAt: number }> }>>([]);
+  const [moderationBusy, setModerationBusy] = useState<number | null>(null);
+  const [moderationNotice, setModerationNotice] = useState<string | null>(null);
+  const [securityReports, setSecurityReports] = useState<Array<{ id: string; reporterId: number; targetUserId: number; messageId: string; messageText: string; category: string; details: string; status: string; createdAt: number; history: Array<{ actorId: number; actorRole: string; action: string; createdAt: number; note?: string }> }>>([]);
+  const [reportBusy, setReportBusy] = useState<string | null>(null);
+  const [reportNotice, setReportNotice] = useState<string | null>(null);
   const [revokingSession, setRevokingSession] = useState<string | null>(null);
 
   const refreshSessions = async () => {
@@ -128,6 +135,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       });
       void realtimeNetwork.getSecurityEvents(currentUser.token).then((r) => {
         if (r.ok) { setSecurityEvents(r.events); setSecurityMute(r.activeMute); }
+      });
+      void realtimeNetwork.getModerationQueue(currentUser.token).then((r) => {
+        if (r.ok) { setModerationRole(r.role || null); setMutedUsers(r.mutedUsers); }
+      });
+      void realtimeNetwork.getSecurityReports(currentUser.token).then((r) => {
+        if (r.ok) { setSecurityReports(r.reports); if (r.role) setModerationRole(r.role); }
       });
       void realtimeNetwork.getCloudPasswordStatus(currentUser.token).then((result) => {
         if (result.ok) {
@@ -286,7 +299,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {securityMute && <p className="text-xs font-medium text-rose-500 mb-2">{securityMute.permanent ? (settings.language === 'ru' ? 'Активен постоянный системный спам-мут.' : 'Permanent system spam mute is active.') : (settings.language === 'ru' ? 'Активен системный спам-мут до ' : 'System spam mute until ')+new Date(securityMute.until || 0).toLocaleString()}</p>}
                 <p className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{settings.language === 'ru' ? 'История системных предупреждений и наказаний' : 'System warnings and punishment history'}</p>
                 {securityEvents.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Наказаний пока нет.' : 'No punishments yet.'}</p> : <div className="space-y-2">{securityEvents.slice(0, 10).map((event) => <div key={event.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3"><p className="text-xs font-semibold text-gray-800 dark:text-zinc-100">{event.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'Системный спам-мут' : 'System spam mute')}</p><p className="text-xs text-gray-500 dark:text-zinc-400">{event.reason || 'Spam detection'} · {new Date(event.createdAt).toLocaleString()}</p>{event.until && <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'До: ' : 'Until: '}{new Date(event.until).toLocaleString()}</p>}</div>)}</div>}
+                {moderationRole && <div className="mt-4 border-t border-gray-200 dark:border-zinc-700 pt-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">{settings.language === 'ru' ? 'Панель волонтёра Security' : 'Security volunteer panel'}</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">{['senior_volunteer','head_volunteer'].includes(moderationRole) ? (settings.language === 'ru' ? 'Старший волонтёр: разрешено снимать мут.' : 'Senior volunteer: unmuting is enabled.') : (settings.language === 'ru' ? 'Обычный волонтёр: снимать мут нельзя.' : 'Volunteer: unmuting is not permitted.')}</p>
+                  {moderationNotice && <p role="status" className="text-xs mb-2 text-sky-600">{moderationNotice}</p>}
+                  {mutedUsers.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Активных мутов нет.' : 'No active mutes.'}</p> : <div className="space-y-3">{mutedUsers.map((target) => <div key={target.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3 space-y-2">
+                    <div><p className="text-sm font-semibold">{target.name} <span className="text-xs text-gray-400">{target.username}</span></p><p className="text-xs text-gray-500">{target.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'До: ' : 'Until: ') + new Date(target.until || 0).toLocaleString()}</p><p className="text-xs text-gray-500">{target.reason}</p></div>
+                    <button disabled={moderationBusy===target.id || !['senior_volunteer','head_volunteer'].includes(moderationRole || '')} onClick={async()=>{if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'unmute');setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Мут снят.':'Mute removed.'):(r.error==='senior_volunteer_required'?(settings.language==='ru'?'Только старший волонтёр может снять мут.':'Only a senior volunteer can unmute.'):(settings.language==='ru'?'Не удалось снять мут.':'Could not unmute.')));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);void realtimeNetwork.getSecurityEvents(currentUser.token).then(e=>{if(e.ok)setSecurityEvents(e.events)});}}} className="w-full rounded-xl bg-rose-600 disabled:opacity-40 text-white py-2 text-xs font-semibold">{settings.language==='ru'?'Снять мут':'Unmute'}</button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button disabled={moderationBusy===target.id || target.permanent} onClick={async()=>{const raw=window.prompt(settings.language==='ru'?'На сколько часов продлить мут? (1–720)':'Extend mute by how many hours? (1–720)','24');if(raw===null)return;const hours=Number(raw);if(!Number.isInteger(hours)||hours<1||hours>720){setModerationNotice(settings.language==='ru'?'Укажи число от 1 до 720.':'Enter a number from 1 to 720.');return;}if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'extend',{hours});setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Мут продлён.':'Mute extended.'):(settings.language==='ru'?'Не удалось продлить мут.':'Could not extend mute.'));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);}}} className="rounded-xl border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-40">{settings.language==='ru'?'Продлить мут':'Extend mute'}</button>
+                      <button disabled={moderationBusy===target.id} onClick={async()=>{const reason=window.prompt(settings.language==='ru'?'Новая причина наказания (5–300 символов)':'New punishment reason (5–300 characters)',target.reason);if(reason===null)return;if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'reason',{reason});setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Причина обновлена.':'Reason updated.'):(settings.language==='ru'?'Не удалось изменить причину.':'Could not update reason.'));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);}}} className="rounded-xl border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-40">{settings.language==='ru'?'Изменить причину наказания':'Change punishment reason'}</button>
+                    </div>
+                    <details><summary className="cursor-pointer text-xs text-sky-600">{settings.language==='ru'?'История нарушений':'Violation history'} ({target.events.length})</summary><div className="space-y-1 mt-2">{target.events.map((event)=> <p key={event.id} className="text-xs text-gray-500">{event.reason || event.type} · {new Date(event.createdAt).toLocaleString()}</p>)}</div></details>
+                  </div>)}</div>}
+                </div>}
               </div>
+              {moderationRole && <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">{settings.language === 'ru' ? 'Жалобы на сообщения' : 'Message reports'}</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Младшие волонтёры рассматривают и передают жалобы старшим.' : 'Junior volunteers review and forward reports to senior staff.'}</p>
+                  </div>
+                  <button type="button" disabled={!currentUser?.token || reportBusy !== null} onClick={async () => {
+                    if (!currentUser?.token) return;
+                    const r = await realtimeNetwork.getSecurityReports(currentUser.token);
+                    if (r.ok) { setSecurityReports(r.reports); if (r.role) setModerationRole(r.role); }
+                    else setReportNotice(settings.language === 'ru' ? 'Не удалось обновить жалобы.' : 'Could not refresh reports.');
+                  }} className="shrink-0 rounded-lg border border-gray-200 dark:border-zinc-700 px-3 py-2 text-xs">{settings.language === 'ru' ? 'Обновить' : 'Refresh'}</button>
+                </div>
+                {reportNotice && <p role="status" className="mt-2 text-xs text-sky-600 dark:text-sky-400">{reportNotice}</p>}
+                {securityReports.length === 0 ? <p className="mt-3 text-xs text-gray-400">{settings.language === 'ru' ? 'Жалоб пока нет.' : 'No reports yet.'}</p> : <div className="mt-3 space-y-3">
+                  {securityReports.map((report) => <article key={report.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-zinc-100">{({spam:'Спам',adult:'18+ / неприемлемый контент',harassment:'Травля',violence:'Насилие',scam:'Мошенничество',other:'Другое'} as Record<string,string>)[report.category] || report.category}</p>
+                      <span className="text-[10px] rounded-full bg-white dark:bg-zinc-900 px-2 py-1 text-gray-500">{report.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Жалоба #' : 'Report #'}{report.id.slice(0,8)} · {new Date(report.createdAt).toLocaleString()}</p>
+                    <p className="text-xs text-gray-700 dark:text-zinc-200 whitespace-pre-wrap break-words">{report.messageText || (settings.language === 'ru' ? 'Текст сообщения недоступен' : 'Message text unavailable')}</p>
+                    <p className="text-[11px] text-gray-500">{settings.language === 'ru' ? 'Автор жалобы' : 'Reporter'}: {report.reporterId} · {settings.language === 'ru' ? 'На пользователя' : 'Target'}: {report.targetUserId} · ID сообщения: {report.messageId}</p>
+                    {report.details && <p className="text-xs text-gray-500">{settings.language === 'ru' ? 'Комментарий: ' : 'Details: '}{report.details}</p>}
+                    {report.history?.length > 0 && <details><summary className="cursor-pointer text-xs text-sky-600">{settings.language === 'ru' ? 'История обработки' : 'Review history'} ({report.history.length})</summary><div className="mt-2 space-y-1">{report.history.map((h,i)=><p key={report.id+'-'+i} className="text-[11px] text-gray-500">{h.action} · {h.actorRole} · {new Date(h.createdAt).toLocaleString()}{h.note ? ' · '+h.note : ''}</p>)}</div></details>}
+                    <div className="grid grid-cols-2 gap-2">
+                      {moderationRole === 'volunteer' && report.status === 'open' && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'review');setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба взята на рассмотрение.':'Report marked as reviewing.'):(settings.language==='ru'?'Не удалось открыть жалобу.':'Could not review report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Рассмотреть' : 'Review'}</button>}
+                      {moderationRole === 'volunteer' && ['open','reviewing'].includes(report.status) && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;const note=window.prompt(settings.language==='ru'?'Кратко опиши, почему передаёшь жалобу старшим (необязательно)':'Optional note for senior volunteers','');if(note===null)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'forward',note);setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба передана старшим волонтёрам.':'Report forwarded to senior volunteers.'):(settings.language==='ru'?'Не удалось передать жалобу.':'Could not forward report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg bg-sky-600 text-white py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Передать старшим' : 'Forward to seniors'}</button>}
+                      {['senior_volunteer','head_volunteer'].includes(moderationRole) && ['open','reviewing','forwarded'].includes(report.status) && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;const note=window.prompt(settings.language==='ru'?'Решение по жалобе (необязательно)':'Resolution note (optional)','');if(note===null)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'resolve',note);setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба закрыта.':'Report resolved.'):(settings.language==='ru'?'Не удалось закрыть жалобу.':'Could not resolve report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg bg-emerald-600 text-white py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Закрыть жалобу' : 'Resolve report'}</button>}
+                    </div>
+                  </article>)}
+                </div>}
+              </div>}
               <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
                 <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{settings.language === 'ru' ? 'Удалить аккаунт сейчас' : 'Delete account now'}</p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Будут отозваны все сеансы и удалены данные профиля. Это действие нельзя отменить.' : 'All sessions will be revoked and account data removed. This cannot be undone.'}</p>

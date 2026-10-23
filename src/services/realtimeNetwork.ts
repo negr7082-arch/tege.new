@@ -175,6 +175,29 @@ class RealtimeNetworkService {
     return { ok: Boolean(r.ok), activeMute: r.activeMute || null, events: Array.isArray(r.events) ? r.events : [] };
   }
 
+  public async createSecurityReport(token: string, input: { targetUserId: number; messageId: string | number; messageText: string; category: 'spam' | 'adult' | 'harassment' | 'violence' | 'scam' | 'other'; details?: string }): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/reports/create', { token, ...input });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+  public async getSecurityReports(token: string): Promise<{ ok: boolean; error?: string; role?: string; reports: Array<{ id: string; reporterId: number; targetUserId: number; messageId: string; messageText: string; category: string; details: string; status: string; createdAt: number; history: Array<{ actorId: number; actorRole: string; action: string; createdAt: number }> }> }> {
+    const r = await this.api('/api/security/reports/list', { token });
+    return { ok: Boolean(r.ok), error: r.error, role: r.role, reports: Array.isArray(r.reports) ? r.reports : [] };
+  }
+  public async actOnSecurityReport(token: string, reportId: string, action: 'review' | 'forward' | 'resolve', note = ''): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/reports/action', { token, reportId, action, note });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
+  public async getModerationQueue(token: string): Promise<{ ok: boolean; error?: string; role?: string; mutedUsers: Array<{ id: number; name: string; username: string; permanent: boolean; until: number | null; reason: string; events: Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }> }> }> {
+    const r = await this.api('/api/security/moderation/list', { token });
+    return { ok: Boolean(r.ok), error: r.error, role: r.role, mutedUsers: Array.isArray(r.mutedUsers) ? r.mutedUsers : [] };
+  }
+
+  public async moderateSecurity(token: string, targetUserId: number, action: 'unmute' | 'extend' | 'reason', options: { hours?: number; reason?: string } = {}): Promise<{ ok: boolean; error?: string }> {
+    const r = await this.api('/api/security/moderation/action', { token, targetUserId, action, ...options });
+    return { ok: Boolean(r.ok), error: r.error };
+  }
+
   public async listSessions(token: string): Promise<{ ok: boolean; sessions: Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }> }> {
     const r = await this.api('/api/sessions', { token });
     return { ok: Boolean(r.ok), sessions: Array.isArray(r.sessions) ? r.sessions : [] };

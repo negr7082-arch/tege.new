@@ -8,11 +8,12 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io' }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io', TEGE_SENIOR_VOLUNTEER_EMAILS: 'senior@x.io' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const post = async (p, body) => (await fetch(base + p, { method: 'POST', body: JSON.stringify(body) })).json();
+const post = async (p, body, testIp) => (await fetch(base + p, { method: 'POST', headers: testIp ? { 'x-forwarded-for': testIp } : {}, body: JSON.stringify(body) })).json();
+const reportPost = (p, body) => post(p, body, '203.0.113.42');
 
 class Client {
   constructor(token) {
@@ -206,12 +207,26 @@ try {
   assert.equal(spamSecurity.ok, true);
   assert.ok(spamSecurity.activeMute && !spamSecurity.activeMute.permanent);
   assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
-  console.log('✓ server-side spam mute and Security explanation');
+
+  const ordinaryVolunteer = volunteer;
+  const deniedUnmute = await post('/api/security/moderation/action', { token: ordinaryVolunteer.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(deniedUnmute.error, 'senior_volunteer_required');
+  const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
+  assert.equal(queue.ok, true);
+  assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
+  assert.equal(senior.role, 'senior_volunteer');
+
+  const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(allowedUnmute.ok, true);
+  assert.equal((await post('/api/security/moderation/list', { token: senior.token })).mutedUsers.some((u) => u.id === spammer.id), false);
+  console.log('✓ volunteer moderation queue and senior-only unmute enforcement');
 
   // Immediate account deletion verifies the password and invalidates the bearer token.
-  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' })).error, 'bad_credentials');
-  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' })).ok, true);
-  assert.equal((await post('/api/security/events', { token: spammer.token })).error, 'bad_token');
+  // Keep these requests off the shared test IP: earlier spam-rate-limit coverage may exhaust its budget.
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' }, '198.51.100.21')).error, 'bad_credentials');
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' }, '198.51.100.22')).ok, true);
+  assert.equal((await post('/api/security/events', { token: spammer.token }, '198.51.100.23')).error, 'bad_token');
   cs.ws.close();
   console.log('✓ immediate account deletion and token revocation');
 
