@@ -301,24 +301,37 @@ function clientIp(req) {
 }
 function recordSecurityLogin({ user, ip, req, body, outcome, method }) {
   db.securityLoginLogs ||= [];
+  db.securityAlerts ||= [];
   const now = Date.now();
-  const agent = String(req.headers['user-agent'] || 'unknown').slice(0, 300);
+  const safeIp = String(ip || 'unknown').slice(0, 64);
+  const agent = String(req.headers['user-agent'] || 'unknown').replace(/[\\r\\n\\t]/g, ' ').slice(0, 300);
   const device = String(body?.device || 'unknown').replace(/[\\r\\n\\t]/g, ' ').slice(0, 120);
-  db.securityLoginLogs.push({
-    id: crypto.randomBytes(12).toString('hex'),
-    timestamp: now,
-    userId: user?.id ?? null,
-    username: user?.username ?? null,
+  const previousSuccess = user ? [...db.securityLoginLogs].reverse().find((event) => event.userId === user.id && event.outcome === 'success') : null;
+  const event = {
+    id: crypto.randomBytes(12).toString('hex'), timestamp: now,
+    userId: user?.id ?? null, username: user?.username ?? null,
     email: user?.email ?? String(body?.email || '').trim().toLowerCase().slice(0, 254),
-    ip: String(ip || 'unknown').slice(0, 64),
-    userAgent: agent,
-    device,
-    method,
-    outcome
-  });
-  // Keep a bounded history (90 days, max 20,000 events).
+    ip: safeIp, userAgent: agent, device, method, outcome
+  };
+  db.securityLoginLogs.push(event);
+  const recentFailures = db.securityLoginLogs.filter((item) =>
+    item.userId === event.userId && item.outcome === 'failure' && now - item.timestamp <= 10 * 60_000
+  ).length;
+  let reason = null;
+  if (outcome === 'success' && previousSuccess && previousSuccess.ip !== safeIp) reason = 'new_ip';
+  if (outcome === 'success' && previousSuccess && previousSuccess.userAgent !== agent) reason = reason ? 'new_ip_and_device' : 'new_device';
+  if (outcome === 'failure' && recentFailures >= 5) reason = 'repeated_failed_logins';
+  if (reason) {
+    db.securityAlerts.push({
+      id: crypto.randomBytes(12).toString('hex'), timestamp: now, severity: reason === 'repeated_failed_logins' ? 'high' : 'medium',
+      reason, userId: event.userId, username: event.username, email: event.email,
+      ip: safeIp, userAgent: agent, device, outcome, status: 'open'
+    });
+  }
+  // Keep a bounded history (90 days, max 20,000 events / 5,000 alerts).
   const cutoff = now - 90 * 24 * 60 * 60 * 1000;
-  db.securityLoginLogs = db.securityLoginLogs.filter((event) => event.timestamp >= cutoff).slice(-20000);
+  db.securityLoginLogs = db.securityLoginLogs.filter((item) => item.timestamp >= cutoff).slice(-20000);
+  db.securityAlerts = db.securityAlerts.filter((item) => item.timestamp >= cutoff).slice(-5000);
   save();
 }
 const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
@@ -385,6 +398,15 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (url.pathname === '/api/health') return reply(200, { ok: true, users: Object.keys(db.users).length, online: online.size });
+    if (url.pathname === '/api/admin/security-alerts') {
+      if (req.method !== 'POST') return fail(405, 'method');
+      const body = await readJson(req, 10000);
+      const requester = userFromToken(body.token);
+      const ownerId = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+      if (!requester || (requester.id !== ownerId && requester.securityLogsAccess !== true)) return fail(403, 'forbidden');
+      const alerts = (db.securityAlerts || []).slice(-100).reverse();
+      return reply(200, { ok: true, alerts, pollAfterSeconds: 67 });
+    }
     if (url.pathname === '/api/admin/security-login-logs') {
       if (req.method !== 'POST') return fail(405, 'method');
       const body = await readJson(req, 10000);
