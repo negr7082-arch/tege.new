@@ -1,22 +1,5 @@
 package org.tege.messenger.ui.screens
 
-import android.Manifest
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
-import android.content.pm.PackageManager
-import android.media.MediaRecorder
-import android.media.MediaPlayer
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalContext
-import java.io.File
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,26 +10,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import org.tege.messenger.ui.components.TelegramAttachmentSheet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tege.messenger.model.Chat
 import org.tege.messenger.model.ChatType
 import org.tege.messenger.model.Message
-import org.tege.messenger.model.MessageReplyInfo
 import org.tege.messenger.model.Poll
-import org.tege.messenger.model.TextSize
-import org.tege.messenger.model.WallpaperId
+import org.tege.messenger.model.presenceLabel
 import org.tege.messenger.ui.components.CreatePollDialog
-import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
 
@@ -58,102 +39,33 @@ fun ChatDetailScreen(
     onBack: () -> Unit
 ) {
     val chats by viewModel.chats.collectAsState()
-    val settings by viewModel.settings.collectAsState()
-    val currentAccount by viewModel.currentAccount.collectAsState()
-    val messageError by viewModel.messageError.collectAsState()
-    val currentUserId = currentAccount?.id ?: 0L
     val chat = chats.find { it.id == chatId } ?: return
-    // These tools work locally only; do not present them as shared features in real chats.
-    val allowLocalTools = chat.isSavedMessages || chat.userId == null
-    val chatBackground = when (settings.wallpaper) {
-        WallpaperId.PATTERN -> MaterialTheme.colorScheme.background
-        WallpaperId.DARK -> Color(0xFF101820)
-        WallpaperId.EMERALD -> Color(0xFF0D2818)
-        WallpaperId.SUNSET -> Color(0xFFFCE7F3)
-        WallpaperId.OCEAN -> Color(0xFFE0F2FE)
-        WallpaperId.MINIMAL -> MaterialTheme.colorScheme.surface
-    }
-    val isDarkChatWallpaper = settings.wallpaper == WallpaperId.DARK ||
-        settings.wallpaper == WallpaperId.EMERALD
 
     var inputText by remember { mutableStateOf("") }
-    var replyTo by remember { mutableStateOf<MessageReplyInfo?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-    var showClearHistoryDialog by remember { mutableStateOf(false) }
-    var editingMessageId by remember { mutableStateOf<Long?>(null) }
-    var deletingMessageId by remember { mutableStateOf<Long?>(null) }
-    var isRecording by remember { mutableStateOf(false) }
-    var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
-    var recordingFile by remember { mutableStateOf<File?>(null) }
-    var recordingStartedAt by remember { mutableLongStateOf(0L) }
-    val context = LocalContext.current
-
-    LaunchedEffect(messageError) {
-        messageError?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.clearMessageError()
-        }
-    }
-
-    LaunchedEffect(chatId) {
-        viewModel.markChatRead(chatId)
-    }
-
-    val startRecording: () -> Unit = {
-        try {
-            val file = File(context.cacheDir, "tege-voice-${System.currentTimeMillis()}.m4a")
-            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            mediaRecorder.setAudioSamplingRate(44100)
-            mediaRecorder.setAudioEncodingBitRate(96000)
-            mediaRecorder.setOutputFile(file.absolutePath)
-            mediaRecorder.prepare()
-            mediaRecorder.start()
-            recorder = mediaRecorder
-            recordingFile = file
-            recordingStartedAt = System.currentTimeMillis()
-            isRecording = true
-        } catch (_: Exception) {
-            recorder?.release()
-            recorder = null
-            isRecording = false
-        }
-    }
-    val stopRecording: () -> Unit = {
-        val elapsedSeconds = ((System.currentTimeMillis() - recordingStartedAt) / 1000L).toInt().coerceAtLeast(1)
-        try {
-            recorder?.stop()
-            recordingFile?.takeIf { it.exists() && it.length() > 0L }?.let {
-                viewModel.sendVoiceMessage(chat.id, it.absolutePath, elapsedSeconds)
-            }
-        } catch (_: Exception) {
-            // MediaRecorder can fail if the recording is too short; don't add an invalid message.
-        } finally {
-            recorder?.release()
-            recorder = null
-            recordingFile = null
-            isRecording = false
-        }
-    }
-    val audioPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) startRecording() }
+    var isVideoNoteMode by remember { mutableStateOf(true) }
+    var showAttachmentSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TegeAvatar(
-                            avatarUri = chat.avatarUri,
-                            displayName = chat.name,
-                            color = Color(android.graphics.Color.parseColor(chat.color)),
-                            modifier = Modifier.size(40.dp),
-                            savedMessages = chat.isSavedMessages
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(chat.color))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = chat.name.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
@@ -162,23 +74,15 @@ fun ChatDetailScreen(
                                 fontSize = 16.sp,
                                 color = Color.White
                             )
-                            val subtitle = when {
-                                chat.isSavedMessages -> "Избранное"
-                                chat.type == ChatType.CHANNEL -> if (chat.subscribersCount > 0) "${chat.subscribersCount} подписчиков" else "канал"
-                                chat.type == ChatType.GROUP -> if (chat.membersCount > 0) "${chat.membersCount} участников" else "группа"
-                                chat.online -> "в сети"
-                                !chat.username.isNullOrBlank() -> chat.username.let {
-                                    if (it.startsWith("@")) it else "@$it"
-                                }
-                                else -> "профиль"
-                            }
-                            if (subtitle.isNotBlank()) {
-                                Text(
-                                    text = subtitle,
-                                    fontSize = 12.sp,
-                                    color = Color.White.copy(alpha = 0.82f)
-                                )
-                            }
+                            Text(
+                                text = when (chat.type) {
+                                ChatType.CHANNEL -> "${chat.subscribersCount} подписчиков"
+                                ChatType.GROUP -> "${chat.membersCount} участников"
+                                else -> presenceLabel(chat.online, chat.lastSeenAt)
+                            },
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
                         }
                     }
                 },
@@ -188,10 +92,21 @@ fun ChatDetailScreen(
                     }
                 },
                 actions = {
-                    if (allowLocalTools) {
-                        IconButton(onClick = { showPollDialog = true }) {
-                            Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = Color.White)
+                    // Video Call / Live Broadcast button for Groups & Channels
+                    if (chat.type == ChatType.GROUP || chat.type == ChatType.CHANNEL) {
+                        IconButton(
+                            onClick = { viewModel.toggleGroupVideoChat(chat.id) }
+                        ) {
+                            Icon(
+                                imageVector = if (chat.activeVideoChat?.isActive == true) Icons.Default.Radio else Icons.Default.Videocam,
+                                contentDescription = "Video Call",
+                                tint = if (chat.activeVideoChat?.isActive == true) Color(0xFF4CAF50) else Color.White
+                            )
                         }
+                    }
+
+                    IconButton(onClick = { showPollDialog = true }) {
+                        Icon(Icons.Default.Poll, contentDescription = "Create Poll", tint = Color.White)
                     }
                     IconButton(onClick = { showMenu = !showMenu }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
@@ -201,56 +116,14 @@ fun ChatDetailScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text(if (chat.isPinned) "Открепить чат" else "Закрепить чат") },
-                            onClick = {
-                                viewModel.toggleChatPin(chat.id)
-                                showMenu = false
-                            },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                            text = { Text("Очистить историю") },
+                            onClick = { showMenu = false }
                         )
                         DropdownMenuItem(
-                            text = { Text("Отметить непрочитанным") },
+                            text = { Text("Заблокировать") },
                             onClick = {
-                                viewModel.markChatUnread(chat.id)
+                                viewModel.blockUser(chat.id, chat.name, chat.username ?: "user")
                                 showMenu = false
-                                onBack()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Markunread, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Скопировать историю чата") },
-                            onClick = {
-                                val transcript = buildString {
-                                    appendLine(chat.name)
-                                    appendLine("—".repeat(chat.name.length.coerceAtLeast(8)))
-                                    chat.messages.forEach { message ->
-                                        val body = when {
-                                            message.poll != null -> "Опрос: ${message.poll.question}"
-                                            message.audioUri != null -> "Голосовое сообщение ${message.voiceDuration.orEmpty()}".trim()
-                                            message.videoNoteUri != null -> "Видеосообщение"
-                                            message.attachmentUri != null -> message.fileName ?: "Вложение"
-                                            message.text.isNotBlank() -> message.text
-                                            else -> "Сообщение"
-                                        }
-                                        appendLine("[${message.time}] ${if (message.isMine) "Вы" else message.senderName ?: chat.name}: $body")
-                                    }
-                                }
-                                if (chat.messages.isEmpty()) {
-                                    Toast.makeText(context, "История чата пуста", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("История чата: ${chat.name}", transcript))
-                                    Toast.makeText(context, "История скопирована", Toast.LENGTH_SHORT).show()
-                                }
-                                showMenu = false
-                            },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Очистить локальную историю") },
-                            onClick = {
-                                showMenu = false
-                                showClearHistoryDialog = true
                             }
                         )
                     }
@@ -260,8 +133,7 @@ fun ChatDetailScreen(
         },
         bottomBar = {
             Surface(
-                tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -270,58 +142,31 @@ fun ChatDetailScreen(
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (allowLocalTools) {
-                        IconButton(onClick = { showPollDialog = true }) {
-                            Icon(Icons.Default.Poll, contentDescription = "Poll", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                    IconButton(onClick = { showAttachmentSheet = true }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Прикрепить файл", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
-                    TextField(
+                    OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
-                        placeholder = {
-                            Text(
-                                if (editingMessageId != null) "Редактирование..."
-                                else if (replyTo != null) "Ответ ${replyTo?.senderName}: ${replyTo?.text?.take(24)}"
-                                else "Сообщение"
-                            )
-                        },
+                        placeholder = { Text("Сообщение...") },
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 4.dp),
                         shape = RoundedCornerShape(24.dp),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                             focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            unfocusedIndicatorColor = Color.Transparent
                         )
                     )
 
-                    if (editingMessageId != null) {
-                        IconButton(onClick = {
-                            inputText = ""
-                            editingMessageId = null
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Отменить редактирование", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
                     if (inputText.isNotBlank()) {
                         IconButton(
                             onClick = {
-                                val editingId = editingMessageId
-                                val completed = if (editingId != null) {
-                                    viewModel.editMessage(chat.id, editingId, inputText)
-                                } else {
-                                    viewModel.sendMessage(chat.id, inputText, replyTo)
-                                }
-                                if (completed) {
-                                    inputText = ""
-                                    replyTo = null
-                                    editingMessageId = null
-                                }
+                                viewModel.sendMessage(chat.id, inputText)
+                                inputText = ""
                             }
                         ) {
                             Icon(
@@ -330,22 +175,21 @@ fun ChatDetailScreen(
                                 tint = TelegramBlue
                             )
                         }
-                    } else if (allowLocalTools) {
+                    } else {
+                        // Telegram Video Note (Кружочек) / Mic quick toggle button
                         IconButton(
                             onClick = {
-                                if (isRecording) {
-                                    stopRecording()
-                                } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                    startRecording()
+                                if (isVideoNoteMode) {
+                                    viewModel.sendVideoNote(chat.id)
                                 } else {
-                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    viewModel.sendMessage(chat.id, "🎤 Голосовое сообщение (0:15)")
                                 }
                             }
                         ) {
                             Icon(
-                                imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                contentDescription = if (isRecording) "Остановить запись и отправить" else "Записать голосовое сообщение",
-                                tint = if (isRecording) MaterialTheme.colorScheme.error else TelegramBlue
+                                imageVector = if (isVideoNoteMode) Icons.Default.Videocam else Icons.Default.Mic,
+                                contentDescription = "Video Note / Mic",
+                                tint = TelegramBlue
                             )
                         }
                     }
@@ -353,42 +197,51 @@ fun ChatDetailScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(chatBackground)
         ) {
-            if (settings.wallpaper == WallpaperId.PATTERN) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val patternColor = if (settings.isDarkMode) {
-                        Color.White.copy(alpha = 0.045f)
-                    } else {
-                        Color(0xFF7893A2).copy(alpha = 0.12f)
-                    }
-                    val stepX = 104.dp.toPx()
-                    val stepY = 86.dp.toPx()
-                    var row = 0
-                    while (row * stepY < size.height + stepY) {
-                        var column = 0
-                        while (column * stepX < size.width + stepX) {
-                            val x = column * stepX + if (row % 2 == 0) 18.dp.toPx() else 52.dp.toPx()
-                            val y = row * stepY + 18.dp.toPx()
-                            drawCircle(
-                                color = patternColor,
-                                radius = 11.dp.toPx(),
-                                center = Offset(x, y),
-                                style = Stroke(width = 1.dp.toPx())
+            // Telegram Active Video Chat Banner for Groups & Channels
+            if (chat.activeVideoChat?.isActive == true) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF229ED9))
+                        .clickable { viewModel.toggleGroupVideoChat(chat.id) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF4CAF50))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (chat.type == ChatType.CHANNEL) "Прямая трансляция активна" else "Видеочат активен",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
                             )
-                            drawLine(
-                                color = patternColor,
-                                start = Offset(x - 8.dp.toPx(), y + 16.dp.toPx()),
-                                end = Offset(x + 10.dp.toPx(), y + 23.dp.toPx()),
-                                strokeWidth = 1.dp.toPx()
+                            Text(
+                                text = "Организатор: ${chat.activeVideoChat.startedByName} • Подключиться",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp
                             )
-                            column++
                         }
-                        row++
+                    }
+                    Button(
+                        onClick = { viewModel.toggleGroupVideoChat(chat.id) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = TelegramBlue),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Войти", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -399,103 +252,24 @@ fun ChatDetailScreen(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (chat.messages.isEmpty()) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 28.dp, vertical = 56.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = if (chat.isSavedMessages) Icons.Default.Bookmark else Icons.Default.ChatBubbleOutline,
-                                contentDescription = null,
-                                tint = if (isDarkChatWallpaper) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(38.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = if (chat.isSavedMessages) "Избранное" else "Пока нет сообщений",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isDarkChatWallpaper) Color.White else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                } else {
-                    items(chat.messages, key = { it.id }) { message ->
+                items(chat.messages, key = { it.id }) { message ->
                     MessageBubble(
                         message = message,
                         isChannel = chat.type == ChatType.CHANNEL,
-                        currentUserId = currentUserId,
-                        textSize = settings.textSize,
-                        allowLocalTools = allowLocalTools,
                         onVotePoll = { optId -> viewModel.votePoll(chat.id, message.id, optId) },
-                        onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) },
-                        onReply = {
-                            replyTo = MessageReplyInfo(
-                                id = message.id,
-                                senderName = message.senderName ?: if (message.isMine) "Вы" else chat.name,
-                                text = message.text
-                            )
-                        },
-                        onPin = { viewModel.pinMessage(chat.id, message.id) },
-                        onEdit = {
-                            if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
-                                editingMessageId = message.id
-                                inputText = message.text
-                                replyTo = null
-                            }
-                        },
-                        onDelete = { deletingMessageId = message.id }
+                        onReaction = { emoji -> viewModel.toggleReaction(chat.id, message.id, emoji) }
                     )
-                    }
                 }
             }
         }
     }
 
-    if (showClearHistoryDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearHistoryDialog = false },
-            title = { Text("Очистить историю?") },
-            text = { Text("Все сообщения в этом чате будут удалены с этого устройства. Это действие нельзя отменить.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearChatHistory(chat.id)
-                        showClearHistoryDialog = false
-                    }
-                ) {
-                    Text("Очистить", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearHistoryDialog = false }) {
-                    Text("Отмена")
-                }
+    if (showAttachmentSheet) {
+        TelegramAttachmentSheet(
+            onDismiss = { showAttachmentSheet = false },
+            onPicked = { media ->
+                viewModel.sendAttachment(chat.id, media.uri.toString(), media.displayName, media.sizeBytes)
             }
-        )
-    }
-
-    if (deletingMessageId != null) {
-        AlertDialog(
-            onDismissRequest = { deletingMessageId = null },
-            title = { Text("Удалить сообщение?") },
-            text = { Text("Удалить это сообщение?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    val removed = deletingMessageId?.let { viewModel.deleteMessage(chat.id, it) } ?: false
-                    if (removed) {
-                        if (editingMessageId == deletingMessageId) {
-                            editingMessageId = null
-                            inputText = ""
-                        }
-                        deletingMessageId = null
-                    }
-                }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { deletingMessageId = null }) { Text("Отмена") } }
         )
     }
 
@@ -509,24 +283,16 @@ fun ChatDetailScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
     isChannel: Boolean = false,
-    currentUserId: Long = 112201L,
-    textSize: TextSize = TextSize.MEDIUM,
-    allowLocalTools: Boolean = true,
     onVotePoll: (Int) -> Unit,
-    onReaction: (String) -> Unit,
-    onReply: () -> Unit = {},
-    onPin: () -> Unit = {},
-    onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onReaction: (String) -> Unit
 ) {
-    var showMessageActions by remember(message.id) { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    // 1. Telegram Circular Video Note (Кружочек)
+    // Telegram-style video note stays a circular message, never a rectangular video attachment.
     if (message.videoNoteUri != null) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -568,16 +334,16 @@ fun MessageBubble(
     // 2. Telegram Bubble Styling:
     // - In channels: clean neutral card
     // - Direct chats: soft telegram colors
-    val isDarkSurface = MaterialTheme.colorScheme.background.red < 0.25f
-    val bubbleColor = when {
-        isChannel -> MaterialTheme.colorScheme.surface
-        message.isMine && isDarkSurface -> Color(0xFF2B5278)
-        message.isMine -> Color(0xFFE1FFC7)
-        else -> MaterialTheme.colorScheme.surface
+    val bubbleColor = if (isChannel) {
+        MaterialTheme.colorScheme.surface
+    } else if (message.isMine) {
+        Color(0xFFEFFEDD)
+    } else {
+        MaterialTheme.colorScheme.surface
     }
 
     val textColor = if (message.isMine && !isChannel) {
-        if (isDarkSurface) Color(0xFFF1F5F9) else Color(0xFF1E293B)
+        Color(0xFF1E293B)
     } else {
         MaterialTheme.colorScheme.onSurface
     }
@@ -594,12 +360,7 @@ fun MessageBubble(
                 bottomEnd = if (message.isMine && !isChannel) 4.dp else 16.dp
             ),
             colors = CardDefaults.cardColors(containerColor = bubbleColor),
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { showMessageActions = true }
-                )
+            modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (isChannel && message.senderName != null) {
@@ -612,73 +373,69 @@ fun MessageBubble(
                     Spacer(modifier = Modifier.height(2.dp))
                 }
 
-                if (message.isPinned) {
-                    Text("📌 Закреплено", fontSize = 11.sp, color = TelegramBlue, fontWeight = FontWeight.SemiBold)
-                }
-                if (message.replyTo != null) {
-                    Text("↪ ${message.replyTo.senderName}: ${message.replyTo.text}", fontSize = 12.sp, color = textColor.copy(alpha = 0.75f), maxLines = 2)
-                }
-
-                if (message.audioUri != null) {
-                    var isVoicePlaying by remember(message.id) { mutableStateOf(false) }
-                    var voicePlayer by remember(message.id) { mutableStateOf<MediaPlayer?>(null) }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = {
-                                if (isVoicePlaying) {
-                                    voicePlayer?.release()
-                                    voicePlayer = null
-                                    isVoicePlaying = false
-                                } else {
-                                    try {
-                                        val player = MediaPlayer()
-                                        player.setDataSource(message.audioUri)
-                                        player.setOnCompletionListener {
-                                            isVoicePlaying = false
-                                            voicePlayer = null
-                                            it.release()
-                                        }
-                                        player.prepare()
-                                        player.start()
-                                        voicePlayer = player
-                                        isVoicePlaying = true
-                                    } catch (_: Exception) {
-                                        voicePlayer?.release()
-                                        voicePlayer = null
-                                        isVoicePlaying = false
-                                    }
+                if (message.attachmentUri != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .clickable {
+                                val uri = android.net.Uri.parse(message.attachmentUri)
+                                val mime = context.contentResolver.getType(uri) ?: when {
+                                    message.fileName?.endsWith(".pdf", ignoreCase = true) == true -> "application/pdf"
+                                    message.fileName?.endsWith(".jpg", ignoreCase = true) == true ||
+                                        message.fileName?.endsWith(".jpeg", ignoreCase = true) == true -> "image/jpeg"
+                                    message.fileName?.endsWith(".png", ignoreCase = true) == true -> "image/png"
+                                    message.fileName?.endsWith(".mp4", ignoreCase = true) == true -> "video/mp4"
+                                    message.fileName?.endsWith(".mp3", ignoreCase = true) == true -> "audio/mpeg"
+                                    else -> "*/*"
                                 }
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, mime)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                runCatching { context.startActivity(intent) }
                             }
-                        ) {
-                            Icon(
-                                imageVector = if (isVoicePlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                contentDescription = if (isVoicePlaying) "Остановить голосовое" else "Воспроизвести голосовое",
-                                tint = TelegramBlue
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                message.fileName?.endsWith(".jpg", true) == true ||
+                                    message.fileName?.endsWith(".png", true) == true -> Icons.Default.Image
+                                message.fileName?.endsWith(".mp3", true) == true ||
+                                    message.fileName?.endsWith(".wav", true) == true -> Icons.Default.AudioFile
+                                else -> Icons.Default.AttachFile
+                            },
+                            contentDescription = "Файл",
+                            tint = TelegramBlue
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(message.fileName ?: "Файл", fontWeight = FontWeight.SemiBold, color = textColor)
+                            Text(
+                                message.fileSize ?: "Нажмите, чтобы открыть",
+                                fontSize = 11.sp,
+                                color = textColor.copy(alpha = 0.7f)
                             )
-                        }
-                        Column {
-                            Text("Голосовое сообщение", color = textColor, fontSize = 14.sp)
-                            Text(message.voiceDuration ?: "", color = textColor.copy(alpha = 0.7f), fontSize = 11.sp)
                         }
                     }
                 } else if (message.poll != null) {
                     PollWidget(
                         poll = message.poll,
                         isMine = message.isMine,
-                        textSize = textSize,
                         onVote = onVotePoll
                     )
                 } else {
                     Text(
                         text = message.text,
                         color = textColor,
-                        fontSize = when (textSize) {
-                            TextSize.SMALL -> 13.sp
-                            TextSize.MEDIUM -> 15.sp
-                            TextSize.LARGE -> 17.sp
-                            TextSize.XLARGE -> 19.sp
-                        }
+                        fontSize = 15.sp
                     )
+                    if (message.text.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        org.tege.messenger.ui.components.MessageTranslation(text = message.text)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -693,11 +450,11 @@ fun MessageBubble(
                         color = textColor.copy(alpha = 0.7f)
                     )
                     if (message.isMine && !isChannel) {
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Default.DoneAll,
-                            contentDescription = "Отправлено",
-                            tint = if (isDarkSurface) Color(0xFF8AC7F7) else Color(0xFF5A9E65),
+                            contentDescription = "Delivered",
+                            tint = TelegramBlue,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -705,97 +462,24 @@ fun MessageBubble(
             }
         }
 
-        // Keep the conversation clean like Telegram: show only existing reactions,
-        // and move message actions into a compact overflow menu.
-        val existingReactions = message.reactions.filterValues { it > 0 }
-        if (allowLocalTools && (existingReactions.isNotEmpty() || !isChannel)) {
-            Row(
-                modifier = Modifier.padding(top = 1.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                existingReactions.forEach { (emoji, count) ->
-                    val isSelectedByMe = message.userReactions[currentUserId] == emoji
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isSelectedByMe) TelegramBlue.copy(alpha = 0.18f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                            )
-                            .then(
-                                if (isSelectedByMe) Modifier.border(
-                                    width = 1.dp,
-                                    color = TelegramBlue.copy(alpha = 0.75f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) else Modifier
-                            )
-                            .clickable { onReaction(emoji) }
-                            .padding(horizontal = 7.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = "$emoji $count",
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelectedByMe) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isSelectedByMe) TelegramBlue else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Box {
-                    IconButton(
-                        onClick = { showMessageActions = true },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.MoreHoriz,
-                            contentDescription = "Действия с сообщением",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showMessageActions,
-                        onDismissRequest = { showMessageActions = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Ответить") },
-                            leadingIcon = { Icon(Icons.Default.Reply, contentDescription = null) },
-                            onClick = { showMessageActions = false; onReply() }
-                        )
-                        if (allowLocalTools) {
-                            DropdownMenuItem(
-                                text = { Text(if (message.isPinned) "Открепить" else "Закрепить") },
-                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                                onClick = { showMessageActions = false; onPin() }
-                            )
-                        }
-                        if (message.isMine && message.poll == null && message.audioUri == null && message.videoNoteUri == null) {
-                            DropdownMenuItem(
-                                text = { Text("Редактировать") },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                onClick = { showMessageActions = false; onEdit() }
-                            )
-                        }
-                        if (message.isMine) {
-                            DropdownMenuItem(
-                                text = { Text("Удалить") },
-                                leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
-                                onClick = { showMessageActions = false; onDelete() }
-                            )
-                        }
-                        if (allowLocalTools) {
-                            listOf("❤️", "🔥", "👍", "😂", "😮", "😢").forEach { emoji ->
-                                val isSelectedByMe = message.userReactions[currentUserId] == emoji
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(if (isSelectedByMe) "Убрать реакцию $emoji" else "Поставить реакцию $emoji")
-                                    },
-                                    onClick = { showMessageActions = false; onReaction(emoji) }
-                                )
-                            }
-                        }
-                    }
+        // Reactions row
+        Row(
+            modifier = Modifier.padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf("❤️", "🔥", "👍").forEach { emoji ->
+                val count = message.reactions[emoji] ?: 0
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .clickable { onReaction(emoji) }
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (count > 0) "$emoji $count" else emoji,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
@@ -806,7 +490,6 @@ fun MessageBubble(
 fun PollWidget(
     poll: Poll,
     isMine: Boolean,
-    textSize: TextSize = TextSize.MEDIUM,
     onVote: (Int) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -814,12 +497,7 @@ fun PollWidget(
             text = poll.question,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = when (textSize) {
-                TextSize.SMALL -> 14.sp
-                TextSize.MEDIUM -> 16.sp
-                TextSize.LARGE -> 18.sp
-                TextSize.XLARGE -> 20.sp
-            }
+            fontSize = 16.sp
         )
         Text(
             text = "Анонимный опрос • Всего голосов: ${poll.totalVotes}",
@@ -840,16 +518,7 @@ fun PollWidget(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = opt.text,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = when (textSize) {
-                            TextSize.SMALL -> 12.sp
-                            TextSize.MEDIUM -> 14.sp
-                            TextSize.LARGE -> 16.sp
-                            TextSize.XLARGE -> 18.sp
-                        }
-                    )
+                    Text(text = opt.text, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                     Text(text = "$percentage%", color = TelegramBlue, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.height(3.dp))

@@ -150,13 +150,13 @@ data class Chat(
     val time: String = "",
     val unread: Int = 0,
     val online: Boolean = false,
+    val lastSeenAt: Long? = null,
     val color: String = "#2AABEE",
     val avatarUri: String? = null,
     val messages: List<Message> = emptyList(),
     val isSavedMessages: Boolean = false,
     val isPinned: Boolean = false,
     val isMuted: Boolean = false,
-    val isArchived: Boolean = false,
     val streak: ChatStreak? = null,
     val subscribersCount: Int = 0,
     val membersCount: Int = 0,
@@ -214,7 +214,25 @@ sealed class ScreenRoute {
     object Profile : ScreenRoute()
     object Channels : ScreenRoute()
     object CreateChat : ScreenRoute()
-    object Contacts : ScreenRoute()
-    object Calls : ScreenRoute()
     object Settings : ScreenRoute()
+}
+
+
+/** Human-readable presence label. Timestamps must come from the real account/presence service. */
+fun presenceLabel(online: Boolean, lastSeenAt: Long?): String {
+    if (online) return "в сети"
+    if (lastSeenAt == null || lastSeenAt <= 0L) return "статус неизвестен"
+    val elapsed = (System.currentTimeMillis() - lastSeenAt).coerceAtLeast(0L)
+    val minutes = elapsed / 60_000L
+    val hours = elapsed / 3_600_000L
+    val days = elapsed / 86_400_000L
+    return when {
+        minutes < 1 -> "был(а) только что"
+        minutes < 60 -> "был(а) $minutes мин. назад"
+        hours < 24 -> "был(а) $hours ч. назад"
+        days == 1L -> "был(а) вчера"
+        days < 30 -> "не заходил(а) $days дн."
+        days < 365 -> "не заходил(а) ${days / 30} мес."
+        else -> "не заходил(а) ${days / 365} г."
+    }
 }

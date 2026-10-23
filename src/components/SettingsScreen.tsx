@@ -96,6 +96,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [activeSessions, setActiveSessions] = useState<Array<{ id: string; token: string; device: string; createdAt: number; current: boolean }>>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [accountDeleteMonths, setAccountDeleteMonths] = useState<string>('never');
+  const [accountDeleteAt, setAccountDeleteAt] = useState<number | null>(null);
+  const [accountDeleteBusy, setAccountDeleteBusy] = useState(false);
+  const [accountDeleteNotice, setAccountDeleteNotice] = useState<string | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [securityEvents, setSecurityEvents] = useState<Array<{ id: string; type: string; reason?: string; createdAt: number; until?: number | null; permanent?: boolean }>>([]);
+  const [securityMute, setSecurityMute] = useState<{ permanent: boolean; until: number | null } | null>(null);
+  const [moderationRole, setModerationRole] = useState<string | null>(null);
+  const [mutedUsers, setMutedUsers] = useState<Array<{ id: number; name: string; username: string; permanent: boolean; until: number | null; reason: string; events: Array<{ id: string; type: string; reason?: string; createdAt: number }> }>>([]);
+  const [moderationBusy, setModerationBusy] = useState<number | null>(null);
+  const [moderationNotice, setModerationNotice] = useState<string | null>(null);
+  const [securityReports, setSecurityReports] = useState<Array<{ id: string; reporterId: number; targetUserId: number; messageId: string; messageText: string; category: string; details: string; status: string; createdAt: number; history: Array<{ actorId: number; actorRole: string; action: string; createdAt: number; note?: string }> }>>([]);
+  const [reportBusy, setReportBusy] = useState<string | null>(null);
+  const [reportNotice, setReportNotice] = useState<string | null>(null);
   const [revokingSession, setRevokingSession] = useState<string | null>(null);
 
   const refreshSessions = async () => {
@@ -111,6 +127,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   useEffect(() => {
     if (activeSection === 'privacy' && currentUser?.token) {
       void refreshSessions();
+      void realtimeNetwork.getInactivitySettings(currentUser.token).then((r) => {
+        if (r.ok) {
+          setAccountDeleteMonths(r.months === null ? 'never' : String(r.months));
+          setAccountDeleteAt(r.deletionAt);
+        }
+      });
+      void realtimeNetwork.getSecurityEvents(currentUser.token).then((r) => {
+        if (r.ok) { setSecurityEvents(r.events); setSecurityMute(r.activeMute); }
+      });
+      void realtimeNetwork.getModerationQueue(currentUser.token).then((r) => {
+        if (r.ok) { setModerationRole(r.role || null); setMutedUsers(r.mutedUsers); }
+      });
+      void realtimeNetwork.getSecurityReports(currentUser.token).then((r) => {
+        if (r.ok) { setSecurityReports(r.reports); if (r.role) setModerationRole(r.role); }
+      });
       void realtimeNetwork.getCloudPasswordStatus(currentUser.token).then((result) => {
         if (result.ok) {
           setCloudPasswordEnabled(result.enabled);
@@ -195,9 +226,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'privacy') {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
+      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
         {/* Telegram Header */}
-        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -210,13 +241,152 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
-          {/* Section: КОНФИДЕНЦИАЛЬНОСТЬ (PRIVACY) */}
+          {/* Account lifecycle and Security bot */}
+          <div>
+            <span className="px-3 mb-2 block text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+              {settings.language === 'ru' ? 'Аккаунт и безопасность' : 'Account & security'}
+            </span>
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4 text-sky-500" />
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                    {settings.language === 'ru' ? 'Удалять аккаунт при неактивности' : 'Delete account if inactive'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">
+                  {settings.language === 'ru' ? 'Срок считается по активности на сервере. Новый вход сбрасывает отсчёт.' : 'The server tracks inactivity. Signing in resets the timer.'}
+                </p>
+                <select
+                  value={accountDeleteMonths}
+                  onChange={(e) => setAccountDeleteMonths(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 text-sm text-gray-900 dark:text-zinc-100"
+                >
+                  <option value="never">{settings.language === 'ru' ? 'Никогда' : 'Never'}</option>
+                  <option value="1">{settings.language === 'ru' ? '1 месяц' : '1 month'}</option>
+                  <option value="3">{settings.language === 'ru' ? '3 месяца' : '3 months'}</option>
+                  <option value="6">{settings.language === 'ru' ? '6 месяцев' : '6 months'}</option>
+                  <option value="8">{settings.language === 'ru' ? '8 месяцев' : '8 months'}</option>
+                  <option value="12">{settings.language === 'ru' ? '12 месяцев' : '12 months'}</option>
+                  <option value="16">{settings.language === 'ru' ? '16 месяцев' : '16 months'}</option>
+                  <option value="24">{settings.language === 'ru' ? '24 месяца' : '24 months'}</option>
+                </select>
+                <button
+                  disabled={!currentUser?.token || accountDeleteBusy}
+                  onClick={async () => {
+                    if (!currentUser?.token) return;
+                    setAccountDeleteBusy(true); setAccountDeleteNotice(null);
+                    const result = await realtimeNetwork.setInactivitySettings(currentUser.token, accountDeleteMonths === 'never' ? null : Number(accountDeleteMonths));
+                    setAccountDeleteBusy(false);
+                    if (result.ok) {
+                      setAccountDeleteAt(result.deletionAt || null);
+                      setAccountDeleteNotice(settings.language === 'ru' ? 'Настройка сохранена на сервере.' : 'Preference saved on the server.');
+                    } else setAccountDeleteNotice(settings.language === 'ru' ? 'Не удалось сохранить настройку. Попробуй позже.' : 'Could not save preference. Try again later.');
+                  }}
+                  className="mt-3 w-full rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5"
+                >
+                  {accountDeleteBusy ? (settings.language === 'ru' ? 'Сохраняю…' : 'Saving…') : (settings.language === 'ru' ? 'Сохранить срок' : 'Save period')}
+                </button>
+                {accountDeleteAt && <p className="mt-2 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Ориентировочная дата удаления: ' : 'Estimated deletion date: '}{new Date(accountDeleteAt).toLocaleDateString()}</p>}
+                {accountDeleteNotice && <p role="status" className="mt-2 text-xs text-sky-600 dark:text-sky-400">{accountDeleteNotice}</p>}
+              </div>
+              <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldCheck className="w-4 h-4 text-sky-500" />
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Security</p>
+                  <span className="text-[10px] rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.5">BOT</span>
+                </div>
+                {securityMute && <p className="text-xs font-medium text-rose-500 mb-2">{securityMute.permanent ? (settings.language === 'ru' ? 'Активен постоянный системный спам-мут.' : 'Permanent system spam mute is active.') : (settings.language === 'ru' ? 'Активен системный спам-мут до ' : 'System spam mute until ')+new Date(securityMute.until || 0).toLocaleString()}</p>}
+                <p className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{settings.language === 'ru' ? 'История системных предупреждений и наказаний' : 'System warnings and punishment history'}</p>
+                {securityEvents.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Наказаний пока нет.' : 'No punishments yet.'}</p> : <div className="space-y-2">{securityEvents.slice(0, 10).map((event) => <div key={event.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3"><p className="text-xs font-semibold text-gray-800 dark:text-zinc-100">{event.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'Системный спам-мут' : 'System spam mute')}</p><p className="text-xs text-gray-500 dark:text-zinc-400">{event.reason || 'Spam detection'} · {new Date(event.createdAt).toLocaleString()}</p>{event.until && <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'До: ' : 'Until: '}{new Date(event.until).toLocaleString()}</p>}</div>)}</div>}
+                {moderationRole && <div className="mt-4 border-t border-gray-200 dark:border-zinc-700 pt-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">{settings.language === 'ru' ? 'Панель волонтёра Security' : 'Security volunteer panel'}</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">{['senior_volunteer','head_volunteer'].includes(moderationRole) ? (settings.language === 'ru' ? 'Старший волонтёр: разрешено снимать мут.' : 'Senior volunteer: unmuting is enabled.') : (settings.language === 'ru' ? 'Обычный волонтёр: снимать мут нельзя.' : 'Volunteer: unmuting is not permitted.')}</p>
+                  {moderationNotice && <p role="status" className="text-xs mb-2 text-sky-600">{moderationNotice}</p>}
+                  {mutedUsers.length === 0 ? <p className="text-xs text-gray-400">{settings.language === 'ru' ? 'Активных мутов нет.' : 'No active mutes.'}</p> : <div className="space-y-3">{mutedUsers.map((target) => <div key={target.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3 space-y-2">
+                    <div><p className="text-sm font-semibold">{target.name} <span className="text-xs text-gray-400">{target.username}</span></p><p className="text-xs text-gray-500">{target.permanent ? (settings.language === 'ru' ? 'Постоянный мут' : 'Permanent mute') : (settings.language === 'ru' ? 'До: ' : 'Until: ') + new Date(target.until || 0).toLocaleString()}</p><p className="text-xs text-gray-500">{target.reason}</p></div>
+                    <button disabled={moderationBusy===target.id || !['senior_volunteer','head_volunteer'].includes(moderationRole || '')} onClick={async()=>{if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'unmute');setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Мут снят.':'Mute removed.'):(r.error==='senior_volunteer_required'?(settings.language==='ru'?'Только старший волонтёр может снять мут.':'Only a senior volunteer can unmute.'):(settings.language==='ru'?'Не удалось снять мут.':'Could not unmute.')));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);void realtimeNetwork.getSecurityEvents(currentUser.token).then(e=>{if(e.ok)setSecurityEvents(e.events)});}}} className="w-full rounded-xl bg-rose-600 disabled:opacity-40 text-white py-2 text-xs font-semibold">{settings.language==='ru'?'Снять мут':'Unmute'}</button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button disabled={moderationBusy===target.id || target.permanent} onClick={async()=>{const raw=window.prompt(settings.language==='ru'?'На сколько часов продлить мут? (1–720)':'Extend mute by how many hours? (1–720)','24');if(raw===null)return;const hours=Number(raw);if(!Number.isInteger(hours)||hours<1||hours>720){setModerationNotice(settings.language==='ru'?'Укажи число от 1 до 720.':'Enter a number from 1 to 720.');return;}if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'extend',{hours});setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Мут продлён.':'Mute extended.'):(settings.language==='ru'?'Не удалось продлить мут.':'Could not extend mute.'));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);}}} className="rounded-xl border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-40">{settings.language==='ru'?'Продлить мут':'Extend mute'}</button>
+                      <button disabled={moderationBusy===target.id} onClick={async()=>{const reason=window.prompt(settings.language==='ru'?'Новая причина наказания (5–300 символов)':'New punishment reason (5–300 characters)',target.reason);if(reason===null)return;if(!currentUser?.token)return;setModerationBusy(target.id);const r=await realtimeNetwork.moderateSecurity(currentUser.token,target.id,'reason',{reason});setModerationBusy(null);setModerationNotice(r.ok?(settings.language==='ru'?'Причина обновлена.':'Reason updated.'):(settings.language==='ru'?'Не удалось изменить причину.':'Could not update reason.'));if(r.ok){const q=await realtimeNetwork.getModerationQueue(currentUser.token);setMutedUsers(q.mutedUsers);}}} className="rounded-xl border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-40">{settings.language==='ru'?'Изменить причину наказания':'Change punishment reason'}</button>
+                    </div>
+                    <details><summary className="cursor-pointer text-xs text-sky-600">{settings.language==='ru'?'История нарушений':'Violation history'} ({target.events.length})</summary><div className="space-y-1 mt-2">{target.events.map((event)=> <p key={event.id} className="text-xs text-gray-500">{event.reason || event.type} · {new Date(event.createdAt).toLocaleString()}</p>)}</div></details>
+                  </div>)}</div>}
+                </div>}
+              </div>
+              {moderationRole && <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">{settings.language === 'ru' ? 'Жалобы на сообщения' : 'Message reports'}</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Младшие волонтёры рассматривают и передают жалобы старшим.' : 'Junior volunteers review and forward reports to senior staff.'}</p>
+                  </div>
+                  <button type="button" disabled={!currentUser?.token || reportBusy !== null} onClick={async () => {
+                    if (!currentUser?.token) return;
+                    const r = await realtimeNetwork.getSecurityReports(currentUser.token);
+                    if (r.ok) { setSecurityReports(r.reports); if (r.role) setModerationRole(r.role); }
+                    else setReportNotice(settings.language === 'ru' ? 'Не удалось обновить жалобы.' : 'Could not refresh reports.');
+                  }} className="shrink-0 rounded-lg border border-gray-200 dark:border-zinc-700 px-3 py-2 text-xs">{settings.language === 'ru' ? 'Обновить' : 'Refresh'}</button>
+                </div>
+                {reportNotice && <p role="status" className="mt-2 text-xs text-sky-600 dark:text-sky-400">{reportNotice}</p>}
+                {securityReports.length === 0 ? <p className="mt-3 text-xs text-gray-400">{settings.language === 'ru' ? 'Жалоб пока нет.' : 'No reports yet.'}</p> : <div className="mt-3 space-y-3">
+                  {securityReports.map((report) => <article key={report.id} className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-zinc-100">{({spam:'Спам',adult:'18+ / неприемлемый контент',harassment:'Травля',violence:'Насилие',scam:'Мошенничество',other:'Другое'} as Record<string,string>)[report.category] || report.category}</p>
+                      <span className="text-[10px] rounded-full bg-white dark:bg-zinc-900 px-2 py-1 text-gray-500">{report.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Жалоба #' : 'Report #'}{report.id.slice(0,8)} · {new Date(report.createdAt).toLocaleString()}</p>
+                    <p className="text-xs text-gray-700 dark:text-zinc-200 whitespace-pre-wrap break-words">{report.messageText || (settings.language === 'ru' ? 'Текст сообщения недоступен' : 'Message text unavailable')}</p>
+                    <p className="text-[11px] text-gray-500">{settings.language === 'ru' ? 'Автор жалобы' : 'Reporter'}: {report.reporterId} · {settings.language === 'ru' ? 'На пользователя' : 'Target'}: {report.targetUserId} · ID сообщения: {report.messageId}</p>
+                    {report.details && <p className="text-xs text-gray-500">{settings.language === 'ru' ? 'Комментарий: ' : 'Details: '}{report.details}</p>}
+                    {report.history?.length > 0 && <details><summary className="cursor-pointer text-xs text-sky-600">{settings.language === 'ru' ? 'История обработки' : 'Review history'} ({report.history.length})</summary><div className="mt-2 space-y-1">{report.history.map((h,i)=><p key={report.id+'-'+i} className="text-[11px] text-gray-500">{h.action} · {h.actorRole} · {new Date(h.createdAt).toLocaleString()}{h.note ? ' · '+h.note : ''}</p>)}</div></details>}
+                    <div className="grid grid-cols-2 gap-2">
+                      {moderationRole === 'volunteer' && report.status === 'open' && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'review');setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба взята на рассмотрение.':'Report marked as reviewing.'):(settings.language==='ru'?'Не удалось открыть жалобу.':'Could not review report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg border border-gray-200 dark:border-zinc-700 py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Рассмотреть' : 'Review'}</button>}
+                      {moderationRole === 'volunteer' && ['open','reviewing'].includes(report.status) && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;const note=window.prompt(settings.language==='ru'?'Кратко опиши, почему передаёшь жалобу старшим (необязательно)':'Optional note for senior volunteers','');if(note===null)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'forward',note);setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба передана старшим волонтёрам.':'Report forwarded to senior volunteers.'):(settings.language==='ru'?'Не удалось передать жалобу.':'Could not forward report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg bg-sky-600 text-white py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Передать старшим' : 'Forward to seniors'}</button>}
+                      {['senior_volunteer','head_volunteer'].includes(moderationRole) && ['open','reviewing','forwarded'].includes(report.status) && <button type="button" disabled={reportBusy===report.id} onClick={async()=>{if(!currentUser?.token)return;const note=window.prompt(settings.language==='ru'?'Решение по жалобе (необязательно)':'Resolution note (optional)','');if(note===null)return;setReportBusy(report.id);setReportNotice(null);const r=await realtimeNetwork.actOnSecurityReport(currentUser.token,report.id,'resolve',note);setReportBusy(null);setReportNotice(r.ok?(settings.language==='ru'?'Жалоба закрыта.':'Report resolved.'):(settings.language==='ru'?'Не удалось закрыть жалобу.':'Could not resolve report.'));if(r.ok){const q=await realtimeNetwork.getSecurityReports(currentUser.token);if(q.ok)setSecurityReports(q.reports);}}} className="rounded-lg bg-emerald-600 text-white py-2 text-xs disabled:opacity-50">{settings.language === 'ru' ? 'Закрыть жалобу' : 'Resolve report'}</button>}
+                    </div>
+                  </article>)}
+                </div>}
+              </div>}
+              <div className="border-t border-gray-100 dark:border-zinc-800 p-4">
+                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{settings.language === 'ru' ? 'Удалить аккаунт сейчас' : 'Delete account now'}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">{settings.language === 'ru' ? 'Будут отозваны все сеансы и удалены данные профиля. Это действие нельзя отменить.' : 'All sessions will be revoked and account data removed. This cannot be undone.'}</p>
+                {!showDeleteAccount ? (
+                  <button onClick={() => { setShowDeleteAccount(true); setDeleteAccountError(null); }} className="mt-3 w-full rounded-xl border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm font-semibold py-2.5">
+                    {settings.language === 'ru' ? 'Продолжить удаление' : 'Continue to deletion'}
+                  </button>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <label className="block text-xs text-gray-600 dark:text-zinc-300" htmlFor="delete-account-password">{settings.language === 'ru' ? 'Подтверди текущим паролем аккаунта' : 'Confirm with your account password'}</label>
+                    <input id="delete-account-password" type="password" autoComplete="current-password" value={deleteAccountPassword} onChange={(e) => setDeleteAccountPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 text-sm" />
+                    {deleteAccountError && <p role="alert" className="text-xs text-rose-500">{deleteAccountError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => { setShowDeleteAccount(false); setDeleteAccountPassword(''); setDeleteAccountError(null); }} className="flex-1 rounded-xl border border-gray-200 dark:border-zinc-700 py-2.5 text-sm">{settings.language === 'ru' ? 'Отмена' : 'Cancel'}</button>
+                      <button disabled={!currentUser?.token || !deleteAccountPassword || accountDeleteBusy} onClick={async () => {
+                        if (!currentUser?.token || !deleteAccountPassword || accountDeleteBusy) return;
+                        const confirmed = window.confirm(settings.language === 'ru' ? 'Точно удалить аккаунт навсегда? Восстановить его будет нельзя.' : 'Permanently delete this account? This cannot be undone.');
+                        if (!confirmed) return;
+                        setAccountDeleteBusy(true); setDeleteAccountError(null);
+                        const result = await realtimeNetwork.deleteAccount(currentUser.token, deleteAccountPassword);
+                        setAccountDeleteBusy(false);
+                        if (result.ok) { onLogout?.(); return; }
+                        setDeleteAccountError(result.error === 'bad_credentials' ? (settings.language === 'ru' ? 'Неверный пароль.' : 'Incorrect password.') : (settings.language === 'ru' ? 'Не удалось удалить аккаунт. Попробуй ещё раз.' : 'Could not delete account. Try again.'));
+                      }} className="flex-1 rounded-xl bg-rose-600 disabled:opacity-50 text-white py-2.5 text-sm font-semibold">
+                        {accountDeleteBusy ? (settings.language === 'ru' ? 'Удаляю…' : 'Deleting…') : (settings.language === 'ru' ? 'Удалить навсегда' : 'Delete permanently')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+                    {/* Section: КОНФИДЕНЦИАЛЬНОСТЬ (PRIVACY) */}
           <div>
             <span className="px-3 mb-2 block text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
               {settings.language === 'ru' ? 'Конфиденциальность' : 'Privacy'}
             </span>
 
-            <div className="bg-white dark:bg-[#17212b] rounded-2xl shadow-xs border border-gray-100 dark:border-white/[0.05] divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
               {/* Чёрный список */}
               <div
                 onClick={() => setShowBlacklistModal(true)}
@@ -415,7 +585,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {t.security}
             </span>
 
-            <div className="bg-white dark:bg-[#17212b] rounded-2xl shadow-xs border border-gray-100 dark:border-white/[0.05] divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-gray-100 dark:border-zinc-800/80 divide-y divide-gray-100 dark:divide-zinc-800/80 overflow-hidden">
               {/* Облачный пароль / Двухэтапная аутентификация */}
               <div
                 onClick={() => { setTwoFaError(null); setTwoFaPasswordInput(''); setTwoFaCurrentPassword(''); setShow2FaModal(true); }}
@@ -685,8 +855,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'chat_settings') {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
-        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
+        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -700,7 +870,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
           {/* Live Message Bubble Preview */}
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05]">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800">
             <span className="text-[11px] font-semibold text-gray-400 block mb-3 uppercase tracking-wider">
               {settings.language === 'ru' ? 'Предпросмотр' : 'Preview'}
             </span>
@@ -730,7 +900,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Text Size Selector */}
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] space-y-3">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
             <label className="text-sm font-semibold text-gray-900 dark:text-zinc-100 block">
               {t.textSize}
             </label>
@@ -755,7 +925,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Chat Wallpapers */}
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] space-y-3">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 space-y-3">
             <label className="text-sm font-semibold text-gray-900 dark:text-zinc-100 block">
               {t.wallpaper}
             </label>
@@ -787,7 +957,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Dark Mode Switch */}
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {settings.isDarkMode ? <Moon className="w-5 h-5 text-sky-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
               <div>
@@ -818,8 +988,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'data_storage') {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
-        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
+        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -832,7 +1002,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="max-w-xl mx-auto w-full p-4 space-y-4">
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05] flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">
                 {t.clearCache}
@@ -864,7 +1034,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
 
           {/* Danger Zone: Clear all chats */}
-          <div className="bg-white dark:bg-[#17212b] rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-white/[0.05]">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-100 dark:border-zinc-800">
             {showClearConfirm ? (
               <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900/60">
                 <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2.5">
@@ -912,8 +1082,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* ------------------------------------------------------------- */
   if (activeSection === 'notifications') {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
-        <div className="h-[60px] px-4 flex items-center gap-4 bg-white dark:bg-[#17212b] border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
+      <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
+        <div className="h-14 px-4 flex items-center gap-4 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-20">
           <button
             onClick={() => setActiveSection('main')}
             className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition active:scale-95 text-gray-700 dark:text-zinc-200"
@@ -1008,7 +1178,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   /* MAIN TELEGRAM ANDROID SETTINGS SCREEN (ROOT)                  */
   /* ------------------------------------------------------------- */
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#f4f4f5] dark:bg-[#0e1621] overflow-y-auto select-none transition-colors">
+    <div className="flex flex-col h-full bg-[#f4f4f5] dark:bg-zinc-950 overflow-y-auto select-none transition-colors">
       {/* Top Bar */}
       <div className="h-16 px-4 flex items-center justify-between bg-white dark:bg-zinc-800 sticky top-0 z-20">
         <div className="flex items-center gap-3">

@@ -8,11 +8,12 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io', TEGE_SENIOR_VOLUNTEER_EMAILS: 'senior@x.io' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const post = async (p, body) => (await fetch(base + p, { method: 'POST', body: JSON.stringify(body) })).json();
+const post = async (p, body, testIp) => (await fetch(base + p, { method: 'POST', headers: testIp ? { 'x-forwarded-for': testIp } : {}, body: JSON.stringify(body) })).json();
+const reportPost = (p, body) => post(p, body, '203.0.113.42');
 
 class Client {
   constructor(token) {
@@ -60,6 +61,24 @@ try {
   const a3 = (await post('/api/login', { email: 'alice@x.io', password: 'password1' })).user;
   assert.equal((await post('/api/sessions/revoke-others', { token: a.token })).ok, true);
   assert.equal((await post('/api/sessions', { token: a3.token })).error, 'bad_token');
+
+  // Inactivity auto-delete preferences are server-side and support custom periods.
+  const inactivity = await post('/api/account/inactivity/status', { token: a.token });
+  assert.equal(inactivity.ok, true);
+  assert.equal(inactivity.months, null, 'default must be Never');
+  const chosenPeriod = await post('/api/account/inactivity', { token: a.token, months: 8 });
+  assert.equal(chosenPeriod.ok, true);
+  assert.equal(chosenPeriod.months, 8);
+  assert.ok(chosenPeriod.deletionAt > chosenPeriod.lastActiveAt);
+  assert.equal((await post('/api/account/inactivity', { token: a.token, months: 7 })).error, 'bad_inactivity_period');
+  const neverAgain = await post('/api/account/inactivity', { token: a.token, months: null });
+  assert.equal(neverAgain.ok, true);
+  assert.equal(neverAgain.deletionAt, null);
+  const security = await post('/api/security/events', { token: a.token });
+  assert.equal(security.ok, true);
+  assert.equal(security.bot.name, 'Security');
+  console.log('✓ server inactivity settings and Security history API');
+
   console.log('✓ register / login / active session revoke');
 
   // bad token
@@ -130,6 +149,19 @@ try {
   await cb3.waitFor((m) => m.type === 'message' && m.payload.message.text === 'breaking');
   console.log('✓ channel posting restricted to owner/admins');
 
+  // Channel comments are persisted server-side and scoped to an individual post.
+  const addedComment = await post('/api/channels/comments/add', { token: b.token, channelId: C, postId: 7, text: 'Great update!' });
+  assert.equal(addedComment.ok, true);
+  assert.equal(addedComment.comment.authorId, b.id);
+  assert.equal(addedComment.comment.text, 'Great update!');
+  const listedComments = await post('/api/channels/comments/list', { token: a.token, channelId: C, postId: 7 });
+  assert.equal(listedComments.ok, true);
+  assert.equal(listedComments.comments.length, 1);
+  assert.equal(listedComments.comments[0].id, addedComment.comment.id);
+  assert.equal((await post('/api/channels/comments/add', { token: b.token, channelId: C, postId: 7, text: '   ' })).error, 'bad_comment');
+  console.log('✓ channel comments persist and load per post');
+
+
   // delete / edit of an already sent message is relayed (author comes from the token, push stays silent)
   ca.send({ type: 'send', payload: { id: 8, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 8001, text: 'to edit', time: '12:07' } } });
   await cb3.waitFor((m) => m.type === 'message' && m.payload.message.id === 8001);
@@ -150,6 +182,53 @@ try {
   ca.ws.close();
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
+
+  // Volunteer assignment uses a private server allowlist; public directory profiles never expose email.
+  const volunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
+  assert.equal(volunteer.role, 'volunteer');
+  const cv = new Client(volunteer.token); await cv.ready;
+  const volunteerSnapshot = await cv.waitFor((m) => m.type === 'snapshot');
+  const publicVolunteer = volunteerSnapshot.users.find((u) => u.id === volunteer.id);
+  assert.equal(publicVolunteer.role, 'volunteer');
+  assert.equal(Object.hasOwn(publicVolunteer, 'email'), false, 'public directory must not expose email');
+  cv.ws.close();
+  console.log('✓ volunteer role is assigned privately and public email is hidden');
+
+  // Server-side anti-spam: 100 message attempts inside the rolling window trigger a 3-day mute and a Security event.
+  const spammer = (await post('/api/register', { email: 'spammer@x.io', password: 'password3', name: 'Spammer', username: '@spammer' })).user;
+  const cs = new Client(spammer.token); await cs.ready; await cs.waitFor((m) => m.type === 'snapshot');
+  for (let i = 1; i <= 100; i++) {
+    cs.send({ type: 'send', payload: { id: 1000 + i, chatId: b.id, chatType: 'direct', toUserId: b.id, message: { id: 1000 + i, text: 'burst ' + i, time: '12:10' } } });
+  }
+  const spamResult = await cs.waitFor((m) => m.type === 'send_result' && m.id === 1100, 5000);
+  assert.equal(spamResult.ok, false);
+  assert.equal(spamResult.reason, 'spam_muted');
+  const spamSecurity = await post('/api/security/events', { token: spammer.token });
+  assert.equal(spamSecurity.ok, true);
+  assert.ok(spamSecurity.activeMute && !spamSecurity.activeMute.permanent);
+  assert.ok(spamSecurity.events.some((event) => event.type === 'spam_mute' && event.reason.includes('100+')));
+
+  const ordinaryVolunteer = volunteer;
+  const deniedUnmute = await post('/api/security/moderation/action', { token: ordinaryVolunteer.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(deniedUnmute.error, 'senior_volunteer_required');
+  const queue = await post('/api/security/moderation/list', { token: ordinaryVolunteer.token });
+  assert.equal(queue.ok, true);
+  assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
+  const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
+  assert.equal(senior.role, 'senior_volunteer');
+
+  const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
+  assert.equal(allowedUnmute.ok, true);
+  assert.equal((await post('/api/security/moderation/list', { token: senior.token })).mutedUsers.some((u) => u.id === spammer.id), false);
+  console.log('✓ volunteer moderation queue and senior-only unmute enforcement');
+
+  // Immediate account deletion verifies the password and invalidates the bearer token.
+  // Keep these requests off the shared test IP: earlier spam-rate-limit coverage may exhaust its budget.
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'wrong-password' }, '198.51.100.21')).error, 'bad_credentials');
+  assert.equal((await post('/api/account/delete', { token: spammer.token, password: 'password3' }, '198.51.100.22')).ok, true);
+  assert.equal((await post('/api/security/events', { token: spammer.token }, '198.51.100.23')).error, 'bad_token');
+  cs.ws.close();
+  console.log('✓ immediate account deletion and token revocation');
 
   // persistence across restart
   console.log('\nALL TESTS PASSED');

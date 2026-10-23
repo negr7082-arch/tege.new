@@ -29,7 +29,9 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
-  vapid: null // {publicKey, privateKey}
+  vapid: null, // {publicKey, privateKey}
+  securityEvents: {}, // userId -> [{id,type,createdAt,until,reason}]
+  channelComments: {} // `${channelId}:${postId}` -> Comment[]
 };
 try {
   Object.assign(db, JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
@@ -144,10 +146,75 @@ async function sendPush(userId, p) {
 const online = new Map(); // userId -> Set<Conn>
 const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
-const activeVideo = new Map(); // chatId -> info
+const activeVideo = new Map();
+const spamWindows = new Map(); // userId -> message timestamps in rolling 19-minute window
+const SPAM_WINDOW_MS = 19 * 60_000;
+const SPAM_MUTE_MS = 3 * 24 * 60 * 60_000;
+const SECURITY_BOT_ID = -700000001;
+const securityEventsFor = (userId) => (db.securityEvents[userId] ||= []);
+function recordSecurityEvent(userId, event) {
+  const list = securityEventsFor(userId);
+  list.unshift({ id: crypto.randomUUID(), createdAt: Date.now(), ...event });
+  if (list.length > 100) list.length = 100;
+  save();
+  sendToUser(userId, { type: 'security_event', event: list[0] });
+}
+function applySpamMute(user, durationMs, reason) {
+  const until = durationMs === Infinity ? null : Date.now() + durationMs;
+  user.spamMuteUntil = until;
+  user.spamMutedPermanently = durationMs === Infinity;
+  user.spamMuteReason = reason;
+  recordSecurityEvent(user.id, { type: 'spam_mute', reason, until, permanent: durationMs === Infinity, botId: SECURITY_BOT_ID });
+  sendToUser(user.id, { type: 'security_bot_notice', botId: SECURITY_BOT_ID, text: durationMs === Infinity ? 'Системный Security: за массовый спам установлен постоянный мут.' : 'Системный Security: обнаружен массовый спам. Мут на 3 дня.' });
+}
+function deleteAccountData(userId) {
+  const user = db.users[userId];
+  if (!user) return false;
+  for (const [token, id] of Object.entries(db.tokens)) if (id === userId) {
+    delete db.tokens[token]; delete db.sessions[token];
+    const sockets = sessionConnections.get(token);
+    if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+    sessionConnections.delete(token);
+  }
+  delete db.pushSubs[userId]; delete db.inbox[userId]; delete db.blocks[userId]; delete db.securityEvents[userId];
+  for (const list of Object.values(db.blocks)) for (let i=list.length-1;i>=0;i--) if (list[i].id === userId) list.splice(i,1);
+  for (const [chatId, members] of Object.entries(db.members)) db.members[chatId] = members.filter(id => id !== userId);
+  for (const [id, group] of Object.entries(db.groups)) if (group.ownerId === userId) { delete db.groups[id]; delete db.members[id]; }
+  for (const [id, channel] of Object.entries(db.channels)) if (channel.ownerId === userId) { delete db.channels[id]; delete db.members[id]; }
+  delete db.users[userId];
+  const sockets = online.get(userId);
+  if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+  online.delete(userId); spamWindows.delete(userId);
+  broadcast({ type: 'user_remove', userId });
+  save();
+  return true;
+}
+function enforceInactivityDeletion() {
+  const now = Date.now();
+  for (const user of Object.values(db.users)) {
+    const months = user.deleteAfterMonths;
+    if (![1,3,6,8,12,16,24].includes(months)) continue;
+    const last = Number(user.lastActiveAt || user.createdAt || now);
+    if (now - last >= months * 30 * 24 * 60 * 60_000) deleteAccountData(user.id);
+  }
+}
+setInterval(enforceInactivityDeletion, 60 * 60_000).unref();
+enforceInactivityDeletion(); // chatId -> info
 
+const volunteerEmails = new Set(String(process.env.TEGE_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const seniorVolunteerEmails = new Set(String(process.env.TEGE_SENIOR_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const headVolunteerEmails = new Set(String(process.env.TEGE_HEAD_VOLUNTEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const volunteerIds = new Set();
+const staffRole = (u) => {
+  const email = String(u.email || '').toLowerCase();
+  if (headVolunteerEmails.has(email)) return 'head_volunteer';
+  if (seniorVolunteerEmails.has(email)) return 'senior_volunteer';
+  if (volunteerEmails.has(email) || volunteerIds.has(u.id)) return 'volunteer';
+  return 'user';
+};
 const publicUser = (u) => ({
   id: u.id,
+  role: staffRole(u),
   name: u.name,
   username: u.username,
   bio: u.bio || '',
@@ -168,7 +235,8 @@ const selfUser = (u, token) => ({
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
-  token
+  token,
+  role: staffRole(u)
 });
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -317,6 +385,202 @@ const server = http.createServer(async (req, res) => {
     if (rateLimited(ip)) return fail(429, 'too_many_requests');
     const body = await readJson(req);
 
+    // Channel post discussions: comments are stored by channel + post, never only in UI memory.
+    if (url.pathname === '/api/channels/comments/list') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const channelId = Number(body.channelId);
+      const postId = Number(body.postId);
+      if (!Number.isSafeInteger(channelId) || !Number.isSafeInteger(postId)) return fail(400, 'bad_post');
+      const channel = db.channels[channelId];
+      if (!channel) return fail(404, 'channel_not_found');
+      const canView = channel.isPublic !== false || channel.ownerId === user.id ||
+        (channel.admins || []).some((a) => a.id === user.id) ||
+        (db.members[channelId] || []).includes(user.id);
+      if (!canView) return fail(403, 'forbidden');
+      return reply(200, { ok: true, comments: db.channelComments[`${channelId}:${postId}`] || [] });
+    }
+
+    if (url.pathname === '/api/channels/comments/add') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const channelId = Number(body.channelId);
+      const postId = Number(body.postId);
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      if (!Number.isSafeInteger(channelId) || !Number.isSafeInteger(postId) || !text || text.length > 2000) return fail(400, 'bad_comment');
+      const channel = db.channels[channelId];
+      if (!channel) return fail(404, 'channel_not_found');
+      const canView = channel.isPublic !== false || channel.ownerId === user.id ||
+        (channel.admins || []).some((a) => a.id === user.id) ||
+        (db.members[channelId] || []).includes(user.id);
+      if (!canView) return fail(403, 'forbidden');
+      const key = `${channelId}:${postId}`;
+      const comments = (db.channelComments[key] ||= []);
+      if (comments.length >= 500) return fail(429, 'too_many_comments');
+      const now = Date.now();
+      const recent = comments.filter((comment) => comment.authorId === user.id && now - Number(comment.createdAt || 0) < 10_000);
+      if (recent.length >= 5) return fail(429, 'comment_rate_limited');
+      const comment = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        authorName: user.name,
+        authorUsername: user.username,
+        authorAvatarUri: user.avatarUri || null,
+        text,
+        time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: now
+      };
+      comments.push(comment);
+      save();
+      broadcast({ type: 'channel_comment', channelId, postId, comment });
+      return reply(201, { ok: true, comment, comments });
+    }
+
+    if (url.pathname === '/api/account/inactivity/status') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const months = [1,3,6,8,12,16,24].includes(user.deleteAfterMonths) ? user.deleteAfterMonths : null;
+      const lastActiveAt = Number(user.lastActiveAt || user.createdAt || Date.now());
+      return reply(200, { ok: true, months, lastActiveAt, deletionAt: months ? lastActiveAt + months * 30 * 24 * 60 * 60_000 : null });
+    }
+
+    if (url.pathname === '/api/account/inactivity') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const months = body.months === null ? null : Number(body.months);
+      if (months !== null && ![1,3,6,8,12,16,24].includes(months)) return fail(400, 'bad_inactivity_period');
+      user.deleteAfterMonths = months;
+      user.lastActiveAt = Date.now();
+      save();
+      return reply(200, { ok: true, months, lastActiveAt: user.lastActiveAt, deletionAt: months ? user.lastActiveAt + months * 30 * 24 * 60 * 60_000 : null });
+    }
+
+    if (url.pathname === '/api/account/delete') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      if (!checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      deleteAccountData(user.id);
+      return reply(200, { ok: true });
+    }
+
+    if (url.pathname === '/api/security/events') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      const now = Date.now();
+      const muteUntil = user.spamMutedPermanently ? null : Number(user.spamMuteUntil || 0);
+      const activeMute = Boolean(user.spamMutedPermanently || muteUntil > now);
+      return reply(200, { ok: true, bot: { id: SECURITY_BOT_ID, name: 'Security' }, activeMute: activeMute ? { permanent: Boolean(user.spamMutedPermanently), until: muteUntil || null } : null, events: securityEventsFor(user.id) });
+    }
+
+    // Staff moderation is enforced on the server. Volunteer role comes from private env allowlists.
+    if (url.pathname === '/api/security/reports/create') {
+      const reporter = userFromToken(body.token);
+      if (!reporter) return fail(401, 'bad_token');
+      const target = db.users[Number(body.targetUserId)];
+      if (!target) return fail(404, 'user_not_found');
+      if (target.id === reporter.id) return fail(400, 'cannot_report_self');
+      const categories = ['spam', 'adult', 'harassment', 'violence', 'scam', 'other'];
+      const category = String(body.category || '');
+      if (!categories.includes(category)) return fail(400, 'bad_report_category');
+      const reports = db.securityReports ||= [];
+      const messageId = String(body.messageId || '').slice(0, 100);
+      const duplicate = reports.find((r) => r.reporterId === reporter.id && r.targetUserId === target.id && r.messageId === messageId && r.status === 'open');
+      if (duplicate) return reply(200, { ok: true, report: duplicate, duplicate: true });
+      const report = { id: crypto.randomUUID(), reporterId: reporter.id, targetUserId: target.id, messageId, messageText: String(body.messageText || '').slice(0, 2000), category, details: String(body.details || '').trim().slice(0, 500), status: 'open', assignedTo: null, createdAt: Date.now(), history: [] };
+      reports.unshift(report);
+      if (reports.length > 5000) reports.length = 5000;
+      save();
+      for (const u of Object.values(db.users)) if (['volunteer', 'senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_new', reportId: report.id, category });
+      return reply(201, { ok: true, report });
+    }
+    if (url.pathname === '/api/security/reports/list') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const reports = (db.securityReports || []).filter((r) => role === 'volunteer' ? ['open', 'reviewing'].includes(r.status) : true);
+      return reply(200, { ok: true, role, reports: reports.slice(0, 500) });
+    }
+    if (url.pathname === '/api/security/reports/action') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const reports = db.securityReports ||= [];
+      const report = reports.find((r) => r.id === String(body.reportId || ''));
+      if (!report) return fail(404, 'report_not_found');
+      const action = String(body.action || '');
+      if (action === 'review') {
+        if (role !== 'volunteer' || report.status !== 'open') return fail(403, 'junior_review_only');
+        report.status = 'reviewing'; report.assignedTo = actor.id;
+      } else if (action === 'forward') {
+        if (role !== 'volunteer') return fail(403, 'junior_volunteer_only');
+        report.status = 'forwarded'; report.assignedTo = 'senior_volunteers';
+      } else if (action === 'resolve') {
+        if (!['senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'senior_volunteer_required');
+        report.status = 'resolved';
+      } else return fail(400, 'bad_action');
+      report.history ||= [];
+      report.history.unshift({ actorId: actor.id, actorRole: role, action, createdAt: Date.now(), note: String(body.note || '').slice(0, 300) });
+      save();
+      if (action === 'forward') for (const u of Object.values(db.users)) if (['senior_volunteer', 'head_volunteer'].includes(staffRole(u))) sendToUser(u.id, { type: 'security_report_forwarded', reportId: report.id });
+      return reply(200, { ok: true, report });
+    }
+
+    if (url.pathname === '/api/security/moderation/list') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(staffRole(actor))) return fail(403, 'staff_only');
+      const now = Date.now();
+      const mutedUsers = Object.values(db.users)
+        .filter((u) => Boolean(u.spamMutedPermanently || Number(u.spamMuteUntil || 0) > now))
+        .map((u) => ({
+          id: u.id, name: u.name, username: u.username,
+          permanent: Boolean(u.spamMutedPermanently),
+          until: u.spamMutedPermanently ? null : Number(u.spamMuteUntil || 0),
+          reason: String(u.spamMuteReason || securityEventsFor(u.id).find((e) => e.type === 'spam_mute')?.reason || 'Spam detection'),
+          events: securityEventsFor(u.id).slice(0, 20)
+        }));
+      return reply(200, { ok: true, role: staffRole(actor), mutedUsers });
+    }
+
+    if (url.pathname === '/api/security/moderation/action') {
+      const actor = userFromToken(body.token);
+      if (!actor) return fail(401, 'bad_token');
+      const role = staffRole(actor);
+      if (!['volunteer', 'senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'staff_only');
+      const targetId = Number(body.targetUserId);
+      const target = Number.isSafeInteger(targetId) ? db.users[targetId] : null;
+      if (!target) return fail(404, 'user_not_found');
+      const action = String(body.action || '');
+      const now = Date.now();
+      const isMuted = Boolean(target.spamMutedPermanently || Number(target.spamMuteUntil || 0) > now);
+      if (!isMuted) return fail(409, 'not_muted');
+      if (action === 'unmute') {
+        if (!['senior_volunteer', 'head_volunteer'].includes(role)) return fail(403, 'senior_volunteer_required');
+        delete target.spamMuteUntil;
+        delete target.spamMutedPermanently;
+        delete target.spamMuteReason;
+        recordSecurityEvent(target.id, { type: 'moderation_unmute', reason: 'Мут снят старшим волонтёром', actorId: actor.id, actorRole: role });
+      } else if (action === 'extend') {
+        const hours = Number(body.hours);
+        if (!Number.isInteger(hours) || hours < 1 || hours > 720) return fail(400, 'bad_duration');
+        if (target.spamMutedPermanently) return fail(409, 'permanent_mute');
+        target.spamMuteUntil = Math.max(Number(target.spamMuteUntil || 0), now) + hours * 60 * 60_000;
+        target.spamMuteReason = String(target.spamMuteReason || 'Spam detection');
+        recordSecurityEvent(target.id, { type: 'moderation_extend', reason: `Мут продлён на ${hours} ч.`, until: target.spamMuteUntil, actorId: actor.id, actorRole: role });
+      } else if (action === 'reason') {
+        const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+        if (reason.length < 5 || reason.length > 300) return fail(400, 'bad_reason');
+        target.spamMuteReason = reason;
+        recordSecurityEvent(target.id, { type: 'moderation_reason', reason, until: target.spamMutedPermanently ? null : target.spamMuteUntil, permanent: Boolean(target.spamMutedPermanently), actorId: actor.id, actorRole: role });
+      } else {
+        return fail(400, 'bad_action');
+      }
+      save();
+      return reply(200, { ok: true, role, targetUserId: target.id, permanent: Boolean(target.spamMutedPermanently), until: target.spamMutedPermanently ? null : Number(target.spamMuteUntil || 0), reason: target.spamMuteReason || null });
+    }
+
     if (url.pathname === '/api/push-key') {
       return reply(200, { ok: Boolean(webpush && db.vapid), key: db.vapid ? db.vapid.publicKey : null });
     }
@@ -367,7 +631,8 @@ const server = http.createServer(async (req, res) => {
         bio: String(body.bio || 'Online on Tege Messenger').slice(0, 300),
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
-        registrationDate: new Date().toLocaleDateString('ru-RU')
+        registrationDate: new Date().toLocaleDateString('ru-RU'),
+        createdAt: Date.now(), lastActiveAt: Date.now(), deleteAfterMonths: null
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
@@ -386,6 +651,7 @@ const server = http.createServer(async (req, res) => {
         twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
         return reply(200, { ok: true, requiresTwoFactor: true, challenge });
       }
+      user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
@@ -411,6 +677,7 @@ const server = http.createServer(async (req, res) => {
         return fail(401, pending.attempts >= 5 ? 'challenge_locked' : 'bad_cloud_password');
       }
       twoFactorChallenges.delete(challenge);
+      user.lastActiveAt = Date.now();
       const token = crypto.randomBytes(32).toString('hex');
       db.tokens[token] = user.id;
       db.sessions[token] = { userId: user.id, createdAt: Date.now(), device: String(body.device || 'Web browser').slice(0, 120) };
@@ -522,6 +789,36 @@ function joinChats(userId, chatIds) {
 }
 
 function handleSend(user, conn, payload) {
+  const now = Date.now();
+  user.lastActiveAt = now;
+  const isNewMessage = Boolean(payload?.message && !payload.action);
+  let window = spamWindows.get(user.id) || [];
+  if (isNewMessage) {
+    window = window.filter((t) => now - t < SPAM_WINDOW_MS);
+    window.push(now);
+    spamWindows.set(user.id, window);
+    // 200+ send attempts inside the rolling window escalates to a permanent system mute,
+    // including attempts made while a temporary mute is active.
+    if (window.length >= 200 && !user.spamMutedPermanently) {
+      applySpamMute(user, Infinity, '200+ сообщений за 19 минут');
+    }
+  }
+  if (user.spamMutedPermanently || Number(user.spamMuteUntil || 0) > now) {
+    conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMutedPermanently ? null : user.spamMuteUntil, permanent: Boolean(user.spamMutedPermanently) });
+    return;
+  }
+  if (user.spamMuteUntil && Number(user.spamMuteUntil) <= now) { delete user.spamMuteUntil; delete user.spamMutedPermanently; }
+  if (isNewMessage && window.length >= 100) {
+    const previousStrike = securityEventsFor(user.id).some((event) => event.type === 'spam_mute');
+    if (previousStrike) {
+      applySpamMute(user, Infinity, 'Повторный массовый спам после предыдущего наказания');
+      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', permanent: true });
+    } else {
+      applySpamMute(user, SPAM_MUTE_MS, '100+ сообщений за 19 минут');
+      conn.send({ type: 'send_result', id: payload?.id, ok: false, reason: 'spam_muted', until: user.spamMuteUntil, permanent: false });
+    }
+    return;
+  }
   const ok = (extra) => conn.send({ type: 'send_result', id: payload?.id, ok: true, ...extra });
   const no = (reason) => conn.send({ type: 'send_result', id: payload?.id, ok: false, reason });
   if (!payload || !payload.message) return no('bad_payload');
@@ -586,6 +883,7 @@ attachWebSocket(server, (conn, url) => {
   const wasOffline = !set;
   if (!set) online.set(user.id, (set = new Set()));
   set.add(conn);
+  user.lastActiveAt = Date.now();
   if (wasOffline) broadcast({ type: 'presence', userId: user.id, online: true, lastSeenAt: user.lastSeenAt || null }, conn);
 
   conn.send({
@@ -615,6 +913,7 @@ attachWebSocket(server, (conn, url) => {
     if (set.size === 0) {
       online.delete(user.id);
       user.lastSeenAt = Date.now();
+      user.lastActiveAt = Date.now();
       save();
       broadcast({ type: 'presence', userId: user.id, online: false, lastSeenAt: user.lastSeenAt });
     }
@@ -726,7 +1025,11 @@ attachWebSocket(server, (conn, url) => {
       }
 
       case 'ping':
+        // A live client heartbeat counts as activity; otherwise an open, idle session
+        // could be deleted by the inactivity policy while the user is still online.
+        user.lastActiveAt = Date.now();
         conn.send({ type: 'pong' });
+        save();
         break;
     }
   };
