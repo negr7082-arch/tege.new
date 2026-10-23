@@ -97,7 +97,7 @@ fun TelegramDrawer(
                 onCloseDrawer()
             }
         } else {
-            DrawerItem(icon = Icons.Default.VolunteerActivism, label = "Стать волонтёром") {
+            DrawerItem(icon = Icons.Default.PersonAdd, label = "Стать волонтёром") {
                 viewModel.navigateTo(ScreenRoute.Security)
                 onCloseDrawer()
             }
