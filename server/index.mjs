@@ -152,8 +152,7 @@ const publicUser = (u) => ({
   name: u.name,
   username: u.username,
   bio: u.bio || '',
-  phone: u.phone,
-  country: u.country,
+  // Contact details are private account data; expose them only in selfUser().
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
   online: online.has(u.id),
@@ -646,7 +645,12 @@ attachWebSocket(server, (conn, url) => {
       g.ownerId === user.id || (g.admins || []).some((a) => a.id === user.id)),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
-    videoChats: Object.fromEntries(activeVideo)
+    videoChats: Object.fromEntries([...activeVideo].filter(([chatId]) =>
+      (db.members[chatId] || []).includes(user.id) ||
+      db.groups[chatId]?.ownerId === user.id ||
+      db.channels[chatId]?.ownerId === user.id ||
+      (db.groups[chatId]?.admins || []).some((a) => a.id === user.id) ||
+      (db.channels[chatId]?.admins || []).some((a) => a.id === user.id)))
   });
   // pending offline messages
   for (const item of db.inbox[user.id] || []) conn.send({ type: 'message', payload: item });
@@ -767,11 +771,41 @@ attachWebSocket(server, (conn, url) => {
 
       case 'video_chat': {
         const { chatId, info } = msg;
-        if (!Number.isFinite(chatId)) break;
-        if (info && info.isActive) activeVideo.set(chatId, info);
-        else activeVideo.delete(chatId);
-        const targets = new Set([...(db.members[chatId] || []), user.id]);
-        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: info || null }, conn);
+        if (!Number.isSafeInteger(chatId)) break;
+        const chat = db.groups[chatId] || db.channels[chatId];
+        if (!chat) break;
+        const isStaff = chat.ownerId === user.id || (chat.admins || []).some((a) => a.id === user.id);
+        if (!(db.members[chatId] || []).includes(user.id) && !isStaff) break;
+        let safeInfo = null;
+        if (info && info.isActive) {
+          safeInfo = {
+            isActive: true,
+            title: String(info.title || chat.name || '').slice(0, 120),
+            startedAt: Number.isFinite(info.startedAt) ? info.startedAt : Date.now(),
+            startedById: user.id,
+            startedByName: user.name,
+            participants: Array.isArray(info.participants)
+              ? info.participants.filter((p) => p && Number.isSafeInteger(p.id) && (db.members[chatId] || []).includes(p.id))
+                  .slice(0, 200)
+                  .map((p) => ({
+                    id: p.id,
+                    name: String(db.users[p.id]?.name || '').slice(0, 64),
+                    avatarUri: db.users[p.id]?.avatarUri || null,
+                    isSpeaking: Boolean(p.isSpeaking),
+                    isMuted: Boolean(p.isMuted),
+                    isVideoOn: Boolean(p.isVideoOn),
+                    isScreenSharing: Boolean(p.isScreenSharing),
+                    isHandRaised: Boolean(p.isHandRaised),
+                    isHost: p.id === user.id
+                  }))
+              : []
+          };
+          activeVideo.set(chatId, safeInfo);
+        } else {
+          activeVideo.delete(chatId);
+        }
+        const targets = new Set([...(db.members[chatId] || []), chat.ownerId, user.id].filter((id) => Number.isSafeInteger(id)));
+        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: safeInfo }, conn);
         break;
       }
 
