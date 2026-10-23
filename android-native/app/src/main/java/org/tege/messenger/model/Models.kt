@@ -136,7 +136,9 @@ data class ContactUser(
     val registrationDate: String = "",
     val online: Boolean = false,
     val avatarUri: String? = null,
-    val color: String = "#2AABEE"
+    val color: String = "#2AABEE",
+    val volunteerRole: String? = null,
+    val isVerified: Boolean = false
 )
 
 data class Chat(
