@@ -192,7 +192,9 @@ data class UserAccount(
     val country: String = "Russia",
     val registrationDate: String = "",
     val avatarUri: String? = null,
-    val isOnline: Boolean = true
+    val isOnline: Boolean = true,
+    val volunteerRole: String? = null,
+    val isVerified: Boolean = false
 )
 
 data class Story(
