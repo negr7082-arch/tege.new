@@ -1502,6 +1502,7 @@ export const App: React.FC = () => {
             <ProfileScreen
               profile={{
                 id: account.id,
+                role: account.role,
                 email: account.email,
                 name: account.name,
                 username: account.username,
