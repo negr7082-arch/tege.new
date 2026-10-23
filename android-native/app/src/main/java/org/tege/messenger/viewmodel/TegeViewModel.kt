@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import okhttp3.WebSocket
 import org.tege.messenger.service.BackendClient
+import org.tege.messenger.security.SessionTokenStore
 import org.tege.messenger.service.TegeSocketListener
 import org.tege.messenger.data.SampleData
 import org.tege.messenger.model.*
@@ -26,11 +27,12 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
     private fun chatStorageKey(accountId: Long? = _currentAccount.value?.id): String =
         persistedChatsKey + "_" + (accountId?.toString() ?: "device")
     private val profilePrefs = application.getSharedPreferences("tege_local_profile", Context.MODE_PRIVATE)
+    private val tokenStore = SessionTokenStore(application)
     private val settingsPrefs = application.getSharedPreferences("tege_local_settings", Context.MODE_PRIVATE)
 
     private fun loadLocalAccount(): UserAccount? {
         // A saved display name is not an authenticated account. Restore only a server session.
-        if (profilePrefs.getString("auth_token", null).isNullOrBlank()) return null
+        if (savedToken.isNullOrBlank()) return null
         val name = profilePrefs.getString("name", null)?.trim().orEmpty()
         if (name.isBlank()) return null
         return UserAccount(
@@ -303,7 +305,18 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         get() = profilePrefs.getString("api_base_url", BackendClient.DEFAULT_BASE_URL)
             ?: BackendClient.DEFAULT_BASE_URL
     private val savedToken: String?
-        get() = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
+        get() {
+            tokenStore.read()?.takeIf { it.isNotBlank() }?.let { return it }
+            // Migrate an existing session once, then remove the legacy plaintext token.
+            val legacyToken = profilePrefs.getString("auth_token", null)?.takeIf { it.isNotBlank() }
+                ?: return null
+            if (tokenStore.write(legacyToken)) {
+                tokenStore.clear()
+                profilePrefs.edit().remove("auth_token").apply()
+                return legacyToken
+            }
+            return null
+        }
 
     init {
         restoreChats()
@@ -345,8 +358,11 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             isOnline = true
         )
         val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
+        if (!tokenStore.write(token)) {
+            return "Не удалось безопасно сохранить сессию. Обнови приложение и попробуй ещё раз."
+        }
         profilePrefs.edit()
-            .putString("auth_token", token)
+            .remove("auth_token")
             .putString("api_base_url", normalizedUrl)
             .apply()
         activeSocket?.close(1000, "New session")
@@ -804,6 +820,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         _currentAccount.value = null
         _contacts.value = emptyList()
         _connectionState.value = "Не подключено"
+        tokenStore.clear()
         profilePrefs.edit().clear().apply()
         _chats.value = SampleData.getInitialChats()
         _searchQuery.value = ""
