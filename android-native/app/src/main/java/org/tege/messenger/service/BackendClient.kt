@@ -1,5 +1,8 @@
 package org.tege.messenger.service
 
+import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -9,6 +12,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 data class AuthResponse(
@@ -63,14 +67,31 @@ object BackendClient {
         email: String,
         password: String,
         name: String = "",
-        username: String = ""
+        username: String = "",
+        context: Context? = null
     ): AuthResponse = withContext(Dispatchers.IO) {
         val normalizedUrl = normalizeBaseUrl(baseUrl)
             ?: return@withContext AuthResponse(error = "bad_server_url")
+        val androidId = context?.let {
+            Settings.Secure.getString(it.contentResolver, Settings.Secure.ANDROID_ID)
+        }.orEmpty()
+        val deviceId = if (androidId.isNotBlank()) {
+            MessageDigest.getInstance("SHA-256")
+                .digest((context!!.packageName + ":" + androidId).toByteArray(Charsets.UTF_8))
+                .joinToString("") { byte -> "%02x".format(byte) }
+        } else ""
+        val deviceInfo = JSONObject()
+            .put("platform", "android")
+            .put("manufacturer", Build.MANUFACTURER.take(80))
+            .put("model", Build.MODEL.take(100))
+            .put("androidSdk", Build.VERSION.SDK_INT)
+            .put("appVersion", "1.0.0")
         val body = JSONObject()
             .put("email", email.trim())
             .put("password", password)
             .put("device", "Tege Android")
+            .put("deviceId", deviceId)
+            .put("deviceInfo", deviceInfo)
         if (register) {
             body.put("name", name.trim())
             if (username.isNotBlank()) body.put("username", username.trim().removePrefix("@"))
