@@ -263,7 +263,7 @@ try {
   cs.ws.close();
   console.log('✓ immediate account deletion and token revocation');
 
-  // A new IP plus an unseen install/device ID triggers automatic security freeze.
+  // A new IP plus an unseen install/device ID starts a 24-hour security review.
   const riskUser = (await post('/api/register', {
     email: 'risk-check@x.io', password: 'password9', name: 'Risk Check',
     username: '@riskcheck', deviceId: 'risk-device-origin-000000000000'
@@ -275,11 +275,13 @@ try {
   const suspiciousLogin = await post('/api/login', {
     email: 'risk-check@x.io', password: 'password9', deviceId: 'risk-device-new-000000000000000'
   }, '203.0.113.201');
-  assert.equal(suspiciousLogin.error, 'account_suspended_security_review');
-  assert.equal((await post('/api/login', { email: 'risk-check@x.io', password: 'password9' }, '203.0.113.202')).error, 'account_suspended');
+  assert.equal(suspiciousLogin.error, 'security_review_pending');
+  assert.equal((await post('/api/login', { email: 'risk-check@x.io', password: 'password9' }, '203.0.113.202')).error, 'security_review_pending');
   const riskEvents = await post('/api/security/admin/overview', { token: a.token }, '203.0.113.203');
-  assert.ok(riskEvents.accounts.find((u) => u.id === riskUser.id).suspended);
-  console.log('✓ new IP + new device auto-freezes account for Security review');
+  const riskAccount = riskEvents.accounts.find((u) => u.id === riskUser.id);
+  assert.equal(riskAccount.suspended, false);
+  assert.ok(riskAccount.securityReviewUntil > Date.now());
+  console.log('✓ new IP + new device starts a 24-hour quarantine before account freeze');
 
   // persistence across restart
   console.log('\nALL TESTS PASSED');
