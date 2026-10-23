@@ -1,10 +1,14 @@
 package org.tege.messenger.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,11 +16,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.tege.messenger.ui.components.TegeAvatar
 import org.tege.messenger.ui.theme.TelegramBlue
 import org.tege.messenger.viewmodel.TegeViewModel
@@ -28,11 +35,33 @@ fun ProfileScreen(
     onBack: () -> Unit
 ) {
     val account by viewModel.currentAccount.collectAsState()
+    val context = LocalContext.current
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editUsername by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
     var editPhone by remember { mutableStateOf("") }
+    var pickingBanner by remember { mutableStateOf(false) }
+    var mediaPickerError by remember { mutableStateOf<String?>(null) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            if (pickingBanner) {
+                viewModel.updateProfileMedia(bannerUri = uri.toString())
+            } else {
+                viewModel.updateProfileMedia(avatarUri = uri.toString())
+            }
+            mediaPickerError = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -40,7 +69,7 @@ fun ProfileScreen(
                 title = { Text("Профиль", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 actions = {
@@ -54,7 +83,7 @@ fun ProfileScreen(
                         Icon(Icons.Default.Edit, contentDescription = "Редактировать профиль", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(onClick = { viewModel.logout() }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -67,40 +96,130 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Profile Header
+            // TikTok-inspired profile cover: wide image with the avatar overlapping its lower edge.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(vertical = 20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TegeAvatar(
-                        avatarUri = account?.avatarUri,
-                        displayName = account?.name ?: "TEGE",
-                        color = TelegramBlue,
-                        modifier = Modifier.size(80.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = account?.name ?: "Пользователь",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    account?.username?.takeIf { it.isNotBlank() }?.let { username ->
-                        Text(
-                            text = if (username.startsWith("@")) username else "@$username",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp)
+                    .height(184.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF192A56), Color(0xFF6C5CE7), Color(0xFF00B8A9))
                         )
-                    }
+                    )
+            ) {
+                account?.bannerUri?.let { banner ->
+                    AsyncImage(
+                        model = banner,
+                        contentDescription = "Баннер профиля",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color(0x66000000))
+                            )
+                        )
+                    )
+                }
+                Text(
+                    text = "TEGE",
+                    color = Color.White.copy(alpha = 0.16f),
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                FilledTonalButton(
+                    onClick = {
+                        pickingBanner = true
+                        imagePicker.launch(arrayOf("image/*"))
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color.Black.copy(alpha = 0.55f),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (account?.bannerUri == null) "Добавить баннер" else "Изменить баннер")
                 }
             }
 
-            // Info rows
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.offset(y = (-34).dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(104.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(4.dp)
+                    ) {
+                        if (!account?.avatarUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = account?.avatarUri,
+                                contentDescription = "Фото профиля",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            TegeAvatar(
+                                avatarUri = null,
+                                displayName = account?.name ?: "TEGE",
+                                color = TelegramBlue,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    FilledIconButton(
+                        onClick = {
+                            pickingBanner = false
+                            imagePicker.launch(arrayOf("image/*"))
+                        },
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Изменить фото профиля", modifier = Modifier.size(18.dp))
+                    }
+                }
+                Text(
+                    text = account?.name ?: "Пользователь",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.offset(y = (-24).dp)
+                )
+                account?.username?.takeIf { it.isNotBlank() }?.let { username ->
+                    Text(
+                        text = if (username.startsWith("@")) username else "@$username",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp,
+                        modifier = Modifier.offset(y = (-20).dp)
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        pickingBanner = true
+                        imagePicker.launch(arrayOf("image/*"))
+                    },
+                    modifier = Modifier.offset(y = (-14).dp)
+                ) {
+                    Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Оформить профиль")
+                }
+            }
+
+            mediaPickerError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 Text(
                     text = "Учётная запись",
                     color = TelegramBlue,
@@ -108,29 +227,31 @@ fun ProfileScreen(
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-
                 ProfileInfoRow(
                     icon = Icons.Default.Phone,
                     title = account?.phone?.takeIf { it.isNotBlank() } ?: "Не указан",
                     subtitle = "Номер телефона"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.AlternateEmail,
                     title = account?.username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "Не указан",
                     subtitle = "Имя пользователя"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.Info,
                     title = account?.bio?.takeIf { it.isNotBlank() } ?: "Не указано",
                     subtitle = "О себе"
                 )
-
                 ProfileInfoRow(
                     icon = Icons.Default.CalendarToday,
                     title = account?.registrationDate?.takeIf { it.isNotBlank() } ?: "Не указана",
                     subtitle = "Профиль создан"
+                )
+                Text(
+                    "Фото и баннер пока сохраняются на этом устройстве.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 24.dp)
                 )
             }
         }
@@ -168,9 +289,7 @@ fun ProfileInfoRow(
     subtitle: String
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
