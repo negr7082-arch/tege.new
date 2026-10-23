@@ -364,6 +364,103 @@ class TegeViewModel : ViewModel() {
         _settings.value = _settings.value.copy(blockedUsers = newBlocked)
     }
 
+
+    suspend fun authenticate(
+        serverUrl: String,
+        email: String,
+        password: String,
+        displayName: String,
+        username: String,
+        register: Boolean,
+        context: Context? = null
+    ): String? {
+        _connectionState.value = "Подключение…"
+        val result = BackendClient.authenticate(
+            baseUrl = serverUrl,
+            register = register,
+            email = email,
+            password = password,
+            name = displayName,
+            username = username,
+            context = context
+        )
+        val user = result.user
+        if (user == null) {
+            _connectionState.value = "Нет соединения"
+            return when (result.error) {
+                "bad_credentials" -> "Неверная почта или пароль."
+                "security_review_pending", "account_suspended", "account_suspended_security_review" -> "Аккаунт временно заморожен для проверки безопасности."
+                "security_temporarily_locked" -> "Слишком много попыток. Попробуйте позже."
+                "device_proof_invalid" -> "Не удалось подтвердить безопасность устройства."
+                "connection_failed" -> "Не удалось подключиться к серверу."
+                else -> result.error ?: "Не удалось войти."
+            }
+        }
+        activeServerUrl = serverUrl
+        activeToken = user.optString("token").takeIf { it.isNotBlank() }
+        val account = UserAccount(
+            id = user.optLong("id", System.currentTimeMillis()),
+            email = user.optString("email", email),
+            name = user.optString("name", displayName.ifBlank { email.substringBefore("@") }),
+            username = user.optString("username", username),
+            bio = user.optString("bio", ""),
+            phone = user.optString("phone", ""),
+            country = user.optString("country", "Russia"),
+            registrationDate = user.optString("registrationDate", "")
+        )
+        _currentAccount.value = account
+        _accounts.value = (_accounts.value.filterNot { it.id == account.id } + account).takeLast(20)
+        _contacts.value = _accounts.value.filterNot { it.id == account.id }.map {
+            ContactUser(id = it.id, name = it.name, username = it.username, bio = it.bio, phone = it.phone, avatarUri = it.avatarUri)
+        }
+        _connectionState.value = "Вход выполнен"
+        activeToken?.let { token ->
+            BackendClient.connect(serverUrl, token, object : TegeSocketListener {
+                override fun onEvent(event: JSONObject) {}
+                override fun onStatus(connected: Boolean, detail: String?) {
+                    _connectionState.value = if (connected) "Подключено" else "Нет соединения"
+                }
+            })
+        }
+        return null
+    }
+
+    fun updateProfile(name: String, username: String, bio: String, phone: String) {
+        val account = _currentAccount.value ?: return
+        val updated = account.copy(name = name.trim().ifBlank { account.name }, username = username.trim().removePrefix("@"), bio = bio.trim(), phone = phone.trim())
+        _currentAccount.value = updated
+        _accounts.value = _accounts.value.map { if (it.id == updated.id) updated else it }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) { _settings.value = _settings.value.copy(notificationsEnabled = enabled) }
+    fun setSoundEnabled(enabled: Boolean) { _settings.value = _settings.value.copy(soundEnabled = enabled) }
+    fun setAnimationsEnabled(enabled: Boolean) { _settings.value = _settings.value.copy(animationsEnabled = enabled) }
+    fun setLastSeenPrivacy(value: String) { _settings.value = _settings.value.copy(lastSeenPrivacy = value) }
+    fun setPhotoPrivacy(value: String) { _settings.value = _settings.value.copy(photoPrivacy = value) }
+
+    fun openDirectChat(contact: ContactUser): Long {
+        val existing = _chats.value.firstOrNull { it.type == ChatType.DIRECT && it.userId == contact.id }
+        if (existing != null) return existing.id
+        val chatId = contact.id
+        _chats.value = listOf(Chat(id = chatId, type = ChatType.DIRECT, userId = contact.id, username = contact.username, name = contact.name, avatarUri = contact.avatarUri, color = contact.color, online = contact.online)) + _chats.value
+        return chatId
+    }
+
+    fun reconnect() {
+        val token = activeToken
+        if (token.isNullOrBlank()) {
+            _connectionState.value = "Войдите, чтобы подключиться"
+            return
+        }
+        _connectionState.value = "Переподключение…"
+        BackendClient.connect(activeServerUrl, token, object : TegeSocketListener {
+            override fun onEvent(event: JSONObject) {}
+            override fun onStatus(connected: Boolean, detail: String?) {
+                _connectionState.value = if (connected) "Подключено" else "Нет соединения"
+            }
+        })
+    }
+
     fun changePassword(newPass: String) {
         _settings.value = _settings.value.copy(twoFactorEnabled = true, twoFactorPassword = newPass)
         _currentAccount.value = _currentAccount.value?.copy(password = newPass)
