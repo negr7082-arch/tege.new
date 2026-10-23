@@ -609,8 +609,12 @@ attachWebSocket(server, (conn, url) => {
     type: 'snapshot',
     me: selfUser(user, url.searchParams.get('token')),
     users: Object.values(db.users).map(publicUser),
-    channels: Object.values(db.channels),
-    groups: Object.values(db.groups),
+    channels: Object.values(db.channels).filter((ch) =>
+      ch.isPublic !== false || (db.members[ch.id] || []).includes(user.id) ||
+      ch.ownerId === user.id || (ch.admins || []).some((a) => a.id === user.id)),
+    groups: Object.values(db.groups).filter((g) =>
+      !g.isPrivate || (db.members[g.id] || []).includes(user.id) ||
+      g.ownerId === user.id || (g.admins || []).some((a) => a.id === user.id)),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
     videoChats: Object.fromEntries(activeVideo)
