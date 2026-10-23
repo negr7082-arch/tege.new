@@ -782,6 +782,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         _messageError.value = "Выбери изображение PNG, JPG или WebP."
                         return@launch
                     }
+                    val imageMime = mime ?: run { _messageError.value = "Не удалось определить формат изображения."; return@launch }
+                    val uploadKind = changedKind ?: return@launch
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: run { _messageError.value = "Не удалось прочитать изображение."; return@launch }
                     if (bytes.size > 3 * 1024 * 1024) {
@@ -789,7 +791,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                     val token = savedToken ?: run { _messageError.value = "Войди в аккаунт для загрузки на сервер."; return@launch }
-                    val remotePath = BackendClient.uploadProfileMedia(savedServerUrl, token, changedKind, mime, bytes)
+                    val remotePath = BackendClient.uploadProfileMedia(savedServerUrl, token, uploadKind, imageMime, bytes)
                         ?: run { _messageError.value = "Не удалось загрузить изображение на сервер."; return@launch }
                     val updated = if (changedKind == "avatar") current.copy(avatarUri = remotePath) else current.copy(bannerUri = remotePath)
                     _currentAccount.value = updated
