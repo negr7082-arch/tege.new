@@ -1374,8 +1374,8 @@ export const App: React.FC = () => {
     );
   }
 
-  const isConfiguredHeadVolunteer = ['negr7082@gmail.com', 'mkiatkin1488@gmail.com'].includes(account.email.trim().toLowerCase());
-  const effectiveVolunteerRole = account.role && account.role !== 'user' ? account.role : (isConfiguredHeadVolunteer ? 'head_volunteer' : 'user');
+  // The server-issued role is the only source of truth. Never infer staff access from email or local UI state.
+  const effectiveVolunteerRole = account.role || 'user';
   const canOpenVolunteerMenu = effectiveVolunteerRole !== 'user';
 
   const selectedChat =
