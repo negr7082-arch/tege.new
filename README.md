@@ -94,3 +94,8 @@ The server records recent successful-login IPs and install/device signals. A log
 ### 24-hour suspicious-login quarantine
 
 A login combining a previously unseen IP and device signal, or 3+ distinct IPs in 24 hours, starts a 24-hour Security review. The suspicious new login is denied while the review is pending; the account is not immediately marked permanently suspended. If the review remains unresolved for 24 hours, the server freezes the account, revokes sessions and records the signals. A Security administrator can clear the review when restoring a legitimate owner. A single IP or carrier change is not sufficient proof of compromise. Device and carrier metadata are risk signals, not definitive proof of a physical person's identity.
+
+
+### Native Android security and FAQ
+
+The native Kotlin/Jetpack Compose app includes a **FAQ и правила** screen from the navigation drawer covering account ownership, account recovery, privacy, anti-harassment, group/channel rules, reports, moderation and appeals. Android authentication can submit a hashed app-scoped Android ID plus limited model/manufacturer/SDK metadata when the caller provides an Android context. These are risk signals only; no IMEI or serial number is collected. Carrier/operator identity is not inferred from client-supplied claims; reliable ASN/carrier enrichment requires a configured server-side IP intelligence provider.
