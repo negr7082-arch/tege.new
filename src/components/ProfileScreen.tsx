@@ -192,8 +192,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{language === 'ru' ? 'Профиль' : 'Profile'}</h1>
       </div>
 
-      {/* Server-backed profile image pickers */}
-      <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+      {/* Server-backed profile image picker */}
       <input type="file" ref={bannerInputRef} onChange={handleBannerChange} accept="image/*" className="hidden" />
 
       {/* Hidden file input for channel photo updates */}
