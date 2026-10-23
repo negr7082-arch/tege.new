@@ -59,6 +59,7 @@ try {
   assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'unfreeze_account', targetUserId: b.id }, '203.0.113.104')).suspended, false);
   const bRestored = await post('/api/login', { email: 'bob@x.io', password: 'password2' }, '203.0.113.105');
   assert.equal(bRestored.ok, true, 'unfrozen account can authenticate again');
+  b.token = bRestored.user.token; // freezing revoked the original bearer token
   const ipBlock = await post('/api/security/admin/action', { token: a.token, action: 'block_ip', ip: '198.51.100.90' }, '203.0.113.106');
   assert.equal(ipBlock.blocked, true);
   assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' }, '198.51.100.90')).error, 'security_ip_blocked');
