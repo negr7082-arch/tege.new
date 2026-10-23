@@ -151,6 +151,23 @@ try {
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
 
+  // Shared profile theme and server-hosted banner media
+  ca.send({ type: 'profile', user: { themeColor: '#FF4F81', fontFamily: 'serif' } });
+  const styled = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.themeColor === '#FF4F81');
+  assert.equal(styled.user.fontFamily, 'serif');
+  const media = await post('/api/profile-media', {
+    token: a.token, kind: 'banner', mime: 'image/png', data: 'iVBORw0KGgo='
+  });
+  assert.equal(media.ok, true);
+  assert.match(media.url, /^\/profile-media\//);
+  assert.equal(media.user.bannerUri, media.url);
+  const uploaded = await fetch(base + media.url);
+  assert.equal(uploaded.status, 200);
+  assert.equal(uploaded.headers.get('content-type'), 'image/png');
+  const mediaBroadcast = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.bannerUri === media.url);
+  assert.equal(mediaBroadcast.user.themeColor, '#FF4F81');
+  console.log('✓ shared profile theme, font and server-hosted banner upload');
+
   // persistence across restart
   console.log('\nALL TESTS PASSED');
 } catch (e) {
