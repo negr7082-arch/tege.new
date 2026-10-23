@@ -54,7 +54,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     if (!isRegister) return;
     const raw = username.trim().replace(/^@/, '');
     if (!raw) { setUsernameStatus('idle'); return; }
-    if (!/^[A-Za-z0-9_]{3,32}$/.test(raw)) { setUsernameStatus('invalid'); return; }
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_.]{1,30}[A-Za-z0-9_]$/.test(raw)) { setUsernameStatus('invalid'); return; }
     setUsernameStatus('checking');
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -74,9 +74,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       case 'email_taken':
         return ru ? 'Этот email уже зарегистрирован — войдите.' : 'This email is already registered — please log in.';
       case 'username_taken':
-        return ru ? 'Этот @username уже занят.' : 'This @username is already taken.';
+        return ru ? 'Данный username занят. Придумайте другой.' : 'This @username is already taken.';
       case 'bad_username':
-        return ru ? '@username: 3–32 символа, латиница, цифры и _' : '@username: 3–32 chars, letters, digits and _';
+        return ru ? '@username: 3–32 символа: латиница, цифры, точка и _ (точка не в начале/конце)' : '@username: 3–32 chars: letters, digits, dots and _ (no leading/trailing dot)';
       case 'bad_credentials':
         return ru ? 'Неверный email или пароль!' : 'Incorrect email or password!';
       case 'too_many_requests':
@@ -330,7 +330,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   </p>
                 ) : usernameStatus === 'invalid' ? (
                   <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1 px-1">
-                    {language === 'ru' ? '3–32 символа: латиница, цифры и _' : '3–32 chars: letters, digits and _'}
+                    {language === 'ru' ? '3–32 символа: латиница, цифры, точка и _' : '3–32 chars: letters, digits, dots and _'}
                   </p>
                 ) : usernameStatus === 'free' ? (
                   <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 px-1">

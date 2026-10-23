@@ -172,6 +172,8 @@ export interface ContactUser {
   online: boolean;
   lastSeenAt?: number | null;
   avatarUri?: string | null;
+  isVerified?: boolean;
+  role?: string;
   color?: string;
 }
 
@@ -259,6 +261,8 @@ export interface UserAccount {
   registrationDate?: string;
   avatarUri?: string | null;
   isOnline?: boolean;
+  isVerified?: boolean;
+  role?: string;
 }
 
 export interface Story {
@@ -289,6 +293,8 @@ export interface UserProfile {
   registrationDate?: string;
   avatarUri?: string | null;
   isOnline?: boolean;
+  isVerified?: boolean;
+  role?: string;
 }
 
 export type ScreenRoute = 

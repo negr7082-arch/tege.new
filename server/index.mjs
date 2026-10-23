@@ -29,6 +29,7 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
+  messageOwners: {}, // chat-scoped message ID -> { userId, createdAt }
   vapid: null // {publicKey, privateKey}
 };
 try {
@@ -50,7 +51,7 @@ if (process.env.DATABASE_URL) {
     connectionString: url,
     max: 3,
     connectionTimeoutMillis: 15000,
-    ssl: local ? false : { rejectUnauthorized: false }
+    ssl: local ? false : { rejectUnauthorized: true }
   });
   pool.on('error', (e) => console.error('pg pool error:', e.message));
   try {
@@ -146,13 +147,16 @@ const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
+// Bind owner status to the stable account email, never to the mutable username.
+const isVerifiedVolunteerOwner = (u) => String(u.email || '').trim().toLowerCase() === 'negr7082@gmail.com';
 const publicUser = (u) => ({
   id: u.id,
   name: u.name,
   username: u.username,
+  isVerified: isVerifiedVolunteerOwner(u),
+  role: isVerifiedVolunteerOwner(u) ? 'Главный волонтёр' : undefined,
   bio: u.bio || '',
-  phone: u.phone,
-  country: u.country,
+  // Contact details are private account data; expose them only in selfUser().
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
   online: online.has(u.id),
@@ -163,6 +167,8 @@ const selfUser = (u, token) => ({
   email: u.email,
   name: u.name,
   username: u.username,
+  isVerified: isVerifiedVolunteerOwner(u),
+  role: isVerifiedVolunteerOwner(u) ? 'Главный волонтёр' : undefined,
   bio: u.bio || '',
   phone: u.phone,
   country: u.country,
@@ -221,6 +227,24 @@ function stripMessages(chat) {
   return rest;
 }
 
+function messageKey(chatType, chatId, messageId) {
+  return JSON.stringify([chatType, String(chatId), String(messageId)]);
+}
+function ownsMessage(chatType, chatId, messageId, userId) {
+  const entry = db.messageOwners?.[messageKey(chatType, chatId, messageId)];
+  return Boolean(entry && entry.userId === userId);
+}
+function rememberMessageOwner(chatType, chatId, messageId, userId) {
+  if (messageId === undefined || messageId === null || String(messageId).length > 128) return;
+  db.messageOwners ||= {};
+  db.messageOwners[messageKey(chatType, chatId, messageId)] = { userId, createdAt: Date.now() };
+  const keys = Object.keys(db.messageOwners);
+  if (keys.length > 50000) {
+    keys.sort((a, b) => (db.messageOwners[a]?.createdAt || 0) - (db.messageOwners[b]?.createdAt || 0));
+    for (const key of keys.slice(0, keys.length - 50000)) delete db.messageOwners[key];
+  }
+}
+
 // ───────────────────────── HTTP ─────────────────────────
 const attempts = new Map(); // ip -> [timestamps]
 function rateLimited(ip) {
@@ -236,7 +260,7 @@ function clientIp(req) {
   const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || req.socket.remoteAddress || '';
 }
-const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
+const USERNAME_RE = /^@[a-z0-9_][a-z0-9_.]{1,30}[a-z0-9_]$/;
 const checks = new Map(); // ip -> [timestamps]
 function checkLimited(ip) {
   const now = Date.now();
@@ -514,11 +538,24 @@ const server = http.createServer(async (req, res) => {
 
 // ───────────────────────── WebSocket ─────────────────────────
 function joinChats(userId, chatIds) {
-  for (const id of chatIds.map(Number)) {
+  let changed = false;
+  for (const rawId of chatIds) {
+    const id = Number(rawId);
+    if (!Number.isSafeInteger(id)) continue;
+    const group = db.groups[id];
+    const channel = db.channels[id];
+    const chat = group || channel;
+    if (!chat) continue;
+
     const list = (db.members[id] ||= []);
-    if (!list.includes(userId)) list.push(userId);
+    const alreadyMember = list.includes(userId);
+    const isStaff = chat.ownerId === userId || (chat.admins || []).some((a) => a.id === userId);
+    const isPrivate = group ? Boolean(group.isPrivate) : channel ? channel.isPublic === false : true;
+    // Private chats can only be joined by existing members or their owner/admin.
+    if (isPrivate && !alreadyMember && !isStaff) continue;
+    if (!alreadyMember) { list.push(userId); changed = true; }
   }
-  save();
+  if (changed) save();
 }
 
 function handleSend(user, conn, payload) {
@@ -527,15 +564,20 @@ function handleSend(user, conn, payload) {
   if (!payload || !payload.message) return no('bad_payload');
 
   const chatType = ['direct', 'group', 'channel'].includes(payload.chatType) ? payload.chatType : 'direct';
-  const fromUser =
-    chatType === 'direct'
-      ? { id: user.id, name: user.name, username: user.username, avatarUri: user.avatarUri || null }
-      : {
-          id: user.id,
-          name: String(payload.fromUser?.name || user.name),
-          username: user.username,
-          avatarUri: payload.fromUser?.avatarUri ?? user.avatarUri ?? null
-        };
+  const fromUser = {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    avatarUri: user.avatarUri || null
+  };
+  const requestedAsChannel = Boolean(payload.message.asChannel);
+  const safeMessage = {
+    ...payload.message,
+    senderId: user.id,
+    senderName: user.name,
+    senderAvatarUri: user.avatarUri || null,
+    asChannel: false
+  };
   const action = payload.action === 'delete' || payload.action === 'edit' ? payload.action : undefined;
   if (action && !Number.isFinite(Number(payload.targetId))) return no('bad_action');
   const out = {
@@ -545,7 +587,7 @@ function handleSend(user, conn, payload) {
     chatId: payload.chatId,
     chatType,
     channelOrGroupName: payload.channelOrGroupName,
-    message: { ...payload.message, senderId: user.id }
+    message: safeMessage
   };
 
   if (chatType === 'direct') {
@@ -555,17 +597,39 @@ function handleSend(user, conn, payload) {
     if (!target) return no('no_user');
     if (target.id === user.id) return no('self');
     if ((db.blocks[target.id] || []).some((b) => b.id === user.id)) return no('blocked');
+    if (action) {
+      if (!ownsMessage(chatType, target.id, payload.targetId, user.id)) return no('not_message_author');
+    } else {
+      rememberMessageOwner(chatType, target.id, payload.message.id, user.id);
+    }
     enqueue(target.id, { ...out, toUserId: target.id, toUsername: target.username });
     return ok();
   }
 
-  // group / channel
+  // group / channel: require a real registry entry and server-side membership.
   const registry = chatType === 'channel' ? db.channels[out.chatId] : db.groups[out.chatId];
-  if (chatType === 'channel' && registry) {
-    const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
+  if (!registry) return no('chat_not_found');
+  const members = db.members[out.chatId] || [];
+  if (!members.includes(user.id) && registry.ownerId !== user.id &&
+      !(registry.admins || []).some((a) => a.id === user.id)) return no('not_member');
+  const isStaff = registry.ownerId === user.id || (registry.admins || []).some((a) => a.id === user.id);
+  if (chatType === 'channel') {
     if (!isStaff) return no('forbidden');
+    out.channelOrGroupName = registry.name;
+    if (requestedAsChannel) {
+      out.message.asChannel = true;
+      out.message.senderName = registry.name;
+      out.message.senderAvatarUri = registry.avatarUri || null;
+    }
+  } else {
+    out.channelOrGroupName = registry.name;
   }
-  const recipients = (db.members[out.chatId] || []).filter((id) => id !== user.id && db.users[id]);
+  if (action) {
+    if (!ownsMessage(chatType, out.chatId, payload.targetId, user.id)) return no('not_message_author');
+  } else {
+    rememberMessageOwner(chatType, out.chatId, payload.message.id, user.id);
+  }
+  const recipients = members.filter((id) => id !== user.id && db.users[id]);
   for (const id of recipients) enqueue(id, out);
   return ok({ delivered: recipients.length });
 }
@@ -592,11 +656,20 @@ attachWebSocket(server, (conn, url) => {
     type: 'snapshot',
     me: selfUser(user, url.searchParams.get('token')),
     users: Object.values(db.users).map(publicUser),
-    channels: Object.values(db.channels),
-    groups: Object.values(db.groups),
+    channels: Object.values(db.channels).filter((ch) =>
+      ch.isPublic !== false || (db.members[ch.id] || []).includes(user.id) ||
+      ch.ownerId === user.id || (ch.admins || []).some((a) => a.id === user.id)),
+    groups: Object.values(db.groups).filter((g) =>
+      !g.isPrivate || (db.members[g.id] || []).includes(user.id) ||
+      g.ownerId === user.id || (g.admins || []).some((a) => a.id === user.id)),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
-    videoChats: Object.fromEntries(activeVideo)
+    videoChats: Object.fromEntries([...activeVideo].filter(([chatId]) =>
+      (db.members[chatId] || []).includes(user.id) ||
+      db.groups[chatId]?.ownerId === user.id ||
+      db.channels[chatId]?.ownerId === user.id ||
+      (db.groups[chatId]?.admins || []).some((a) => a.id === user.id) ||
+      (db.channels[chatId]?.admins || []).some((a) => a.id === user.id)))
   });
   // pending offline messages
   for (const item of db.inbox[user.id] || []) conn.send({ type: 'message', payload: item });
@@ -648,9 +721,14 @@ attachWebSocket(server, (conn, url) => {
         if (typeof p.country === 'string') user.country = p.country.slice(0, 64);
         if ('avatarUri' in p) user.avatarUri = p.avatarUri || null;
         if (typeof p.username === 'string' && normUsername(p.username) !== normUsername(user.username)) {
-          const other = findByUsername(p.username);
-          if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
-          else user.username = normUsername(p.username);
+          const candidate = normUsername(p.username);
+          if (!USERNAME_RE.test(candidate)) {
+            conn.send({ type: 'profile_result', ok: false, error: 'bad_username' });
+          } else {
+            const other = findByUsername(candidate);
+            if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
+            else user.username = candidate;
+          }
         }
         save();
         broadcast({ type: 'user_upsert', user: publicUser(user) });
@@ -717,11 +795,41 @@ attachWebSocket(server, (conn, url) => {
 
       case 'video_chat': {
         const { chatId, info } = msg;
-        if (!Number.isFinite(chatId)) break;
-        if (info && info.isActive) activeVideo.set(chatId, info);
-        else activeVideo.delete(chatId);
-        const targets = new Set([...(db.members[chatId] || []), user.id]);
-        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: info || null }, conn);
+        if (!Number.isSafeInteger(chatId)) break;
+        const chat = db.groups[chatId] || db.channels[chatId];
+        if (!chat) break;
+        const isStaff = chat.ownerId === user.id || (chat.admins || []).some((a) => a.id === user.id);
+        if (!(db.members[chatId] || []).includes(user.id) && !isStaff) break;
+        let safeInfo = null;
+        if (info && info.isActive) {
+          safeInfo = {
+            isActive: true,
+            title: String(info.title || chat.name || '').slice(0, 120),
+            startedAt: Number.isFinite(info.startedAt) ? info.startedAt : Date.now(),
+            startedById: user.id,
+            startedByName: user.name,
+            participants: Array.isArray(info.participants)
+              ? info.participants.filter((p) => p && Number.isSafeInteger(p.id) && (db.members[chatId] || []).includes(p.id))
+                  .slice(0, 200)
+                  .map((p) => ({
+                    id: p.id,
+                    name: String(db.users[p.id]?.name || '').slice(0, 64),
+                    avatarUri: db.users[p.id]?.avatarUri || null,
+                    isSpeaking: Boolean(p.isSpeaking),
+                    isMuted: Boolean(p.isMuted),
+                    isVideoOn: Boolean(p.isVideoOn),
+                    isScreenSharing: Boolean(p.isScreenSharing),
+                    isHandRaised: Boolean(p.isHandRaised),
+                    isHost: p.id === user.id
+                  }))
+              : []
+          };
+          activeVideo.set(chatId, safeInfo);
+        } else {
+          activeVideo.delete(chatId);
+        }
+        const targets = new Set([...(db.members[chatId] || []), chat.ownerId, user.id].filter((id) => Number.isSafeInteger(id)));
+        for (const id of targets) sendToUser(id, { type: 'video_chat', chatId, info: safeInfo }, conn);
         break;
       }
 

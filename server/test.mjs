@@ -38,12 +38,21 @@ let failed = false;
 try {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await sleep(100); } }
 
-  const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice' })).user;
+  const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice', phone: '+491234567', country: 'DE' })).user;
   const b = (await post('/api/register', { email: 'bob@x.io', password: 'password2', name: 'Bob', username: 'bob' })).user;
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
+  assert.equal((await post('/api/username', { username: 'orig_manager_creator_tege.new' })).available, true);
+  const owner = (await post('/api/register', { email: 'negr7082@gmail.com', password: 'password1', name: 'Tege Owner', username: '@orig_manager_creator_tege.new' })).user;
+  assert.equal(owner.isVerified, true, 'owner account receives verified flag');
+  assert.equal(owner.role, 'Главный волонтёр', 'owner account receives volunteer role');
+  assert.equal((await post('/api/register', { email: 'impostor2@x.io', password: 'password1', name: 'Owner renamed', username: '@some_new_username' })).user.isVerified, false, 'username alone cannot grant owner badge');
+  assert.equal((await post('/api/register', { email: 'c2@x.io', password: 'password1', name: 'x', username: '@orig_manager_creator_tege.new' })).error, 'username_taken');
+  const impostor = (await post('/api/register', { email: 'impostor@x.io', password: 'password1', name: 'Impostor', username: '@another_owner' })).user;
+  assert.equal(impostor.isVerified, false, 'ordinary account is not verified');
+  assert.equal(impostor.role, undefined, 'ordinary account gets no staff role');
   assert.equal((await post('/api/username', { username: '@free_name' })).available, true);
   assert.equal((await post('/api/username', { username: 'a' })).reason, 'invalid');
   assert.equal((await post('/api/register', { email: 'd@x.io', password: 'password1', name: 'x', username: '@a b' })).error, 'bad_username');
@@ -68,8 +77,12 @@ try {
   // Alice online, Bob OFFLINE -> message must be queued
   const ca = new Client(a.token); await ca.ready;
   const snap = await ca.waitFor((m) => m.type === 'snapshot');
-  assert.equal(snap.users.length, 2);
+  assert.equal(snap.users.length, 4);
   assert.equal(snap.users.find((u) => u.id === b.id).online, false);
+  const publicAlice = snap.users.find((u) => u.id === a.id);
+  assert.equal(publicAlice.email, undefined, 'email must not be public');
+  assert.equal(publicAlice.phone, undefined, 'phone must not be public');
+  assert.equal(publicAlice.country, undefined, 'country must not be public');
   ca.send({ type: 'send', payload: { id: 1, chatId: b.id, chatType: 'direct', toUserId: b.id, fromUser: { id: 999, name: 'FAKE' }, message: { id: 1, text: 'hi bob (offline)', time: '12:00', isMine: true } } });
   const r1 = await ca.waitFor((m) => m.type === 'send_result' && m.id === 1);
   assert.equal(r1.ok, true);
@@ -82,6 +95,13 @@ try {
   assert.equal(got.fromUser.name, 'Alice');
   await ca.waitFor((m) => m.type === 'presence' && m.userId === b.id && m.online);
   console.log('✓ offline message delivered on login, sender spoof ignored, presence pushed');
+
+  // Profile changes must not allow taking another user's username.
+  ca.send({ type: 'profile', user: { username: '@bob' } });
+  const profileResult = await ca.waitFor((m) => m.type === 'profile_result' && m.error === 'username_taken');
+  assert.equal(profileResult.ok, false);
+  assert.equal((await ca.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id)).user.username, '@alice');
+  console.log('✓ duplicate username rejected on profile updates');
 
   // not acked -> redelivered on reconnect; acked -> gone
   cb.ws.close(); await cb.closed; await sleep(100);
@@ -114,9 +134,12 @@ try {
   const G = 1122000777;
   ca.send({ type: 'register_group', group: { id: G, type: 'group', name: 'Team', ownerId: a.id, messages: [{ id: 1 }] } });
   ca.send({ type: 'join_chats', chatIds: [G] }); cb3.send({ type: 'join_chats', chatIds: [G] }); await sleep(150);
-  ca.send({ type: 'send', payload: { id: 5, chatId: G, chatType: 'group', channelOrGroupName: 'Team', message: { id: 5, text: 'hello team', time: '12:04' } } });
+  ca.send({ type: 'send', payload: { id: 5, chatId: G, chatType: 'group', channelOrGroupName: 'Fake Team', fromUser: { name: 'FAKE ADMIN' }, message: { id: 5, text: 'hello team', time: '12:04', senderName: 'FAKE SENDER' } } });
   const gm = await cb3.waitFor((m) => m.type === 'message' && m.payload.message.text === 'hello team');
   assert.equal(gm.payload.chatId, G);
+  assert.equal(gm.payload.fromUser.name, 'Alice', 'group sender identity must come from session');
+  assert.equal(gm.payload.message.senderName, 'Alice', 'message senderName must not be spoofable');
+  assert.equal(gm.payload.channelOrGroupName, 'Team', 'chat name must come from server registry');
   assert.ok(!ca.inbox.some((p) => p.message.text === 'hello team'), 'sender must not receive own group msg');
   console.log('✓ group fan-out to members only');
 
@@ -141,7 +164,10 @@ try {
   assert.equal(del.payload.targetId, 8001); assert.equal(del.payload.fromUser.id, a.id, 'author must come from token');
   ca.send({ type: 'send', payload: { id: 11, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'delete', targetId: 'abc', message: { id: 1 } } });
   assert.equal((await ca.waitFor((m) => m.type === 'send_result' && m.id === 11)).ok, false);
-  console.log('✓ delete / edit relayed to the other side, bad action rejected');
+  // A recipient must not be able to edit/delete the sender's message.
+  cb3.send({ type: 'send', payload: { id: 12, chatId: a.id, chatType: 'direct', toUserId: a.id, action: 'edit', targetId: 8001, message: { id: 8001, text: 'hijacked', time: '' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 12)).reason, 'not_message_author');
+  console.log('✓ delete / edit relayed to the other side, bad action rejected, foreign edits blocked');
 
   // presence off + profile
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });

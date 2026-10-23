@@ -28,6 +28,7 @@ class Conn {
     this.socket = socket;
     this.buf = Buffer.alloc(0);
     this.frags = [];
+    this.fragBytes = 0;
     this.open = true;
     this.onmessage = () => {};
     this.onclose = () => {};
@@ -113,9 +114,12 @@ class Conn {
       if (opcode === 0xa) { this.alive = true; continue; }
       if (opcode === 0x1 || opcode === 0x2 || opcode === 0x0) {
         this.frags.push(data);
+        this.fragBytes += data.length;
+        if (this.fragBytes > MAX_PAYLOAD) return this.close(1009);
         if (fin) {
           const msg = Buffer.concat(this.frags).toString('utf8');
           this.frags = [];
+          this.fragBytes = 0;
           try { this.onmessage(msg); } catch (e) { console.error('ws handler error', e); }
         }
       }
