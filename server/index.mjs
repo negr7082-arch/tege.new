@@ -151,7 +151,7 @@ const publicUser = (u) => ({
   name: u.name,
   username: u.username,
   bio: u.bio || '',
-  phone: u.phone,
+  // Phone numbers are private account data; expose them only to the account owner.
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
@@ -269,18 +269,29 @@ const MIME = {
   '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.map': 'application/json'
 };
 function serveStatic(req, res) {
-  let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  let file = path.join(DIST_DIR, rel);
-  if (!file.startsWith(DIST_DIR)) { res.writeHead(403); return res.end(); }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST_DIR, 'index.html');
-  if (!fs.existsSync(file)) {
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('bad_path');
+  }
+  const file = path.resolve(DIST_DIR, '.' + pathname);
+  const relative = path.relative(DIST_DIR, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+    res.writeHead(403);
+    return res.end();
+  }
+  let targetFile = file;
+  if (!fs.existsSync(targetFile) || fs.statSync(targetFile).isDirectory()) targetFile = path.join(DIST_DIR, 'index.html');
+  if (!fs.existsSync(targetFile)) {
     res.writeHead(404, { 'content-type': 'text/plain' });
     return res.end('Tege server is running. Build the web app (npm run build) to serve it from here.');
   }
-  const type = MIME[path.extname(file)] || 'application/octet-stream';
-  const noCache = file.endsWith('sw.js') || file.endsWith('index.html');
+  const type = MIME[path.extname(targetFile)] || 'application/octet-stream';
+  const noCache = targetFile.endsWith('sw.js') || targetFile.endsWith('index.html');
   res.writeHead(200, { 'content-type': type, 'cache-control': noCache ? 'no-cache' : 'public, max-age=31536000, immutable' });
-  fs.createReadStream(file).pipe(res);
+  fs.createReadStream(targetFile).pipe(res);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -497,11 +508,19 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/password') {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
+      const currentPassword = String(body.currentPassword || '');
       const pw = String(body.newPassword || '');
-      if (pw.length < 7) return fail(400, 'short_password');
+      if (pw.length < 7 || pw.length > 256) return fail(400, pw.length < 7 ? 'short_password' : 'password_too_long');
+      if (!checkPassword(user, currentPassword)) return fail(401, 'bad_current_password');
       Object.assign(user, hashPassword(pw));
-      // sign out all other sessions of this user
-      for (const [t, id] of Object.entries(db.tokens)) if (id === user.id && t !== body.token) { delete db.tokens[t]; delete db.sessions[t]; const sockets = sessionConnections.get(t); if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} } sessionConnections.delete(t); }
+      // Revoke every other session; keep the current password-confirmed session active.
+      for (const [t, id] of Object.entries(db.tokens)) {
+        if (id !== user.id || t === body.token) continue;
+        delete db.tokens[t]; delete db.sessions[t];
+        const sockets = sessionConnections.get(t);
+        if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} }
+        sessionConnections.delete(t);
+      }
       save();
       return reply(200, { ok: true });
     }
