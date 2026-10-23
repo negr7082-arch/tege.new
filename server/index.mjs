@@ -442,6 +442,12 @@ const server = http.createServer(async (req, res) => {
       return reply(201, { ok: true, comment, comments });
     }
 
+    if (url.pathname === '/api/account/me') {
+      const user = userFromToken(body.token);
+      if (!user) return fail(401, 'bad_token');
+      return reply(200, { ok: true, user: selfUser(user, body.token) });
+    }
+
     if (url.pathname === '/api/account/inactivity/status') {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
