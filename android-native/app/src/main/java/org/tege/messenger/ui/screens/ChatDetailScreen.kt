@@ -8,8 +8,6 @@ import android.widget.Toast
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.media.MediaPlayer
-import android.media.audiofx.AutomaticGainControl
-import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -99,8 +97,6 @@ fun ChatDetailScreen(
     var deletingMessageId by remember { mutableStateOf<Long?>(null) }
     var isRecording by remember { mutableStateOf(false) }
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
-    var voiceNoiseSuppressor by remember { mutableStateOf<NoiseSuppressor?>(null) }
-    var voiceAutoGainControl by remember { mutableStateOf<AutomaticGainControl?>(null) }
     var recordingFile by remember { mutableStateOf<File?>(null) }
     var recordingStartedAt by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
@@ -129,23 +125,12 @@ fun ChatDetailScreen(
             mediaRecorder.setAudioEncodingBitRate(96000)
             mediaRecorder.setOutputFile(file.absolutePath)
             mediaRecorder.prepare()
-            // Effects are device-dependent. Keep recording functional when either is unavailable.
-            voiceNoiseSuppressor = if (NoiseSuppressor.isAvailable()) {
-                runCatching { NoiseSuppressor.create(mediaRecorder.audioSessionId)?.apply { enabled = true } }.getOrNull()
-            } else null
-            voiceAutoGainControl = if (AutomaticGainControl.isAvailable()) {
-                runCatching { AutomaticGainControl.create(mediaRecorder.audioSessionId)?.apply { enabled = true } }.getOrNull()
-            } else null
             mediaRecorder.start()
             recorder = mediaRecorder
             recordingFile = file
             recordingStartedAt = System.currentTimeMillis()
             isRecording = true
         } catch (_: Exception) {
-            voiceNoiseSuppressor?.release()
-            voiceNoiseSuppressor = null
-            voiceAutoGainControl?.release()
-            voiceAutoGainControl = null
             recorder?.release()
             recorder = null
             isRecording = false
