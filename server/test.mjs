@@ -156,6 +156,21 @@ try {
   assert.equal((await ca.waitFor((m) => m.type === 'send_result' && m.id === 11)).ok, false);
   console.log('✓ delete / edit relayed to the other side, bad action rejected');
 
+  // Security reports: authenticated submit, validation, duplicate prevention and per-user throttling.
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'spam', details: 'Repeated unsolicited messages' });
+  const reportOk = await ca.waitFor((m) => m.type === 'security_report_submit_result');
+  assert.equal(reportOk.ok, true);
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'spam', details: 'Repeated unsolicited messages' });
+  const reportDuplicate = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'duplicate_report');
+  assert.equal(reportDuplicate.ok, false);
+  ca.send({ type: 'security_report_submit', targetUserId: a.id, category: 'other', details: 'Self report is invalid' });
+  const reportSelf = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'invalid_input');
+  assert.equal(reportSelf.ok, false);
+  ca.send({ type: 'security_report_submit', targetUserId: b.id, category: 'made_up', details: 'Invalid category' });
+  const reportCategory = await ca.waitFor((m) => m.type === 'security_report_submit_result' && m.error === 'invalid_input');
+  assert.equal(reportCategory.ok, false);
+  console.log('✓ security report submission validates target/category, rejects duplicates and self-reports');
+
   // presence off + profile
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });
   const up = await cb3.waitFor((m) => m.type === 'user_upsert' && m.user.id === a.id && m.user.name === 'Alice A.');
