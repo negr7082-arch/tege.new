@@ -1497,7 +1497,9 @@ export const App: React.FC = () => {
                 username: account.username,
                 bio: account.bio,
                 avatarUri: account.avatarUri,
-                isOnline: account.isOnline
+                isOnline: account.isOnline,
+                isVerified: account.isVerified,
+                role: account.role
               }}
               language={settings.language}
               channels={channels}
