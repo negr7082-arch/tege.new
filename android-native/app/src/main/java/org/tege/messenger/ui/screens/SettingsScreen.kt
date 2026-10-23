@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -216,13 +217,13 @@ fun SettingsScreen(
                 )
 
                 SettingsClickableRow(
-                    icon = Icons.Default.AdminPanelSettings,
+                    icon = Icons.Default.Security,
                     title = "Права участников",
                     subtitle = "Добавление людей, медиа, темы и закрепления",
                     onClick = { showPermissions = true }
                 )
                 SettingsClickableRow(
-                    icon = Icons.Default.PeopleAlt,
+                    icon = Icons.Default.Group,
                     title = "Администраторы",
                     subtitle = "${selectedAdmins.size} выбранных контактов на этом устройстве",
                     onClick = { showAdmins = true }
