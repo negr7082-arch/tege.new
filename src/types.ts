@@ -282,6 +282,7 @@ export interface Story {
 
 export interface UserProfile {
   id: number;
+  role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
   email: string;
   name: string;
   username: string;
