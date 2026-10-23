@@ -147,10 +147,13 @@ const sessionConnections = new Map(); // token -> Set<Conn>
 const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt }
 const activeVideo = new Map(); // chatId -> info
 
+const isVerifiedVolunteerOwner = (u) => normUsername(u.username) === '@orig_manager_creator_tege.new';
 const publicUser = (u) => ({
   id: u.id,
   name: u.name,
   username: u.username,
+  isVerified: isVerifiedVolunteerOwner(u),
+  role: isVerifiedVolunteerOwner(u) ? 'Главный волонтёр' : undefined,
   bio: u.bio || '',
   // Contact details are private account data; expose them only in selfUser().
   registrationDate: u.registrationDate,
@@ -163,6 +166,8 @@ const selfUser = (u, token) => ({
   email: u.email,
   name: u.name,
   username: u.username,
+  isVerified: isVerifiedVolunteerOwner(u),
+  role: isVerifiedVolunteerOwner(u) ? 'Главный волонтёр' : undefined,
   bio: u.bio || '',
   phone: u.phone,
   country: u.country,
@@ -254,7 +259,7 @@ function clientIp(req) {
   const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || req.socket.remoteAddress || '';
 }
-const USERNAME_RE = /^@[a-z0-9_]{3,32}$/;
+const USERNAME_RE = /^@[a-z0-9_][a-z0-9_.]{1,30}[a-z0-9_]$/;
 const checks = new Map(); // ip -> [timestamps]
 function checkLimited(ip) {
   const now = Date.now();
@@ -715,9 +720,14 @@ attachWebSocket(server, (conn, url) => {
         if (typeof p.country === 'string') user.country = p.country.slice(0, 64);
         if ('avatarUri' in p) user.avatarUri = p.avatarUri || null;
         if (typeof p.username === 'string' && normUsername(p.username) !== normUsername(user.username)) {
-          const other = findByUsername(p.username);
-          if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
-          else user.username = normUsername(p.username);
+          const candidate = normUsername(p.username);
+          if (!USERNAME_RE.test(candidate)) {
+            conn.send({ type: 'profile_result', ok: false, error: 'bad_username' });
+          } else {
+            const other = findByUsername(candidate);
+            if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
+            else user.username = candidate;
+          }
         }
         save();
         broadcast({ type: 'user_upsert', user: publicUser(user) });
