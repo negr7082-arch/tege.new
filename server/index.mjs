@@ -918,7 +918,8 @@ const server = http.createServer(async (req, res) => {
       const ips24h = new Set(user.securityLoginIpHistory.filter((entry) => Date.now() - Number(entry.at || 0) < 24 * 60 * 60_000).map((entry) => entry.ip)).size;
       // IP alone can change on mobile/VPN. Start a 24-hour review only when several signals combine.
       const riskSignals = [newIp ? 'new_ip' : null, newDevice ? 'new_device' : null, ips24h >= 3 ? 'multiple_ips_24h' : null].filter(Boolean);
-      const recentlyReleased = Date.now() - Number(user.securityReviewReleasedAt || 0) < 24 * 60 * 60_000;\n      const highRiskLogin = !recentlyReleased && ((newIp && newDevice) || ips24h >= 3);
+      const recentlyReleased = Date.now() - Number(user.securityReviewReleasedAt || 0) < 24 * 60 * 60_000;
+      const highRiskLogin = !recentlyReleased && ((newIp && newDevice) || ips24h >= 3);
       if (highRiskLogin) {
         const now = Date.now();
         if (!user.securityReviewUntil) {
