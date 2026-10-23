@@ -163,6 +163,36 @@ function recordSecurityEvent(userId, event) {
   save();
   sendToUser(userId, { type: 'security_event', event: list[0] });
 }
+
+// Persist and deliver suspicious-account reports to configured volunteer staff.
+function notifySecurityReviewStaff(targetUser, review) {
+  const staffIds = new Set([
+    ...volunteerIds,
+    ...seniorVolunteerIds,
+    ...headVolunteerIds
+  ]);
+  const notice = {
+    type: 'security_review_alert',
+    targetUserId: Number(targetUser.id),
+    targetUsername: String(targetUser.username || ''),
+    targetName: String(targetUser.name || ''),
+    reason: String(review.reason || 'Подозрительная активность'),
+    signals: Array.isArray(review.signals) ? review.signals : [],
+    reviewStartedAt: Number(review.startedAt || Date.now()),
+    reviewUntil: Number(review.until || Date.now() + 24 * 60 * 60_000)
+  };
+  for (const staffId of staffIds) {
+    if (!db.users[staffId]) continue;
+    recordSecurityEvent(staffId, {
+      type: 'security_review_alert',
+      reason: `Требуется проверка аккаунта #${notice.targetUserId} (${notice.targetUsername || notice.targetName || 'без имени'}): ${notice.reason}`,
+      targetUserId: notice.targetUserId,
+      riskSignals: notice.signals,
+      reviewUntil: notice.reviewUntil
+    });
+    sendToUser(staffId, notice);
+  }
+}
 function applySpamMute(user, durationMs, reason) {
   const until = durationMs === Infinity ? null : Date.now() + durationMs;
   user.spamMuteUntil = until;
@@ -882,14 +912,20 @@ const server = http.createServer(async (req, res) => {
           user.securityReviewStartedAt = now;
           user.securityReviewUntil = now + 24 * 60 * 60_000;
           user.securityReviewSignals = riskSignals;
-          user.securityReviewReason = 'ПП/подозрение на взлом или продажу аккаунта — проверка в течение 24 часов';
+          user.securityReviewReason = 'Подозрение на взлом или продажу аккаунта — временная заморозка на 24 часа для проверки';
           recordSecurityEvent(user.id, { type: 'account_security_review_started', reason: user.securityReviewReason, ip, riskSignals, reviewUntil: user.securityReviewUntil });
+          notifySecurityReviewStaff(user, {
+            reason: user.securityReviewReason,
+            signals: riskSignals,
+            startedAt: user.securityReviewStartedAt,
+            until: user.securityReviewUntil
+          });
           save();
           return fail(403, 'security_review_pending');
         }
         if (now >= Number(user.securityReviewUntil)) {
           user.securitySuspended = true;
-          user.securitySuspensionReason = 'ПП/подозрение на взлом или продажу аккаунта — риск не снят за 24 часа';
+          user.securitySuspensionReason = 'Аккаунт заморожен после 24 часов: подозрение на взлом или продажу не подтверждено как безопасное';
           user.securitySuspendedAt = now;
           revokeUserSessions(user.id);
           recordSecurityEvent(user.id, { type: 'account_auto_frozen', reason: user.securitySuspensionReason, ip, permanent: true, riskSignals: [...new Set([...(user.securityReviewSignals || []), ...riskSignals])] });
