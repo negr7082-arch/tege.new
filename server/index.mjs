@@ -147,14 +147,15 @@ const twoFactorChallenges = new Map(); // challenge token -> { userId, expiresAt
 const activeVideo = new Map(); // chatId -> info
 
 // Public staff badges are derived from a server-side allowlist, never client profile input.
-const TEGE_OWNER_EMAIL = String(process.env.TEGE_OWNER_EMAIL || '').trim().toLowerCase();
-const CHIEF_VOLUNTEER_EMAIL = String(process.env.TEGE_CHIEF_VOLUNTEER_EMAIL || '').trim().toLowerCase();
+// Privileged identities are configured by immutable internal user IDs, never by email.
+// Email-only ownership is unsafe here because registration does not prove mailbox control.
+const TEGE_OWNER_USER_ID = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
+const CHIEF_VOLUNTEER_USER_ID = Number.parseInt(process.env.TEGE_CHIEF_VOLUNTEER_USER_ID || '', 10);
 const VOLUNTEER_ROLES = new Set(['junior_volunteer', 'volunteer', 'chief_volunteer']);
+const isOwner = (u) => Number.isSafeInteger(TEGE_OWNER_USER_ID) && TEGE_OWNER_USER_ID > 0 && u?.id === TEGE_OWNER_USER_ID;
 const volunteerRoleFor = (u) => {
-  if (!u?.email) return null;
-  // Deployment allowlists override stored role; ordinary profile updates cannot grant badges.
-  if (TEGE_OWNER_EMAIL && u.email.toLowerCase() === TEGE_OWNER_EMAIL) return 'chief_volunteer';
-  if (CHIEF_VOLUNTEER_EMAIL && u.email.toLowerCase() === CHIEF_VOLUNTEER_EMAIL) return 'chief_volunteer';
+  if (!u) return null;
+  if (isOwner(u) || (Number.isSafeInteger(CHIEF_VOLUNTEER_USER_ID) && CHIEF_VOLUNTEER_USER_ID > 0 && u.id === CHIEF_VOLUNTEER_USER_ID)) return 'chief_volunteer';
   return VOLUNTEER_ROLES.has(u.volunteerRole) ? u.volunteerRole : null;
 };
 const publicUser = (u) => ({
@@ -786,7 +787,7 @@ attachWebSocket(server, (conn, url) => {
 
       case 'volunteer_role_update': {
         // Only the explicitly configured owner account can issue or revoke volunteer roles.
-        if (!TEGE_OWNER_EMAIL || user.email?.toLowerCase() !== TEGE_OWNER_EMAIL) {
+        if (!isOwner(user)) {
           conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'forbidden' });
           break;
         }
@@ -801,7 +802,7 @@ attachWebSocket(server, (conn, url) => {
           conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'user_not_found' });
           break;
         }
-        if (TEGE_OWNER_EMAIL && target.email.toLowerCase() === TEGE_OWNER_EMAIL && role !== 'chief_volunteer') {
+        if (isOwner(target) && role !== 'chief_volunteer') {
           conn.send({ type: 'volunteer_role_update_result', ok: false, error: 'owner_role_protected' });
           break;
         }
