@@ -439,6 +439,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         avatarUri = user.optString("avatarUri").takeIf { it.isNotBlank() }
                     )
                 }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                val myChatIds = event.optJSONArray("myChatIds") ?: JSONArray()
+                val joinedChatIds = (0 until myChatIds.length()).mapNotNull { myChatIds.optLong(it).takeIf { id -> id != 0L } }.toSet()
                 val channelArray = event.optJSONArray("channels") ?: JSONArray()
                 _channels.value = (0 until channelArray.length()).mapNotNull { index ->
                     val item = channelArray.optJSONObject(index) ?: return@mapNotNull null
@@ -450,7 +452,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         subscribersCount = item.optInt("subscribersCount"),
                         avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
                         color = item.optString("color", "#2AABEE"),
-                        isSubscribed = (event.optJSONArray("groups")?.length() ?: 0) >= 0,
+                        isSubscribed = item.optLong("id") in joinedChatIds,
                         isPublic = item.optBoolean("isPublic", true),
                         channelLink = item.optString("channelLink"),
                         isOwner = ownerId == selfId
