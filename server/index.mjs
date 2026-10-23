@@ -687,6 +687,7 @@ const server = http.createServer(async (req, res) => {
           recordSecurityEvent(target.id, { type: 'account_frozen', reason: target.securitySuspensionReason, actorId: actor.id, permanent: true });
         } else {
           delete target.securitySuspended; delete target.securitySuspensionReason; delete target.securitySuspendedAt;
+          delete target.securityReviewStartedAt; delete target.securityReviewUntil; delete target.securityReviewSignals; delete target.securityReviewReason;
           recordSecurityEvent(target.id, { type: 'account_unfrozen', reason: String(body.reason || 'Разморожен администратором Security').slice(0, 300), actorId: actor.id });
         }
         save();
@@ -748,6 +749,10 @@ const server = http.createServer(async (req, res) => {
       const accounts = Object.values(db.users).map((u) => ({
         id: u.id, email: u.email, name: u.name, username: u.username,
         suspended: Boolean(u.securitySuspended), suspensionReason: u.securitySuspensionReason || null,
+        securityReviewStartedAt: u.securityReviewStartedAt || null,
+        securityReviewUntil: u.securityReviewUntil || null,
+        securityReviewSignals: u.securityReviewSignals || [],
+        securityReviewReason: u.securityReviewReason || null,
         recentSecurityEvents: securityEventsFor(u.id).slice(0, 20),
         recentSessions: Object.entries(db.sessions).filter(([, meta]) => meta.userId === u.id).map(([token, meta]) => ({
           id: token.slice(0, 12), device: meta.device || 'Unknown device', createdAt: meta.createdAt || 0,
