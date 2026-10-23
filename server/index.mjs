@@ -430,7 +430,8 @@ const server = http.createServer(async (req, res) => {
         bio: String(body.bio || 'Online on Tege Messenger').slice(0, 300),
         phone: body.phone ? String(body.phone).slice(0, 32) : undefined,
         avatarUri: null,
-        registrationDate: new Date().toLocaleDateString('ru-RU')
+        registrationDate: new Date().toLocaleDateString('ru-RU'),
+        registeredAt: Date.now()
       };
       db.users[id] = user;
       const token = crypto.randomBytes(32).toString('hex');
@@ -793,8 +794,12 @@ attachWebSocket(server, (conn, url) => {
           conn.send({ type: 'volunteer_apply_result', ok: false, error: 'already_pending' });
           break;
         }
-        const registeredAt = Date.parse(user.createdAt || user.registrationTimestamp || '');
+        const registeredAt = Number(user.registeredAt || 0);
         const registrationAgeDays = Number.isFinite(registeredAt) ? Math.floor((Date.now() - registeredAt) / 86400000) : null;
+        if (registrationAgeDays === null || registrationAgeDays < 365) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'account_too_new', registrationAgeDays });
+          break;
+        }
         const checks = {
           age16PlusSelfAttested: msg.checks?.age16PlusSelfAttested === true,
           identityReadyForManualReview: msg.checks?.identityReadyForManualReview === true,
