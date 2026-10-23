@@ -159,6 +159,7 @@ export const App: React.FC = () => {
     }
   });
 
+  const [serverAccountConfirmed, setServerAccountConfirmed] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
 
@@ -347,6 +348,21 @@ export const App: React.FC = () => {
       console.warn('Failed to persist user chats:', e);
     }
   }, [chats, account?.id]);
+
+  // Refresh privileged flags from the authenticated server and fail closed if it cannot confirm them.
+  useEffect(() => {
+    let cancelled = false;
+    setServerAccountConfirmed(false);
+    if (!account?.token) return () => { cancelled = true; };
+    realtimeNetwork.getCurrentAccount(account.token).then((result) => {
+      if (cancelled || !result.ok || !result.user || result.user.id !== account.id) return;
+      const serverFields = { role: result.user.role || 'user', verified: result.user.verified === true };
+      setAccount((current) => current && current.id === result.user!.id ? { ...current, ...serverFields } : current);
+      setAccounts((current) => current.map((item) => item.id === result.user!.id ? { ...item, ...serverFields } : item));
+      setServerAccountConfirmed(true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [account?.id, account?.token]);
 
   // Keep phone push attached to whichever account is active on this device
   useEffect(() => {
@@ -1376,7 +1392,7 @@ export const App: React.FC = () => {
 
   // The server-issued role is the only source of truth. Never infer staff access from email or local UI state.
   const effectiveVolunteerRole = account.role || 'user';
-  const canOpenVolunteerMenu = effectiveVolunteerRole !== 'user';
+  const canOpenVolunteerMenu = serverAccountConfirmed && effectiveVolunteerRole !== 'user';
 
   const selectedChat =
     currentRoute.type === 'chat_detail'
