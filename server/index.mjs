@@ -722,6 +722,7 @@ attachWebSocket(server, (conn, url) => {
     users: Object.values(db.users).map(publicUser),
     channels: Object.values(db.channels),
     groups: Object.values(db.groups),
+    myChatIds: Object.keys(db.members).filter((id) => (db.members[id] || []).includes(user.id)).map(Number),
     blocks: db.blocks[user.id] || [],
     blockedBy: blockedByList(user.id),
     videoChats: Object.fromEntries(activeVideo)
