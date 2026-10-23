@@ -259,7 +259,7 @@ const publicUser = (u) => ({
   name: u.name,
   username: u.username,
   bio: u.bio || '',
-  phone: u.phone,
+  // Phone numbers are private account data unless a future explicit visibility setting is added.
   country: u.country,
   registrationDate: u.registrationDate,
   avatarUri: u.avatarUri || null,
