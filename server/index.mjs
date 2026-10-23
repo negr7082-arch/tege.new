@@ -29,6 +29,8 @@ const db = {
   blocks: {}, // userId -> BlockedUser[]
   inbox: {}, // userId -> payload[]
   pushSubs: {}, // userId -> PushSubscription[]
+  volunteerApplications: {}, // userId -> {status, checks, createdAt, updatedAt, reviewerId}
+  moderationHistory: {}, // userId -> moderation events; never client-controlled
   vapid: null // {publicKey, privateKey}
 };
 try {
@@ -782,6 +784,83 @@ attachWebSocket(server, (conn, url) => {
           db.inbox[user.id] = box.filter((m) => !ids.has(m.deliveryId));
           save();
         }
+        break;
+      }
+
+      case 'volunteer_apply': {
+        const existing = db.volunteerApplications?.[String(user.id)];
+        if (existing?.status === 'pending') {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'already_pending' });
+          break;
+        }
+        const registeredAt = Date.parse(user.createdAt || user.registrationTimestamp || '');
+        const registrationAgeDays = Number.isFinite(registeredAt) ? Math.floor((Date.now() - registeredAt) / 86400000) : null;
+        const checks = {
+          age16PlusSelfAttested: msg.checks?.age16PlusSelfAttested === true,
+          identityReadyForManualReview: msg.checks?.identityReadyForManualReview === true,
+          conductSelfAttested: msg.checks?.conductSelfAttested === true,
+          accountAgeAcknowledged: msg.checks?.accountAgeAcknowledged === true
+        };
+        if (!Object.values(checks).every(Boolean)) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'requirements_incomplete' });
+          break;
+        }
+        // Account age and conduct are reviewed server-side; never trust client-supplied age/IP/history.
+        const application = {
+          userId: user.id,
+          status: 'pending',
+          track: 'junior_volunteer',
+          checks,
+          registrationAgeDays,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          reviewerId: null,
+          reviewNote: null
+        };
+        db.volunteerApplications ||= {};
+        db.volunteerApplications[String(user.id)] = application;
+        save();
+        conn.send({ type: 'volunteer_apply_result', ok: true, status: 'pending', track: application.track });
+        break;
+      }
+      case 'volunteer_application_list': {
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_application_list_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const applications = Object.values(db.volunteerApplications || {}).map((a) => ({
+          userId: a.userId, status: a.status, track: a.track, checks: a.checks,
+          registrationAgeDays: a.registrationAgeDays, createdAt: a.createdAt,
+          updatedAt: a.updatedAt, reviewerId: a.reviewerId, reviewNote: a.reviewNote
+        }));
+        conn.send({ type: 'volunteer_application_list_result', ok: true, applications });
+        break;
+      }
+      case 'volunteer_application_review': {
+        if (!isOwner(user) && user.volunteerRole !== 'chief_volunteer') {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const application = db.volunteerApplications?.[String(targetId)];
+        const decision = String(msg.decision || '');
+        const note = String(msg.note || '').trim().slice(0, 500);
+        if (!Number.isSafeInteger(targetId) || !application || application.status !== 'pending' || !['approve_practice', 'escalate', 'reject'].includes(decision)) {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'invalid_review' });
+          break;
+        }
+        application.status = decision === 'approve_practice' ? 'practice' : decision === 'escalate' ? 'escalated' : 'rejected';
+        application.updatedAt = Date.now();
+        application.reviewerId = user.id;
+        application.reviewNote = note || null;
+        if (decision === 'approve_practice') {
+          const target = db.users[String(targetId)];
+          if (target) target.volunteerRole = 'junior_volunteer';
+        }
+        save();
+        const target = db.users[String(targetId)];
+        if (target) broadcast({ type: 'user_upsert', user: publicUser(target) });
+        conn.send({ type: 'volunteer_application_review_result', ok: true, userId: targetId, status: application.status });
         break;
       }
 
