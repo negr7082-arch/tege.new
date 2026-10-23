@@ -39,7 +39,7 @@ let failed = false;
 try {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/health'); break; } catch { await sleep(100); } }
 
-  const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice' })).user;
+  const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice', phone: '+15551234567' })).user;
   const b = (await post('/api/register', { email: 'bob@x.io', password: 'password2', name: 'Bob', username: 'bob' })).user;
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
   assert.equal(a.verified, true, 'verified status must come from the server ID allowlist');
@@ -118,6 +118,7 @@ try {
   const snap = await ca.waitFor((m) => m.type === 'snapshot');
   assert.equal(snap.users.length, 2);
   assert.equal(snap.users.find((u) => u.id === b.id).online, false);
+  assert.equal(Object.hasOwn(snap.users.find((u) => u.id === a.id), 'phone'), false, 'phone must not be exposed in public directory profiles');
   ca.send({ type: 'send', payload: { id: 1, chatId: b.id, chatType: 'direct', toUserId: b.id, fromUser: { id: 999, name: 'FAKE' }, message: { id: 1, text: 'hi bob (offline)', time: '12:00', isMine: true } } });
   const r1 = await ca.waitFor((m) => m.type === 'send_result' && m.id === 1);
   assert.equal(r1.ok, true);
