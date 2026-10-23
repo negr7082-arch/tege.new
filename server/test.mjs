@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_USER_IDS: '1122103', TEGE_SENIOR_VOLUNTEER_USER_IDS: '1122105', TEGE_HEAD_VOLUNTEER_USER_IDS: '1122102', TEGE_VERIFIED_USER_IDS: '1122101' }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_USER_IDS: '1122103', TEGE_SENIOR_VOLUNTEER_USER_IDS: '1122105', TEGE_HEAD_VOLUNTEER_USER_IDS: '1122102', TEGE_VERIFIED_USER_IDS: '1122101', TEGE_SECURITY_ADMIN_USER_IDS: '1122101' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -49,6 +49,27 @@ try {
   assert.equal(serverAccount.user.role, 'user');
   assert.equal(serverAccount.user.verified, true);
   assert.equal((await post('/api/account/me', { token: 'forged-token' })).error, 'bad_token');
+  const adminOverview = await post('/api/security/admin/overview', { token: a.token });
+  assert.equal(adminOverview.ok, true, 'configured security admin can review account risk');
+  const frozen = await post('/api/security/admin/action', { token: a.token, action: 'freeze_account', targetUserId: b.id, reason: 'test security freeze' });
+  assert.equal(frozen.ok, true);
+  assert.equal(frozen.suspended, true);
+  assert.equal((await post('/api/account/me', { token: b.token })).error, 'bad_token', 'frozen account sessions must stop working');
+  assert.equal((await post('/api/login', { email: 'bob@x.io', password: 'password2' })).error, 'account_suspended');
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'unfreeze_account', targetUserId: b.id })).suspended, false);
+  const bRestored = await post('/api/login', { email: 'bob@x.io', password: 'password2' });
+  assert.equal(bRestored.ok, true, 'unfrozen account can authenticate again');
+  const ipBlock = await post('/api/security/admin/action', { token: a.token, action: 'block_ip', ip: '198.51.100.90' });
+  assert.equal(ipBlock.blocked, true);
+  assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' }, '198.51.100.90')).error, 'security_ip_blocked');
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'unblock_ip', ip: '198.51.100.90' })).blocked, false);
+  const emailBlock = await post('/api/security/admin/action', { token: a.token, action: 'block_email', email: 'blocked@x.io', reason: 'test email block' });
+  assert.equal(emailBlock.blocked, true);
+  assert.equal((await post('/api/register', { email: 'blocked@x.io', password: 'password7', name: 'Blocked' })).error, 'security_email_blocked');
+  const deviceId = 'test-device-id-12345678901234567890';
+  assert.equal((await post('/api/security/admin/action', { token: a.token, action: 'block_device', deviceId })).deviceBlocked, true);
+  assert.equal((await post('/api/register', { email: 'device@x.io', password: 'password8', name: 'Device', deviceId })).error, 'security_device_blocked');
+
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
