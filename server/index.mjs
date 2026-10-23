@@ -1307,7 +1307,11 @@ attachWebSocket(server, (conn, url) => {
         if (existing && existing.ownerId !== user.id && !(existing.admins || []).some((a) => a.id === user.id)) break;
         db.channels[ch.id] = { ...ch, ownerId: existing?.ownerId ?? user.id };
         save();
-        broadcast({ type: 'channel_upsert', channel: db.channels[ch.id] });
+        const channelEvent = { type: 'channel_upsert', channel: db.channels[ch.id] };
+        for (const [recipientId, connections] of online) {
+          if (!canAccessChat(recipientId, ch.id)) continue;
+          for (const recipientConn of connections) recipientConn.send(channelEvent);
+        }
         break;
       }
       case 'remove_channel': {
@@ -1327,7 +1331,11 @@ attachWebSocket(server, (conn, url) => {
         if (existing && existing.ownerId !== user.id) break;
         db.groups[g.id] = { ...g, ownerId: existing?.ownerId ?? user.id };
         save();
-        broadcast({ type: 'group_upsert', group: db.groups[g.id] });
+        const groupEvent = { type: 'group_upsert', group: db.groups[g.id] };
+        for (const [recipientId, connections] of online) {
+          if (!canAccessChat(recipientId, g.id)) continue;
+          for (const recipientConn of connections) recipientConn.send(groupEvent);
+        }
         break;
       }
 
