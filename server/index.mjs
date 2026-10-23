@@ -573,7 +573,12 @@ function joinChats(userId, chatIds) {
     if (!registry) continue;
     const list = (db.members[id] ||= []);
     if (list.includes(userId)) continue;
-    if (channel && !channel.isPublic && !(channel.invitedUserIds || []).includes(userId) && channel.ownerId !== userId) continue;
+    if (registry.ownerId === userId) {
+      list.push(userId);
+      changed = true;
+      continue;
+    }
+    if (!registry.isPublic && !(registry.invitedUserIds || []).includes(userId)) continue;
     list.push(userId);
     changed = true;
   }
@@ -797,7 +802,13 @@ attachWebSocket(server, (conn, url) => {
         if (!ch || !Number.isFinite(ch.id)) break;
         const existing = db.channels[ch.id];
         if (existing && existing.ownerId !== user.id && !(existing.admins || []).some((a) => a.id === user.id)) break;
-        db.channels[ch.id] = { ...ch, ownerId: existing?.ownerId ?? user.id };
+        db.channels[ch.id] = {
+          ...ch,
+          ownerId: existing?.ownerId ?? user.id,
+          isPublic: existing ? existing.isPublic !== false : ch.isPublic !== false,
+          admins: existing?.admins || cleanAdmins(ch.admins, existing?.ownerId ?? user.id),
+          permissions: { sendMessages: false, sendMedia: true, addMembers: false, createTopics: false, pinMessages: false, ...(existing?.permissions || ch.permissions || {}) }
+        };
         save();
         broadcast({ type: 'channel_upsert', channel: db.channels[ch.id] });
         break;
@@ -817,7 +828,13 @@ attachWebSocket(server, (conn, url) => {
         if (!g || !Number.isFinite(g.id) || g.type !== 'group') break;
         const existing = db.groups[g.id];
         if (existing && existing.ownerId !== user.id) break;
-        db.groups[g.id] = { ...g, ownerId: existing?.ownerId ?? user.id };
+        db.groups[g.id] = {
+          ...g,
+          ownerId: existing?.ownerId ?? user.id,
+          isPublic: existing ? existing.isPublic !== false : g.isPublic !== false,
+          admins: existing?.admins || cleanAdmins(g.admins, existing?.ownerId ?? user.id),
+          permissions: { sendMessages: true, sendMedia: true, addMembers: true, createTopics: true, pinMessages: false, ...(existing?.permissions || g.permissions || {}) }
+        };
         save();
         broadcast({ type: 'group_upsert', group: db.groups[g.id] });
         break;
