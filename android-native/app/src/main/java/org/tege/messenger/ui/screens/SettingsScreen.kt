@@ -33,20 +33,7 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
-    val contacts by viewModel.contacts.collectAsState()
     val context = LocalContext.current
-    val communityPrefs = remember { context.getSharedPreferences("tege_community_permissions", android.content.Context.MODE_PRIVATE) }
-    var showPermissions by remember { mutableStateOf(false) }
-    var showAdmins by remember { mutableStateOf(false) }
-    var allowMembers by remember { mutableStateOf(communityPrefs.getBoolean("members_add", true)) }
-    var allowTopics by remember { mutableStateOf(communityPrefs.getBoolean("members_topics", true)) }
-    var allowMedia by remember { mutableStateOf(communityPrefs.getBoolean("members_media", true)) }
-    var allowPins by remember { mutableStateOf(communityPrefs.getBoolean("members_pin", false)) }
-    val selectedAdmins = remember {
-        mutableStateListOf<Long>().apply {
-            addAll(communityPrefs.getStringSet("admin_ids", emptySet()).orEmpty().mapNotNull { it.toLongOrNull() })
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -208,33 +195,6 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
-                Text(
-                    text = "Группы и каналы",
-                    color = TelegramBlue,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
-                )
-
-                SettingsClickableRow(
-                    icon = Icons.Default.Security,
-                    title = "Права участников",
-                    subtitle = "Добавление людей, медиа, темы и закрепления",
-                    onClick = { showPermissions = true }
-                )
-                SettingsClickableRow(
-                    icon = Icons.Default.Group,
-                    title = "Администраторы",
-                    subtitle = "${selectedAdmins.size} выбранных контактов на этом устройстве",
-                    onClick = { showAdmins = true }
-                )
-                Text(
-                    text = "Эти параметры пока сохраняются локально и не меняют права на сервере.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-
                 HorizontalDivider()
 
                 Text(
@@ -299,72 +259,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showPermissions) {
-        AlertDialog(
-            onDismissRequest = { showPermissions = false },
-            title = { Text("Права участников") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Шаблон разрешений для новых групп и каналов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowMembers, onCheckedChange = { allowMembers = it; communityPrefs.edit().putBoolean("members_add", it).apply() })
-                        Text("Добавлять участников")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowMedia, onCheckedChange = { allowMedia = it; communityPrefs.edit().putBoolean("members_media", it).apply() })
-                        Text("Отправлять фото и файлы")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowTopics, onCheckedChange = { allowTopics = it; communityPrefs.edit().putBoolean("members_topics", it).apply() })
-                        Text("Создавать темы и опросы")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = allowPins, onCheckedChange = { allowPins = it; communityPrefs.edit().putBoolean("members_pin", it).apply() })
-                        Text("Закреплять сообщения")
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showPermissions = false }) { Text("Готово") } }
-        )
-    }
-
-    if (showAdmins) {
-        AlertDialog(
-            onDismissRequest = { showAdmins = false },
-            title = { Text("Администраторы") },
-            text = {
-                if (contacts.isEmpty()) {
-                    Text("Контакты не загружены. Подключите сервер и откройте настройки снова.")
-                } else {
-                    Column(modifier = Modifier.heightIn(max = 360.dp)) {
-                        Text("Выберите контакты для списка администраторов. Это локальный список-шаблон.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        LazyColumn {
-                            items(contacts, key = { it.id }) { contact ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().clickable {
-                                        if (selectedAdmins.contains(contact.id)) selectedAdmins.remove(contact.id) else selectedAdmins.add(contact.id)
-                                        communityPrefs.edit().putStringSet("admin_ids", selectedAdmins.map { it.toString() }.toSet()).apply()
-                                    }.padding(vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(checked = selectedAdmins.contains(contact.id), onCheckedChange = { checked ->
-                                        if (checked && !selectedAdmins.contains(contact.id)) selectedAdmins.add(contact.id)
-                                        if (!checked) selectedAdmins.remove(contact.id)
-                                        communityPrefs.edit().putStringSet("admin_ids", selectedAdmins.map { it.toString() }.toSet()).apply()
-                                    })
-                                    Column {
-                                        Text(contact.name)
-                                        Text(if (contact.username.isBlank()) "Без имени пользователя" else "@${contact.username.removePrefix("@")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showAdmins = false }) { Text("Готово") } }
-        )
-    }
 }
 
 @Composable
