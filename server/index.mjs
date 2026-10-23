@@ -1064,7 +1064,7 @@ attachWebSocket(server, (conn, url) => {
             registrationDate: registeredAt ? new Date(registeredAt).toISOString() : null,
             accountAgeDays: registeredAt ? Math.max(0, Math.floor((Date.now() - registeredAt) / 86400000)) : null,
             moderationHistory: events,
-            moderationHistoryAvailable: Array.isArray(db.moderationHistory?.[String(targetId])),
+            moderationHistoryAvailable: Boolean(db.moderationHistory && Array.isArray(db.moderationHistory[String(targetId)])),
             lastSeenAt: target.lastSeenAt || null
           }
         });
