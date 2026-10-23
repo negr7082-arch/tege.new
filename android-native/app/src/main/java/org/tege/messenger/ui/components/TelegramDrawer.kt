@@ -95,7 +95,7 @@ fun TelegramDrawer(
             viewModel.navigateTo(ScreenRoute.Settings)
             onCloseDrawer()
         }
-        DrawerItem(icon = Icons.Default.HelpOutline, label = "FAQ и правила") {
+        DrawerItem(icon = Icons.Default.HelpOutline, label = "Помощь и правила") {
             viewModel.navigateTo(ScreenRoute.Faq)
             onCloseDrawer()
         }
