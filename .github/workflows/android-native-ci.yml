@@ -7,6 +7,7 @@ on:
       - feat/native-android-build
     paths:
       - 'android-native/**'
+      - 'server/**'
       - '.github/workflows/android-native-ci.yml'
   push:
     branches:
@@ -31,6 +32,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test server authentication and messaging
+        run: node server/test.mjs
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
