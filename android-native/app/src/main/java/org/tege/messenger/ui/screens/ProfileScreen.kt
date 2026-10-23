@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +43,9 @@ fun ProfileScreen(
     var editUsername by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
     var editPhone by remember { mutableStateOf("") }
+    var themeColor by remember(account?.themeColor) { mutableStateOf(account?.themeColor ?: "#2AABEE") }
+    var fontFamily by remember(account?.fontFamily) { mutableStateOf(account?.fontFamily ?: "sans-serif") }
+    var showFontCatalog by remember { mutableStateOf(false) }
     var pickingBanner by remember { mutableStateOf(false) }
     var mediaPickerError by remember { mutableStateOf<String?>(null) }
 
@@ -56,9 +60,9 @@ fun ProfileScreen(
                 )
             }
             if (pickingBanner) {
-                viewModel.updateProfileMedia(bannerUri = uri.toString())
+                viewModel.updateProfileMedia(context, "banner", uri)
             } else {
-                viewModel.updateProfileMedia(avatarUri = uri.toString())
+                viewModel.updateProfileMedia(context, "avatar", uri)
             }
             mediaPickerError = null
         }
@@ -204,6 +208,7 @@ fun ProfileScreen(
                         text = if (username.startsWith("@")) username else "@$username",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
+                        fontFamily = when (account?.fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif },
                         modifier = Modifier.offset(y = (-20).dp)
                     )
                 }
@@ -223,6 +228,68 @@ fun ProfileScreen(
             mediaPickerError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
 
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Text(
+                    text = "Оформление профиля",
+                    color = runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(TelegramBlue),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text("Цвет профиля", style = MaterialTheme.typography.labelLarge)
+                val palette = listOf("#2AABEE", "#FE2C55", "#25F4EE", "#7C3AED", "#16A34A", "#F59E0B", "#EC4899", "#111827", "#FFFFFF")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    palette.take(5).forEach { hex ->
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(hex)))
+                                .clickable { themeColor = hex }
+                                .then(if (themeColor.equals(hex, true)) Modifier.padding(3.dp).background(MaterialTheme.colorScheme.surface, CircleShape) else Modifier),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (themeColor.equals(hex, true)) Icon(Icons.Default.Check, contentDescription = "Выбран", tint = if (hex == "#FFFFFF") Color.Black else Color.White, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    palette.drop(5).forEach { hex ->
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(hex)))
+                                .clickable { themeColor = hex },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (themeColor.equals(hex, true)) Icon(Icons.Default.Check, contentDescription = "Выбран", tint = if (hex == "#FFFFFF" || hex == "#111827") Color.Gray else Color.White, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = themeColor,
+                    onValueChange = { value -> if (value.matches(Regex("#?[0-9a-fA-F]{0,6}"))) themeColor = if (value.startsWith("#")) value else "#$value" },
+                    label = { Text("Свой цвет HEX, например #7C3AED") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Каталог шрифтов", style = MaterialTheme.typography.labelLarge)
+                OutlinedButton(onClick = { showFontCatalog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = when (fontFamily) {
+                            "serif" -> "Serif — классический"
+                            "monospace" -> "Monospace — технический"
+                            "cursive" -> "Cursive — рукописный"
+                            else -> "Sans-serif — современный"
+                        },
+                        fontFamily = when (fontFamily) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif }
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Открыть каталог")
+                }
+                Button(
+                    onClick = { viewModel.updateProfileCustomization(themeColor, fontFamily) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = runCatching { Color(android.graphics.Color.parseColor(themeColor)) }.getOrDefault(TelegramBlue))
+                ) { Text("Сохранить оформление") }
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = "Учётная запись",
                     color = TelegramBlue,
@@ -258,6 +325,33 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+
+    if (showFontCatalog) {
+        AlertDialog(
+            onDismissRequest = { showFontCatalog = false },
+            title = { Text("Каталог шрифтов") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "sans-serif" to "Sans-serif — современный",
+                        "serif" to "Serif — классический",
+                        "monospace" to "Monospace — технический",
+                        "cursive" to "Cursive — рукописный"
+                    ).forEach { (id, label) ->
+                        TextButton(
+                            onClick = { fontFamily = id; showFontCatalog = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(label, fontFamily = when (id) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; "cursive" -> FontFamily.Cursive; else -> FontFamily.SansSerif })
+                            Spacer(Modifier.weight(1f))
+                            if (fontFamily == id) Icon(Icons.Default.Check, contentDescription = "Выбран")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showFontCatalog = false }) { Text("Закрыть") } }
+        )
     }
 
     if (showEditDialog) {
