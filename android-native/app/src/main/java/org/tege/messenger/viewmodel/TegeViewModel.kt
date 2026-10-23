@@ -348,6 +348,9 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
             country = json.optString("country"),
             registrationDate = json.optString("registrationDate"),
             avatarUri = json.optString("avatarUri").takeIf { it.isNotBlank() },
+            bannerUri = json.optString("bannerUri").takeIf { it.isNotBlank() },
+            themeColor = json.optString("themeColor", "#2AABEE"),
+            fontFamily = json.optString("fontFamily", "system"),
             isOnline = true
         )
         val accountChats = chatPrefs.getString(chatStorageKey(account.id), null)
