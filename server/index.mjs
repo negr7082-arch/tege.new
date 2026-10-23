@@ -300,7 +300,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/profile-media/')) {
     const name = path.basename(url.pathname);
-    if (!/^\\d+-(?:avatar|banner)-[a-f0-9]{24}\\.(?:png|jpg|webp)$/.test(name)) {
+    if (!/^\d+-(?:avatar|banner)-[a-f0-9]{24}\.(?:png|jpg|webp)$/.test(name)) {
       res.writeHead(404); return res.end();
     }
     const file = path.join(PROFILE_MEDIA_DIR, name);
@@ -327,7 +327,7 @@ const server = http.createServer(async (req, res) => {
       const mime = String(body.mime || '');
       const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' })[mime];
       if (!extension || typeof body.data !== 'string') return fail(400, 'bad_image');
-      const data = body.data.replace(/^data:image\\/(?:png|jpeg|webp);base64,/i, '');
+      const data = body.data.replace(/^data:image\/(?:png|jpeg|webp);base64,/i, '');
       if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return fail(400, 'bad_image');
       const bytes = Buffer.from(data, 'base64');
       if (!bytes.length || bytes.length > 3 * 1024 * 1024) return fail(413, 'image_too_large');
