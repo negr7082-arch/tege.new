@@ -633,6 +633,9 @@ function updateCommunity(user, conn, msg) {
   } else {
     return result(false, 'bad_action');
   }
+  const memberCount = (db.members[id] || []).length;
+  if (msg.chatType === 'channel') registry.subscribersCount = memberCount;
+  else registry.membersCount = memberCount;
   save();
   const event = msg.chatType === 'channel' ? 'channel_upsert' : 'group_upsert';
   broadcast({ type: event, [msg.chatType === 'channel' ? 'channel' : 'group']: registry });
@@ -809,6 +812,9 @@ attachWebSocket(server, (conn, url) => {
           admins: existing?.admins || cleanAdmins(ch.admins, existing?.ownerId ?? user.id),
           permissions: { sendMessages: false, sendMedia: true, addMembers: false, createTopics: false, pinMessages: false, ...(existing?.permissions || ch.permissions || {}) }
         };
+        const memberList = (db.members[ch.id] ||= []);
+        if (!memberList.includes(user.id)) memberList.push(user.id);
+        db.channels[ch.id].subscribersCount = memberList.length;
         save();
         broadcast({ type: 'channel_upsert', channel: db.channels[ch.id] });
         break;
@@ -835,6 +841,9 @@ attachWebSocket(server, (conn, url) => {
           admins: existing?.admins || cleanAdmins(g.admins, existing?.ownerId ?? user.id),
           permissions: { sendMessages: true, sendMedia: true, addMembers: true, createTopics: true, pinMessages: false, ...(existing?.permissions || g.permissions || {}) }
         };
+        const memberList = (db.members[g.id] ||= []);
+        if (!memberList.includes(user.id)) memberList.push(user.id);
+        db.groups[g.id].membersCount = memberList.length;
         save();
         broadcast({ type: 'group_upsert', group: db.groups[g.id] });
         break;
