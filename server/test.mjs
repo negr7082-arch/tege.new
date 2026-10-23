@@ -283,6 +283,14 @@ try {
   assert.ok(riskAccount.securityReviewUntil > Date.now());
   console.log('✓ new IP + new device starts a 24-hour quarantine before account freeze');
 
+  const badDeviceProof = await post('/api/register', {
+    email: 'bad-proof@x.io', password: 'password9', name: 'Bad Proof',
+    username: '@badproof', deviceId: 'not-a-valid-key-fingerprint',
+    deviceProof: { publicKey: 'not-base64-key', nonce: 'nonce-that-is-long-enough', timestamp: Date.now(), signature: 'bad-signature' }
+  }, '203.0.113.204');
+  assert.equal(badDeviceProof.error, 'device_proof_invalid');
+  console.log('✓ invalid Android device proof is rejected');
+
   // persistence across restart
   console.log('\nALL TESTS PASSED');
 } catch (e) {
