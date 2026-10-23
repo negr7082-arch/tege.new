@@ -885,6 +885,46 @@ attachWebSocket(server, (conn, url) => {
         break;
       }
 
+      case 'security_report_submit': {
+        const targetId = Number(msg.targetUserId);
+        const category = String(msg.category || '');
+        const details = String(msg.details || '').trim();
+        const allowedCategories = new Set(['spam', 'harassment', 'scam', 'impersonation', 'other']);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || targetId <= 0 || !target || targetId === user.id ||
+            !allowedCategories.has(category) || !details || details.length > 1500) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        db.securityReports ||= [];
+        const now = Date.now();
+        const recent = db.securityReports.filter((r) => r.reporterId === user.id && now - Number(r.createdAt || 0) < 60 * 60 * 1000);
+        if (recent.length >= 5) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'rate_limited' });
+          break;
+        }
+        const duplicate = recent.find((r) => r.targetUserId === targetId && r.category === category && r.status === 'pending');
+        if (duplicate) {
+          conn.send({ type: 'security_report_submit_result', ok: false, error: 'duplicate_report' });
+          break;
+        }
+        const report = {
+          id: crypto.randomUUID(),
+          reporterId: user.id,
+          targetUserId: targetId,
+          category,
+          details: details.slice(0, 1500),
+          status: 'pending',
+          createdAt: now,
+          assignedTo: null,
+          reviewedAt: null
+        };
+        db.securityReports.push(report);
+        save();
+        conn.send({ type: 'security_report_submit_result', ok: true, reportId: report.id, status: report.status });
+        break;
+      }
+
       case 'volunteer_apply': {
         const existing = db.volunteerApplications?.[String(user.id)];
         if (existing?.status === 'pending' || existing?.status === 'practice' || existing?.status === 'escalated') {
