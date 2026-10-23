@@ -91,7 +91,7 @@ fun TelegramDrawer(
             onCloseDrawer()
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        if (currentAccount?.volunteerRole in setOf("junior_volunteer", "volunteer", "chief_volunteer")) {
+        if (currentAccount?.volunteerRole?.let { it in setOf("junior_volunteer", "volunteer", "chief_volunteer") } == true) {
             DrawerItem(icon = Icons.Default.Shield, label = "Security") {
                 viewModel.navigateTo(ScreenRoute.Security)
                 onCloseDrawer()
