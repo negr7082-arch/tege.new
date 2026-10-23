@@ -884,6 +884,19 @@ const server = http.createServer(async (req, res) => {
         const locked = recordLoginFailure(email, ip);
         return locked ? fail(429, 'security_temporarily_locked') : fail(401, 'bad_credentials');
       }
+      if (user.securitySuspended && Number(user.securitySuspendedUntil || 0) > 0 && Date.now() >= Number(user.securitySuspendedUntil)) {
+        delete user.securitySuspended;
+        delete user.securitySuspensionReason;
+        delete user.securitySuspendedAt;
+        delete user.securitySuspendedUntil;
+        delete user.securityReviewStartedAt;
+        delete user.securityReviewUntil;
+        delete user.securityReviewSignals;
+        delete user.securityReviewReason;
+        user.securityReviewReleasedAt = Date.now();
+        recordSecurityEvent(user.id, { type: 'account_freeze_expired', reason: 'Временная заморозка на 24 часа завершена' });
+        save();
+      }
       if (user.securitySuspended) return fail(403, 'account_suspended');
       clearLoginFailures(email, ip);
       const ua = String(req.headers['user-agent'] || '').slice(0, 200);
@@ -905,7 +918,7 @@ const server = http.createServer(async (req, res) => {
       const ips24h = new Set(user.securityLoginIpHistory.filter((entry) => Date.now() - Number(entry.at || 0) < 24 * 60 * 60_000).map((entry) => entry.ip)).size;
       // IP alone can change on mobile/VPN. Start a 24-hour review only when several signals combine.
       const riskSignals = [newIp ? 'new_ip' : null, newDevice ? 'new_device' : null, ips24h >= 3 ? 'multiple_ips_24h' : null].filter(Boolean);
-      const highRiskLogin = (newIp && newDevice) || ips24h >= 3;
+      const recentlyReleased = Date.now() - Number(user.securityReviewReleasedAt || 0) < 24 * 60 * 60_000;\n      const highRiskLogin = !recentlyReleased && ((newIp && newDevice) || ips24h >= 3);
       if (highRiskLogin) {
         const now = Date.now();
         if (!user.securityReviewUntil) {
@@ -913,7 +926,12 @@ const server = http.createServer(async (req, res) => {
           user.securityReviewUntil = now + 24 * 60 * 60_000;
           user.securityReviewSignals = riskSignals;
           user.securityReviewReason = 'Подозрение на взлом или продажу аккаунта — временная заморозка на 24 часа для проверки';
-          recordSecurityEvent(user.id, { type: 'account_security_review_started', reason: user.securityReviewReason, ip, riskSignals, reviewUntil: user.securityReviewUntil });
+          user.securitySuspended = true;
+          user.securitySuspensionReason = user.securityReviewReason;
+          user.securitySuspendedAt = now;
+          user.securitySuspendedUntil = user.securityReviewUntil;
+          revokeUserSessions(user.id);
+          recordSecurityEvent(user.id, { type: 'account_frozen_for_review', reason: user.securityReviewReason, ip, riskSignals, reviewUntil: user.securityReviewUntil });
           notifySecurityReviewStaff(user, {
             reason: user.securityReviewReason,
             signals: riskSignals,
