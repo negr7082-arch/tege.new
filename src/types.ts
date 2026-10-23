@@ -174,6 +174,7 @@ export interface ContactUser {
   avatarUri?: string | null;
   color?: string;
   role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
 }
 
 export interface Chat {
@@ -261,6 +262,7 @@ export interface UserAccount {
   avatarUri?: string | null;
   isOnline?: boolean;
   role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
 }
 
 export interface Story {
@@ -283,6 +285,7 @@ export interface Story {
 export interface UserProfile {
   id: number;
   role?: 'user' | 'volunteer' | 'senior_volunteer' | 'head_volunteer';
+  verified?: boolean;
   email: string;
   name: string;
   username: string;
