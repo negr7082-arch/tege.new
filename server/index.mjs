@@ -857,8 +857,13 @@ attachWebSocket(server, (conn, url) => {
 
       case 'volunteer_apply': {
         const existing = db.volunteerApplications?.[String(user.id)];
-        if (existing?.status === 'pending') {
+        if (existing?.status === 'pending' || existing?.status === 'practice' || existing?.status === 'escalated') {
           conn.send({ type: 'volunteer_apply_result', ok: false, error: 'already_pending' });
+          break;
+        }
+        // Rejected applications cannot be spammed: require a 7-day cooldown before resubmission.
+        if (existing?.status === 'rejected' && Date.now() - Number(existing.updatedAt || existing.createdAt || 0) < 7 * 86400000) {
+          conn.send({ type: 'volunteer_apply_result', ok: false, error: 'cooldown' });
           break;
         }
         const registeredAt = Number(user.registeredAt || 0);
@@ -952,6 +957,11 @@ attachWebSocket(server, (conn, url) => {
         const targetId = Number(msg.userId);
         const application = db.volunteerApplications?.[String(targetId)];
         const decision = String(msg.decision || '');
+        // Reviewers cannot approve, reject, or escalate their own application.
+        if (!Number.isSafeInteger(targetId) || targetId === user.id) {
+          conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'self_review_forbidden' });
+          break;
+        }
         const note = String(msg.note || '').trim().slice(0, 500);
         if (!Number.isSafeInteger(targetId) || !application || application.status !== 'pending' || !['approve_practice', 'escalate', 'reject'].includes(decision)) {
           conn.send({ type: 'volunteer_application_review_result', ok: false, error: 'invalid_review' });
