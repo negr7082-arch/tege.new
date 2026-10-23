@@ -231,6 +231,48 @@ function rateLimited(ip) {
   return list.length > 30;
 }
 
+// Limit repeated password guesses per IP + normalized email without permanently locking an account.
+const loginFailures = new Map(); // key -> { count, windowStartedAt, lockedUntil }
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60_000;
+const LOGIN_FAILURE_LIMIT = 5;
+function loginFailureKey(ip, email) {
+  return String(ip || 'unknown') + ':' + String(email || '').trim().toLowerCase();
+}
+function loginBlocked(ip, email) {
+  const key = loginFailureKey(ip, email);
+  const entry = loginFailures.get(key);
+  if (!entry) return false;
+  const now = Date.now();
+  if (entry.lockedUntil && entry.lockedUntil > now) return true;
+  if (now - entry.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS || (entry.lockedUntil && entry.lockedUntil <= now)) {
+    loginFailures.delete(key);
+  }
+  return false;
+}
+function recordLoginFailure(ip, email) {
+  const key = loginFailureKey(ip, email);
+  const now = Date.now();
+  const previous = loginFailures.get(key);
+  const entry = !previous || now - previous.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS
+    ? { count: 0, windowStartedAt: now, lockedUntil: 0 }
+    : previous;
+  entry.count += 1;
+  if (entry.count >= LOGIN_FAILURE_LIMIT) entry.lockedUntil = now + LOGIN_FAILURE_WINDOW_MS;
+  loginFailures.set(key, entry);
+  // Bound memory if many distinct addresses are submitted.
+  if (loginFailures.size > 50_000) {
+    for (const [storedKey, storedEntry] of loginFailures) {
+      if (now - storedEntry.windowStartedAt >= LOGIN_FAILURE_WINDOW_MS || storedEntry.lockedUntil <= now) {
+        loginFailures.delete(storedKey);
+      }
+      if (loginFailures.size <= 40_000) break;
+    }
+  }
+}
+function clearLoginFailures(ip, email) {
+  loginFailures.delete(loginFailureKey(ip, email));
+}
+
 // Behind Render's proxy the socket address is the proxy itself, so use the forwarded client address.
 function clientIp(req) {
   const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -379,8 +421,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/login') {
-      const user = findByEmail(body.email);
-      if (!user || !checkPassword(user, String(body.password || ''))) return fail(401, 'bad_credentials');
+      const email = String(body.email || '').trim().toLowerCase();
+      if (loginBlocked(ip, email)) return fail(429, 'too_many_requests');
+      const user = findByEmail(email);
+      if (!user || !checkPassword(user, String(body.password || ''))) {
+        recordLoginFailure(ip, email);
+        return fail(401, 'bad_credentials');
+      }
+      clearLoginFailures(ip, email);
       if (user.cloudPasswordHash && user.cloudPasswordSalt) {
         const challenge = crypto.randomBytes(32).toString('hex');
         twoFactorChallenges.set(challenge, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
@@ -497,8 +545,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/password') {
       const user = userFromToken(body.token);
       if (!user) return fail(401, 'bad_token');
+      const currentPassword = String(body.currentPassword || '');
+      if (!currentPassword || !checkPassword(user, currentPassword)) return fail(401, 'bad_credentials');
       const pw = String(body.newPassword || '');
-      if (pw.length < 7) return fail(400, 'short_password');
+      if (pw.length < 7 || pw.length > 256) return fail(400, 'short_password');
       Object.assign(user, hashPassword(pw));
       // sign out all other sessions of this user
       for (const [t, id] of Object.entries(db.tokens)) if (id === user.id && t !== body.token) { delete db.tokens[t]; delete db.sessions[t]; const sockets = sessionConnections.get(t); if (sockets) for (const conn of [...sockets]) { try { conn.send({ type: 'auth_error' }); conn.close(4001); } catch {} } sessionConnections.delete(t); }
