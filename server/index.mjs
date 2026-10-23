@@ -390,7 +390,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req, 10000);
       const requester = userFromToken(body.token);
       const ownerId = Number.parseInt(process.env.TEGE_OWNER_USER_ID || '', 10);
-      if (!requester || !Number.isSafeInteger(ownerId) || ownerId <= 0 || requester.id !== ownerId) {
+      if (!requester || (!Number.isSafeInteger(ownerId) || ownerId <= 0 || requester.id !== ownerId) && requester.securityLogsAccess !== true) {
         return fail(403, 'forbidden');
       }
       const targetId = body.userId == null ? null : Number(body.userId);
@@ -399,6 +399,9 @@ const server = http.createServer(async (req, res) => {
         .filter((event) => targetId == null || event.userId === targetId)
         .slice(-limit)
         .reverse();
+      db.securityLoginLogs ||= [];
+      db.securityLoginLogs.push({ id: crypto.randomBytes(12).toString('hex'), timestamp: Date.now(), userId: requester.id, username: requester.username, ip: clientIp(req), method: 'security_logs_view', outcome: 'success', targetUserId: targetId });
+      save();
       return reply(200, { ok: true, logs });
     }
     if (req.method !== 'POST') return fail(405, 'method');
@@ -944,6 +947,23 @@ attachWebSocket(server, (conn, url) => {
         const target = db.users[String(targetId)];
         if (target) broadcast({ type: 'user_upsert', user: publicUser(target) });
         conn.send({ type: 'volunteer_application_review_result', ok: true, userId: targetId, status: application.status });
+        break;
+      }
+
+      case 'security_logs_access_update': {
+        if (!isOwner(user)) {
+          conn.send({ type: 'security_logs_access_update_result', ok: false, error: 'forbidden' });
+          break;
+        }
+        const targetId = Number(msg.userId);
+        const target = db.users[String(targetId)];
+        if (!Number.isSafeInteger(targetId) || !target || typeof msg.enabled !== 'boolean') {
+          conn.send({ type: 'security_logs_access_update_result', ok: false, error: 'invalid_input' });
+          break;
+        }
+        target.securityLogsAccess = msg.enabled;
+        save();
+        conn.send({ type: 'security_logs_access_update_result', ok: true, userId: targetId, enabled: target.securityLogsAccess });
         break;
       }
 
