@@ -12,7 +12,8 @@ const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const post = async (p, body) => (await fetch(base + p, { method: 'POST', body: JSON.stringify(body) })).json();
+const post = async (p, body, headers = {}) =>
+  (await fetch(base + p, { method: 'POST', headers, body: JSON.stringify(body) })).json();
 
 class Client {
   constructor(token) {
@@ -154,9 +155,13 @@ try {
   // Failed-login throttling should not alter the existing account directory or sessions tests.
   await post('/api/register', { email: 'locked@x.io', password: 'password3', name: 'Locked' });
   for (let i = 0; i < 5; i++) {
-    assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'wrong-password' })).error, 'bad_credentials');
+    // Simulate a client trying to spoof X-Forwarded-For before Render appends the observed IP.
+    const headers = { 'x-forwarded-for': '198.51.100.' + (i + 1) + ', 127.0.0.1' };
+    assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'wrong-password' }, headers)).error, 'bad_credentials');
   }
-  assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'password3' })).error, 'too_many_requests');
+  assert.equal((await post('/api/login', { email: 'locked@x.io', password: 'password3', }, {
+    'x-forwarded-for': '203.0.113.88, 127.0.0.1'
+  })).error, 'too_many_requests');
   assert.equal((await post('/api/login', { email: 'alice@x.io', password: 'password1' })).ok, true);
   console.log('✓ repeated failed logins throttled per IP + email');
 
