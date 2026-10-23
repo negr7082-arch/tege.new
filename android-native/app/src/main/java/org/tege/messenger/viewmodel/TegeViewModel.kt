@@ -1050,6 +1050,53 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
         return socket.send(payload.toString())
     }
 
+    fun createGroup(name: String, description: String = "", isPublic: Boolean = true): Boolean {
+        val socket = activeSocket ?: run {
+            _messageError.value = "Нет соединения с сервером"
+            return false
+        }
+        val cleanName = name.trim().take(80)
+        if (cleanName.isBlank()) {
+            _messageError.value = "Укажите название группы"
+            return false
+        }
+        val id = System.currentTimeMillis()
+        return socket.send(JSONObject()
+            .put("type", "register_group")
+            .put("group", JSONObject()
+                .put("id", id)
+                .put("type", "group")
+                .put("name", cleanName)
+                .put("description", description.trim().take(500))
+                .put("isPublic", isPublic)
+                .put("ownerId", _currentAccount.value?.id ?: 0L)
+                .put("membersCount", 1))
+            .toString())
+    }
+
+    fun createChannel(name: String, description: String = "", isPublic: Boolean = true): Boolean {
+        val socket = activeSocket ?: run {
+            _messageError.value = "Нет соединения с сервером"
+            return false
+        }
+        val cleanName = name.trim().take(80)
+        if (cleanName.isBlank()) {
+            _messageError.value = "Укажите название канала"
+            return false
+        }
+        val id = System.currentTimeMillis()
+        return socket.send(JSONObject()
+            .put("type", "register_channel")
+            .put("channel", JSONObject()
+                .put("id", id)
+                .put("name", cleanName)
+                .put("description", description.trim().take(500))
+                .put("isPublic", isPublic)
+                .put("ownerId", _currentAccount.value?.id ?: 0L)
+                .put("subscribersCount", 1))
+            .toString())
+    }
+
     fun updateCommunityPermissions(chatId: Long, chatType: ChatType, sendMessages: Boolean, sendMedia: Boolean, addMembers: Boolean, createTopics: Boolean, pinMessages: Boolean): Boolean {
         val socket = activeSocket ?: return false
         val type = if (chatType == ChatType.CHANNEL) "channel" else "group"
