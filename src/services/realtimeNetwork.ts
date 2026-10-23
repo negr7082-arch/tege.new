@@ -150,8 +150,8 @@ class RealtimeNetworkService {
     return { ok: Boolean(r.ok), error: r.error };
   }
 
-  public async changePassword(token: string, newPassword: string): Promise<boolean> {
-    const r = await this.api('/api/password', { token, newPassword });
+  public async changePassword(token: string, currentPassword: string, newPassword: string): Promise<boolean> {
+    const r = await this.api('/api/password', { token, currentPassword, newPassword });
     return Boolean(r.ok);
   }
 
