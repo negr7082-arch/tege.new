@@ -141,7 +141,10 @@ try {
   assert.equal(del.payload.targetId, 8001); assert.equal(del.payload.fromUser.id, a.id, 'author must come from token');
   ca.send({ type: 'send', payload: { id: 11, chatId: b.id, chatType: 'direct', toUserId: b.id, action: 'delete', targetId: 'abc', message: { id: 1 } } });
   assert.equal((await ca.waitFor((m) => m.type === 'send_result' && m.id === 11)).ok, false);
-  console.log('✓ delete / edit relayed to the other side, bad action rejected');
+  // A recipient must not be able to edit/delete the sender's message.
+  cb3.send({ type: 'send', payload: { id: 12, chatId: a.id, chatType: 'direct', toUserId: a.id, action: 'edit', targetId: 8001, message: { id: 8001, text: 'hijacked', time: '' } } });
+  assert.equal((await cb3.waitFor((m) => m.type === 'send_result' && m.id === 12)).reason, 'not_message_author');
+  console.log('✓ delete / edit relayed to the other side, bad action rejected, foreign edits blocked');
 
   // presence off + profile
   ca.send({ type: 'profile', user: { name: 'Alice A.', bio: 'new bio' } });
