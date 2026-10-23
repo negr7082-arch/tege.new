@@ -469,7 +469,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                         description = item.optString("description"),
                         avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
                         membersCount = item.optInt("membersCount", 1),
-                        isOwner = ownerId == selfId
+                        isOwner = ownerId == selfId,
+                        isAdmin = (item.optJSONArray("admins") ?: JSONArray()).let { admins -> (0 until admins.length()).any { admins.optJSONObject(it)?.optLong("id") == selfId } }
                     )
                     _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
                 }
@@ -501,7 +502,8 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     description = item.optString("description"),
                     avatarUri = item.optString("avatarUri").takeIf { it.isNotBlank() },
                     membersCount = item.optInt("membersCount", 1),
-                    isOwner = item.optLong("ownerId") == _currentAccount.value?.id
+                    isOwner = item.optLong("ownerId") == _currentAccount.value?.id,
+                    isAdmin = (item.optJSONArray("admins") ?: JSONArray()).let { admins -> (0 until admins.length()).any { admins.optJSONObject(it)?.optLong("id") == _currentAccount.value?.id } }
                 )
                 _chats.value = (_chats.value.filterNot { it.id == id } + groupChat)
             }
