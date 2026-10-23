@@ -693,8 +693,10 @@ attachWebSocket(server, (conn, url) => {
         if (typeof p.bio === 'string') user.bio = p.bio.slice(0, 300);
         if (typeof p.phone === 'string') user.phone = p.phone.slice(0, 32);
         if (typeof p.country === 'string') user.country = p.country.slice(0, 64);
-        if ('avatarUri' in p && typeof p.avatarUri === 'string' && p.avatarUri.startsWith('/profile-media/')) user.avatarUri = p.avatarUri;
-        if ('bannerUri' in p && typeof p.bannerUri === 'string' && p.bannerUri.startsWith('/profile-media/')) user.bannerUri = p.bannerUri;
+        if ('avatarUri' in p && p.avatarUri === null) user.avatarUri = null;
+        else if (typeof p.avatarUri === 'string' && p.avatarUri.startsWith('/profile-media/')) user.avatarUri = p.avatarUri;
+        if ('bannerUri' in p && p.bannerUri === null) user.bannerUri = null;
+        else if (typeof p.bannerUri === 'string' && p.bannerUri.startsWith('/profile-media/')) user.bannerUri = p.bannerUri;
         if (typeof p.themeColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.themeColor)) user.themeColor = p.themeColor.toUpperCase();
         if (typeof p.fontFamily === 'string' && ['sans-serif', 'serif', 'monospace', 'cursive'].includes(p.fontFamily)) user.fontFamily = p.fontFamily;
         if (typeof p.username === 'string' && normUsername(p.username) !== normUsername(user.username)) {
