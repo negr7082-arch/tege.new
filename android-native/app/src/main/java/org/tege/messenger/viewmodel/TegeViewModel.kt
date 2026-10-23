@@ -938,7 +938,7 @@ class TegeViewModel(application: Application) : AndroidViewModel(application) {
                     .put("manageMessages", true)
                     .put("manageMembers", true)
                     .put("manageInfo", false)
-                    .put("manageAdmins", false))
+                    .put("manageAdmins", false)))
         }
         return socket.send(JSONObject()
             .put("type", "community_update")
