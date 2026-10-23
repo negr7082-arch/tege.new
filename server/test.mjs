@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tege-test-'));
 const srv = spawn('node', [new URL('./index.mjs', import.meta.url).pathname], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_EMAILS: 'volunteer@x.io', TEGE_SENIOR_VOLUNTEER_EMAILS: 'senior@x.io' }, stdio: 'inherit'
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, TEGE_VOLUNTEER_USER_IDS: '1122103', TEGE_SENIOR_VOLUNTEER_USER_IDS: '1122105', TEGE_HEAD_VOLUNTEER_USER_IDS: '1122102', TEGE_VERIFIED_USER_IDS: '1122101' }, stdio: 'inherit'
 });
 const base = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,6 +42,8 @@ try {
   const a = (await post('/api/register', { email: 'alice@x.io', password: 'password1', name: 'Alice', username: '@alice' })).user;
   const b = (await post('/api/register', { email: 'bob@x.io', password: 'password2', name: 'Bob', username: 'bob' })).user;
   assert.equal(a.id, 1122101); assert.equal(b.id, 1122102); assert.equal(b.username, '@bob');
+  assert.equal(a.verified, true, 'verified status must come from the server ID allowlist');
+  assert.equal(b.role, 'head_volunteer', 'head volunteer role must come from the server ID allowlist');
   assert.equal((await post('/api/register', { email: 'ALICE@x.io', password: 'password1', name: 'x' })).error, 'email_taken');
   assert.equal((await post('/api/register', { email: 'c@x.io', password: 'password1', name: 'x', username: '@Alice' })).error, 'username_taken');
   assert.equal((await post('/api/username', { username: 'ALICE' })).available, false);
@@ -183,13 +185,14 @@ try {
   await cb3.waitFor((m) => m.type === 'presence' && m.userId === a.id && m.online === false);
   console.log('✓ profile update broadcast, offline presence');
 
-  // Volunteer assignment uses a private server allowlist; public directory profiles never expose email.
+  // Volunteer assignment uses a private numeric-ID server allowlist; public directory profiles never expose email.
   const volunteer = (await post('/api/register', { email: 'volunteer@x.io', password: 'password4', name: 'Volunteer', username: '@volunteer' })).user;
   assert.equal(volunteer.role, 'volunteer');
   const cv = new Client(volunteer.token); await cv.ready;
   const volunteerSnapshot = await cv.waitFor((m) => m.type === 'snapshot');
   const publicVolunteer = volunteerSnapshot.users.find((u) => u.id === volunteer.id);
   assert.equal(publicVolunteer.role, 'volunteer');
+  assert.equal(publicVolunteer.verified, false);
   assert.equal(Object.hasOwn(publicVolunteer, 'email'), false, 'public directory must not expose email');
   cv.ws.close();
   console.log('✓ volunteer role is assigned privately and public email is hidden');
@@ -216,6 +219,9 @@ try {
   assert.ok(queue.mutedUsers.some((u) => u.id === spammer.id));
   const senior = (await post('/api/register', { email: 'senior@x.io', password: 'password5', name: 'Senior', username: '@senior' })).user;
   assert.equal(senior.role, 'senior_volunteer');
+  const spoofed = (await post('/api/register', { email: 'spoof@x.io', password: 'password6', name: 'Spoof', username: '@spoof', role: 'head_volunteer', verified: true })).user;
+  assert.equal(spoofed.role, 'user', 'client-supplied role must be ignored');
+  assert.equal(spoofed.verified, false, 'client-supplied verification must be ignored');
 
   const allowedUnmute = await post('/api/security/moderation/action', { token: senior.token, targetUserId: spammer.id, action: 'unmute' });
   assert.equal(allowedUnmute.ok, true);
