@@ -1299,9 +1299,14 @@ attachWebSocket(server, (conn, url) => {
         if (typeof p.country === 'string') user.country = p.country.slice(0, 64);
         if ('avatarUri' in p) user.avatarUri = p.avatarUri || null;
         if (typeof p.username === 'string' && normUsername(p.username) !== normUsername(user.username)) {
-          const other = findByUsername(p.username);
+          const nextUsername = normUsername(p.username);
+          if (!USERNAME_RE.test(nextUsername)) {
+            conn.send({ type: 'profile_result', ok: false, error: 'bad_username' });
+            break;
+          }
+          const other = findByUsername(nextUsername);
           if (other && other.id !== user.id) conn.send({ type: 'profile_result', ok: false, error: 'username_taken' });
-          else user.username = normUsername(p.username);
+          else user.username = nextUsername;
         }
         save();
         broadcast({ type: 'user_upsert', user: publicUser(user) });
