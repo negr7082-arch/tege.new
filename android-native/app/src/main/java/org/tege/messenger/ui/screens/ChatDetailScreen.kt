@@ -900,6 +900,7 @@ fun MessageBubble(
     }
 
 
+}
 
 @Composable
 fun PollWidget(
